@@ -4,6 +4,7 @@ import json
 import os
 import cv2
 import numpy as np
+import pandas as pd
 from pyzbar.pyzbar import decode
 import qrcode
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
@@ -16,7 +17,6 @@ MQTT_USER = "saul_mqtt"
 MQTT_PASS = "135700/Saul"
 TOPIC = "almacen/escaneo"
 
-# --- FUNCIONES DE PERSISTENCIA ---
 def cargar_db():
     if os.path.exists(DB_FILE):
         with open(DB_FILE, 'r') as f:
@@ -27,7 +27,6 @@ def guardar_db(db):
     with open(DB_FILE, 'w') as f:
         json.dump(db, f, indent=4)
 
-# Inicializar Base de Datos en la sesión
 if 'db' not in st.session_state:
     st.session_state.db = cargar_db()
 
@@ -36,48 +35,72 @@ if 'mqtt_client' not in st.session_state:
     client = mqtt.Client()
     client.username_pw_set(MQTT_USER, MQTT_PASS)
     client.tls_set()
-    client.connect(MQTT_HOST, MQTT_PORT)
-    client.loop_start()
-    st.session_state.mqtt_client = client
+    try:
+        client.connect(MQTT_HOST, MQTT_PORT)
+        client.loop_start()
+        st.session_state.mqtt_client = client
+    except Exception as e:
+        st.error(f"Error MQTT: {e}")
 
 # --- INTERFAZ ---
 st.set_page_config(page_title="VEX Paint Shop WMS", layout="wide")
-
-# Título con estilo industrial
 st.markdown("<h1 style='text-align: center; color: #FF4B4B;'>🏗️ VEX Central Control - Nave de Pintura</h1>", unsafe_allow_html=True)
 
 tabs = st.tabs(["📊 Monitor y Croquis", "📷 Escáner de Campo", "📁 Maestro de Artículos"])
 
-# --- PESTAÑA 1: MONITOR Y CROQUIS ---
+# --- PESTAÑA 1: MONITOR Y CROQUIS (TIPO AJEDREZ) ---
 with tabs[0]:
-    st.header("Mapa en Tiempo Real de la Nave")
+    st.header("Mapa Matricial de Racks")
     
-    # Dibujamos los Racks como columnas
-    col_map = st.columns(5)
-    racks_visual = ["POS_1", "POS_2", "POS_3", "POS_4", "POS_5"]
+    col_sel1, col_sel2 = st.columns(2)
+    with col_sel1:
+        rack_seleccionado = st.selectbox("Visualizar Rack:", ["POS_1", "POS_2", "POS_3", "POS_4", "POS_5"])
+    with col_sel2:
+        piso_seleccionado = st.selectbox("Visualizar Piso:", [1, 2, 3, 4, 5])
+        
+    st.markdown(f"### Vista de {rack_seleccionado} - Piso {piso_seleccionado}")
+    st.write("*(Matriz 3 Filas x 4 Columnas)*")
     
-    for i, rack_id in enumerate(racks_visual):
-        with col_map[i]:
-            # Filtrar materiales en este rack
-            materiales_aqui = [v['nombre'] for k, v in st.session_state.db.items() if v.get('rack') == rack_id and v.get('estado') != "CONGELADO"]
+    # Dibujar la cuadrícula (Ajedrez)
+    for fila in range(1, 4):
+        cols = st.columns(4)
+        for columna in range(1, 5):
+            # Buscar si hay un material en esta coordenada exacta
+            material_encontrado = None
+            for k, v in st.session_state.db.items():
+                # get() con valores por defecto por si la base de datos es vieja
+                if v.get('rack') == rack_seleccionado and v.get('piso', 1) == piso_seleccionado and v.get('fila', 1) == fila and v.get('columna', 1) == columna:
+                    material_encontrado = v
+                    break
             
-            color = "#28a745" if materiales_aqui else "#6c757d"
-            st.markdown(f"""
-                <div style="background-color: {color}; padding: 20px; border-radius: 10px; text-align: center; color: white;">
-                    <h3>Rack {i+1}</h3>
-                    <p>{len(materiales_aqui)} Items</p>
-                </div>
-            """, unsafe_allow_html=True)
-            
-            for m in materiales_aqui:
-                st.caption(f"📦 {m}")
+            with cols[columna - 1]:
+                if material_encontrado:
+                    if material_encontrado.get('estado') == "CONGELADO":
+                        bg_color = "#f8d7da" # Rojo claro
+                        border = "red"
+                    else:
+                        bg_color = "#d4edda" # Verde claro
+                        border = "green"
+                        
+                    st.markdown(f"""
+                        <div style='background-color: {bg_color}; padding: 15px; border: 2px solid {border}; border-radius: 5px; text-align: center; height: 100px;'>
+                            <strong>📦 {material_encontrado['nombre']}</strong><br>
+                            <small>{material_encontrado.get('estado', 'ACTIVO')}</small>
+                        </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown(f"""
+                        <div style='background-color: #f8f9fa; padding: 15px; border: 1px dashed gray; border-radius: 5px; text-align: center; height: 100px;'>
+                            <span style='color: gray;'>F{fila}-C{columna}<br>Vacío</span>
+                        </div>
+                    """, unsafe_allow_html=True)
+        st.write("") # Espaciador entre filas
 
 # --- PESTAÑA 2: ESCÁNER DE CAMPO ---
 with tabs[1]:
     st.subheader("Captura de Material (Uso en Celular/Tablet)")
     foto = st.camera_input("Escanear QR del Pallet")
     
-    sku_detectado = ""
     if foto:
         file_bytes = np.asarray(bytearray(foto.read()), dtype=np.uint8)
         img = cv2.imdecode(file_bytes, 1)
@@ -90,28 +113,31 @@ with tabs[1]:
                 if item.get('estado') == "CONGELADO":
                     st.error(f"⚠️ EL MATERIAL {sku_detectado} ESTÁ CONGELADO. NO MOVER.")
                 else:
-                    st.success(f"Asignando {item['nombre']} a {item['rack']}")
+                    coord = f"Piso {item.get('piso',1)}, Fila {item.get('fila',1)}, Col {item.get('columna',1)}"
+                    st.success(f"Asignando **{item['nombre']}** a **{item['rack']}** ({coord})")
+                    # Enviar orden al ESP32 (Hardware Macro)
                     st.session_state.mqtt_client.publish(TOPIC, item['rack'])
             else:
                 st.warning("Material nuevo detectado. Regístralo en la pestaña 'Maestro'.")
 
-# --- PESTAÑA 3: MAESTRO DE ARTÍCULOS (CRUD) ---
+# --- PESTAÑA 3: MAESTRO DE ARTÍCULOS (CRUD CORREGIDO) ---
 with tabs[2]:
-    st.header("Gestión del Inventario (SAP B1 Style)")
+    st.header("Gestión del Inventario")
     
-    # Convertir DB a lista para la tabla
     data_tabla = []
     for k, v in st.session_state.db.items():
         data_tabla.append({"SKU": k, **v})
     
     if data_tabla:
-        gb = GridOptionsBuilder.from_dataframe(np.array(data_tabla)) # Simplificado para el ejemplo
+        df = pd.DataFrame(data_tabla) # FIX APLICADO: Ahora sí es un DataFrame
+        
+        gb = GridOptionsBuilder.from_dataframe(df)
         gb.configure_selection('single', use_checkbox=True)
         gridOptions = gb.build()
         
-        st.write("Selecciona un material para editar o congelar:")
+        st.write("Selecciona un material para editar o eliminar:")
         grid_response = AgGrid(
-            data_tabla, 
+            df, 
             gridOptions=gridOptions,
             update_mode=GridUpdateMode.SELECTION_CHANGED,
             theme='streamlit'
@@ -119,9 +145,11 @@ with tabs[2]:
         
         selected = grid_response['selected_rows']
         
-        if selected:
-            sel = selected[0]
+        # Validar si selected no está vacío y es un DataFrame (AgGrid devuelve DataFrame si se selecciona)
+        if isinstance(selected, pd.DataFrame) and not selected.empty:
+            sel = selected.iloc[0].to_dict() # Extraer la primera fila como diccionario
             st.divider()
+            st.write(f"### Editando: {sel['SKU']}")
             col_ed1, col_ed2 = st.columns(2)
             
             with col_ed1:
@@ -141,20 +169,54 @@ with tabs[2]:
                     guardar_db(st.session_state.db)
                     st.rerun()
 
-    # Formulario para NUEVOS materiales (abajo de la tabla)
-    with st.expander("➕ Dar de Alta Nuevo Material"):
+    with st.expander("➕ Dar de Alta Nuevo Material y Asignar Coordenada"):
         with st.form("new_part"):
             new_sku = st.text_input("Nuevo SKU").upper()
             new_name = st.text_input("Descripción")
-            c1, c2, c3 = st.columns(3)
-            with c1: p = st.number_input("Peso (kg)")
-            with c2: v = st.number_input("Volumen (m3)")
-            with c3: r = st.selectbox("Rack Sugerido", ["POS_1", "POS_2", "POS_3", "POS_4", "POS_5"])
+            
+            st.write("Dimensiones, Peso y Ubicación Macro")
+            c1, c2, c3, c4 = st.columns(4)
+            with c1: p = st.number_input("Peso (kg)", min_value=0.0)
+            with c2: l = st.number_input("Largo (cm)", min_value=0.0)
+            with c3: a = st.number_input("Ancho (cm)", min_value=0.0)
+            with c4: h = st.number_input("Alto (cm)", min_value=0.0)
+            
+            st.write("Coordenadas Exactas (Micro)")
+            c_p, c_f, c_c = st.columns(3)
+            with c_p: piso = st.selectbox("Piso", [1, 2, 3, 4, 5])
+            with c_f: fila = st.selectbox("Fila", [1, 2, 3])
+            with c_c: columna = st.selectbox("Columna", [1, 2, 3, 4])
             
             if st.form_submit_button("Registrar y Generar QR"):
-                st.session_state.db[new_sku] = {"nombre": new_name, "peso": p, "volumen": v, "rack": r, "estado": "ACTIVO"}
-                guardar_db(st.session_state.db)
-                qr_img = qrcode.make(new_sku)
-                qr_img.save(f"label_{new_sku}.png")
-                st.image(f"label_{new_sku}.png", width=200)
-                st.success("Registrado.")
+                vol = (l/100) * (a/100) * (h/100)
+                
+                # Asignación Macro (Rack general)
+                if p >= 200 or vol > 2.0:
+                    r = "POS_4"
+                elif p >= 50 or vol > 1.0:
+                    r = "POS_3"
+                elif vol < 0.5 and p < 20:
+                    r = "POS_1"
+                else:
+                    r = "POS_2"
+                
+                # Validar que la coordenada esté vacía
+                ocupado = False
+                for v in st.session_state.db.values():
+                    if v.get('rack') == r and v.get('piso') == piso and v.get('fila') == fila and v.get('columna') == columna:
+                        ocupado = True
+                        break
+                
+                if ocupado:
+                    st.error(f"La coordenada Piso {piso}, Fila {fila}, Columna {columna} en el Rack {r} ya está ocupada.")
+                else:
+                    st.session_state.db[new_sku] = {
+                        "nombre": new_name, "peso": p, "volumen": vol, "rack": r, 
+                        "piso": piso, "fila": fila, "columna": columna, "estado": "ACTIVO"
+                    }
+                    guardar_db(st.session_state.db)
+                    
+                    qr_img = qrcode.make(new_sku)
+                    qr_img.save(f"label_{new_sku}.png")
+                    st.image(f"label_{new_sku}.png", width=200)
+                    st.success(f"Registrado en {r} (P{piso}-F{fila}-C{columna}).")
