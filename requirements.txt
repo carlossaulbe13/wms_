@@ -1,0 +1,6 @@
+streamlit
+paho-mqtt
+opencv-python-headless
+pyzbar
+qrcode
+pillow
