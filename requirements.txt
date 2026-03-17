@@ -5,3 +5,4 @@ pyzbar
 qrcode
 pillow
 streamlit-aggrid
+pandas
