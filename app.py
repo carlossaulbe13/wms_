@@ -43,10 +43,10 @@ if 'mqtt_client' not in st.session_state:
         st.error(f"Error MQTT: {e}")
 
 # --- INTERFAZ ---
-st.set_page_config(page_title="VEX Paint Shop WMS", layout="wide")
-st.markdown("<h1 style='text-align: center; color: #FF4B4B;'>🏗️ VEX Central Control - Nave de Pintura</h1>", unsafe_allow_html=True)
+st.set_page_config(page_title="UMAD WMS", layout="wide")
+st.markdown("<h1 style='text-align: center; color: #FF4B4B;'>UMAD Warehouse Managment Systema</h1>", unsafe_allow_html=True)
 
-tabs = st.tabs(["📊 Monitor y Croquis", "📷 Escáner de Campo", "📁 Maestro de Artículos"])
+tabs = st.tabs(["Monitoreo y Ubicación", "Escáner de Campo", "Maestro de Artículos"])
 
 # --- PESTAÑA 1: MONITOR Y CROQUIS (TIPO AJEDREZ) ---
 with tabs[0]:
@@ -54,12 +54,12 @@ with tabs[0]:
     
     col_sel1, col_sel2 = st.columns(2)
     with col_sel1:
-        rack_seleccionado = st.selectbox("Visualizar Rack:", ["POS_1", "POS_2", "POS_3", "POS_4", "POS_5"])
+        rack_seleccionado = st.selectbox("Visualizar Rack:", ["RACK_1", "RACK_2", "RACK_3", "RACK_4", "RACK_5"])
     with col_sel2:
         piso_seleccionado = st.selectbox("Visualizar Piso:", [1, 2, 3, 4, 5])
         
     st.markdown(f"### Vista de {rack_seleccionado} - Piso {piso_seleccionado}")
-    st.write("*(Matriz 3 Filas x 4 Columnas)*")
+    st.write("*(Distribución 3x4)*")
     
     # Dibujar la cuadrícula (Ajedrez)
     for fila in range(1, 4):
@@ -68,29 +68,26 @@ with tabs[0]:
             # Buscar si hay un material en esta coordenada exacta
             material_encontrado = None
             for k, v in st.session_state.db.items():
-                # get() con valores por defecto por si la base de datos es vieja
                 if v.get('rack') == rack_seleccionado and v.get('piso', 1) == piso_seleccionado and v.get('fila', 1) == fila and v.get('columna', 1) == columna:
                     material_encontrado = v
                     break
             
             with cols[columna - 1]:
                 if material_encontrado:
-                    if material_encontrado.get('estado') == "CONGELADO":
-                        bg_color = "#f8d7da" # Rojo claro
-                        border = "red"
-                    else:
-                        bg_color = "#d4edda" # Verde claro
-                        border = "green"
-                        
+                    # --- FIX DE LEGIBILIDAD: Fondo verde, texto NEGRO ---
+                    bg_color = "#d4edda" # Verde claro (Bootstrap Success)
+                    text_color = "black" # TEXTO NEGRO PARA MÁXIMO CONTRASTE
+                    
                     st.markdown(f"""
-                        <div style='background-color: {bg_color}; padding: 15px; border: 2px solid {border}; border-radius: 5px; text-align: center; height: 100px;'>
+                        <div style='background-color: {bg_color}; padding: 15px; border-radius: 5px; text-align: center; height: 100px; color: {text_color};'>
                             <strong>📦 {material_encontrado['nombre']}</strong><br>
                             <small>{material_encontrado.get('estado', 'ACTIVO')}</small>
                         </div>
                     """, unsafe_allow_html=True)
                 else:
+                    # Celda Vacía
                     st.markdown(f"""
-                        <div style='background-color: #f8f9fa; padding: 15px; border: 1px dashed gray; border-radius: 5px; text-align: center; height: 100px;'>
+                        <div style='background-color: #f8f9fa; padding: 15px; border-radius: 5px; text-align: center; height: 100px;'>
                             <span style='color: gray;'>F{fila}-C{columna}<br>Vacío</span>
                         </div>
                     """, unsafe_allow_html=True)
@@ -98,8 +95,8 @@ with tabs[0]:
 
 # --- PESTAÑA 2: ESCÁNER DE CAMPO ---
 with tabs[1]:
-    st.subheader("Captura de Material (Uso en Celular/Tablet)")
-    foto = st.camera_input("Escanear QR del Pallet")
+    st.subheader("Captura de Material")
+    foto = st.camera_input("Escanea el código QR:")
     
     if foto:
         file_bytes = np.asarray(bytearray(foto.read()), dtype=np.uint8)
@@ -115,12 +112,12 @@ with tabs[1]:
                 else:
                     coord = f"Piso {item.get('piso',1)}, Fila {item.get('fila',1)}, Col {item.get('columna',1)}"
                     st.success(f"Asignando **{item['nombre']}** a **{item['rack']}** ({coord})")
-                    # Enviar orden al ESP32 (Hardware Macro)
+                    # Enviar orden al ESP32
                     st.session_state.mqtt_client.publish(TOPIC, item['rack'])
             else:
                 st.warning("Material nuevo detectado. Regístralo en la pestaña 'Maestro'.")
 
-# --- PESTAÑA 3: MAESTRO DE ARTÍCULOS (CRUD CORREGIDO) ---
+# --- PESTAÑA 3: MAESTRO DE ARTÍCULOS (CRUD) ---
 with tabs[2]:
     st.header("Gestión del Inventario")
     
@@ -129,7 +126,7 @@ with tabs[2]:
         data_tabla.append({"SKU": k, **v})
     
     if data_tabla:
-        df = pd.DataFrame(data_tabla) # FIX APLICADO: Ahora sí es un DataFrame
+        df = pd.DataFrame(data_tabla)
         
         gb = GridOptionsBuilder.from_dataframe(df)
         gb.configure_selection('single', use_checkbox=True)
@@ -145,9 +142,8 @@ with tabs[2]:
         
         selected = grid_response['selected_rows']
         
-        # Validar si selected no está vacío y es un DataFrame (AgGrid devuelve DataFrame si se selecciona)
-        if isinstance(selected, pd.DataFrame) and not selected.empty:
-            sel = selected.iloc[0].to_dict() # Extraer la primera fila como diccionario
+        if selected:
+            sel = selected[0]
             st.divider()
             st.write(f"### Editando: {sel['SKU']}")
             col_ed1, col_ed2 = st.columns(2)
@@ -161,15 +157,16 @@ with tabs[2]:
                     st.session_state.db[sel['SKU']]['nombre'] = nuevo_nombre
                     st.session_state.db[sel['SKU']]['estado'] = nuevo_estado
                     guardar_db(st.session_state.db)
-                    st.success("Cambios guardados. Refrescando...")
+                    st.success("Cambios guardados. Actualizando...")
                     st.rerun()
                 
-                if st.button("🗑️ Eliminar Definitivamente"):
+                if st.button("Eliminar Número de parte."):
                     del st.session_state.db[sel['SKU']]
                     guardar_db(st.session_state.db)
                     st.rerun()
 
-    with st.expander("➕ Dar de Alta Nuevo Material y Asignar Coordenada"):
+    # Formulario para NUEVOS materiales
+    with st.expander("➕ Alta de Materiales y Asignación Manual."):
         with st.form("new_part"):
             new_sku = st.text_input("Nuevo SKU").upper()
             new_name = st.text_input("Descripción")
@@ -190,7 +187,7 @@ with tabs[2]:
             if st.form_submit_button("Registrar y Generar QR"):
                 vol = (l/100) * (a/100) * (h/100)
                 
-                # Asignación Macro (Rack general)
+                # Asignación Macro
                 if p >= 200 or vol > 2.0:
                     r = "POS_4"
                 elif p >= 50 or vol > 1.0:
