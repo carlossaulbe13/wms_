@@ -167,7 +167,7 @@ with tabs[2]:
                     guardar_db(st.session_state.db)
                     st.rerun()
 
-    with st.expander("➕ Alta de Materiales y Asignación Manual."):
+    with st.expander("Alta de Materiales y Asignación Manual."):
         with st.form("new_part"):
             new_sku = st.text_input("Nuevo SKU").upper()
             new_name = st.text_input("Descripción")
