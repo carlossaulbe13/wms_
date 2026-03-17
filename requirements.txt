@@ -6,3 +6,5 @@ qrcode
 pillow
 streamlit-aggrid
 pandas
+requests
+streamlit-autorefresh
