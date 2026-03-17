@@ -44,7 +44,7 @@ if 'mqtt_client' not in st.session_state:
 
 # --- INTERFAZ ---
 st.set_page_config(page_title="UMAD WMS", layout="wide")
-st.markdown("<h1 style='text-align: center; color: #FF4B4B;'>UMAD Warehouse Managment Systema</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; color: #FF4B4B;'>UMAD Warehouse Managment System</h1>", unsafe_allow_html=True)
 
 tabs = st.tabs(["Monitoreo y Ubicación", "Escáner de Campo", "Maestro de Artículos"])
 
