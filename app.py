@@ -54,7 +54,8 @@ with tabs[0]:
     
     col_sel1, col_sel2 = st.columns(2)
     with col_sel1:
-        rack_seleccionado = st.selectbox("Visualizar Rack:", ["RACK_1", "RACK_2", "RACK_3", "RACK_4", "RACK_5"])
+        # Mantenemos POS_X para no romper la comunicación con el ESP32
+        rack_seleccionado = st.selectbox("Visualizar Rack:", ["POS_1", "POS_2", "POS_3", "POS_4", "POS_5"])
     with col_sel2:
         piso_seleccionado = st.selectbox("Visualizar Piso:", [1, 2, 3, 4, 5])
         
@@ -65,7 +66,6 @@ with tabs[0]:
     for fila in range(1, 4):
         cols = st.columns(4)
         for columna in range(1, 5):
-            # Buscar si hay un material en esta coordenada exacta
             material_encontrado = None
             for k, v in st.session_state.db.items():
                 if v.get('rack') == rack_seleccionado and v.get('piso', 1) == piso_seleccionado and v.get('fila', 1) == fila and v.get('columna', 1) == columna:
@@ -74,9 +74,8 @@ with tabs[0]:
             
             with cols[columna - 1]:
                 if material_encontrado:
-                    # --- FIX DE LEGIBILIDAD: Fondo verde, texto NEGRO ---
-                    bg_color = "#d4edda" # Verde claro (Bootstrap Success)
-                    text_color = "black" # TEXTO NEGRO PARA MÁXIMO CONTRASTE
+                    bg_color = "#d4edda" 
+                    text_color = "black" 
                     
                     st.markdown(f"""
                         <div style='background-color: {bg_color}; padding: 15px; border-radius: 5px; text-align: center; height: 100px; color: {text_color};'>
@@ -85,13 +84,12 @@ with tabs[0]:
                         </div>
                     """, unsafe_allow_html=True)
                 else:
-                    # Celda Vacía
                     st.markdown(f"""
                         <div style='background-color: #f8f9fa; padding: 15px; border-radius: 5px; text-align: center; height: 100px;'>
                             <span style='color: gray;'>F{fila}-C{columna}<br>Vacío</span>
                         </div>
                     """, unsafe_allow_html=True)
-        st.write("") # Espaciador entre filas
+        st.write("") 
 
 # --- PESTAÑA 2: ESCÁNER DE CAMPO ---
 with tabs[1]:
@@ -112,7 +110,6 @@ with tabs[1]:
                 else:
                     coord = f"Piso {item.get('piso',1)}, Fila {item.get('fila',1)}, Col {item.get('columna',1)}"
                     st.success(f"Asignando **{item['nombre']}** a **{item['rack']}** ({coord})")
-                    # Enviar orden al ESP32
                     st.session_state.mqtt_client.publish(TOPIC, item['rack'])
             else:
                 st.warning("Material nuevo detectado. Regístralo en la pestaña 'Maestro'.")
@@ -142,8 +139,13 @@ with tabs[2]:
         
         selected = grid_response['selected_rows']
         
-        if selected:
-            sel = selected[0]
+        # --- FIX: Validación robusta para Pandas/AgGrid ---
+        if selected is not None and len(selected) > 0:
+            if isinstance(selected, pd.DataFrame):
+                sel = selected.iloc[0].to_dict()
+            else:
+                sel = selected[0]
+                
             st.divider()
             st.write(f"### Editando: {sel['SKU']}")
             col_ed1, col_ed2 = st.columns(2)
@@ -165,7 +167,6 @@ with tabs[2]:
                     guardar_db(st.session_state.db)
                     st.rerun()
 
-    # Formulario para NUEVOS materiales
     with st.expander("➕ Alta de Materiales y Asignación Manual."):
         with st.form("new_part"):
             new_sku = st.text_input("Nuevo SKU").upper()
@@ -187,7 +188,6 @@ with tabs[2]:
             if st.form_submit_button("Registrar y Generar QR"):
                 vol = (l/100) * (a/100) * (h/100)
                 
-                # Asignación Macro
                 if p >= 200 or vol > 2.0:
                     r = "POS_4"
                 elif p >= 50 or vol > 1.0:
@@ -197,7 +197,6 @@ with tabs[2]:
                 else:
                     r = "POS_2"
                 
-                # Validar que la coordenada esté vacía
                 ocupado = False
                 for v in st.session_state.db.values():
                     if v.get('rack') == r and v.get('piso') == piso and v.get('fila') == fila and v.get('columna') == columna:
