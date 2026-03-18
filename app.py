@@ -45,11 +45,13 @@ def obtener_coordenada_libre(db, rack_objetivo):
                     return p, f, c
     return None, None, None
 
-# Inicialización
+# --- INICIALIZACIÓN DE ESTADOS ---
 if 'db' not in st.session_state:
     st.session_state.db = cargar_db()
 if 'sku_pendiente' not in st.session_state:
     st.session_state.sku_pendiente = None
+if 'ultimo_sku_procesado' not in st.session_state:
+    st.session_state.ultimo_sku_procesado = None
 
 # --- CONEXIÓN MQTT ---
 if 'mqtt_client' not in st.session_state:
@@ -90,7 +92,10 @@ with tabs[0]:
                     es_congelado = item.get('estado') == "CONGELADO"
                     bg = "#f8d7da" if es_congelado else "#fff3cd"
                     border = "#dc3545" if es_congelado else "#ffc107"
-                    st.markdown(f"<div style='background-color:{bg}; border:3px solid {border}; border-radius:10px; padding:10px; text-align:center; color:black; min-height:100px;'><b>{item['nombre']}</b><br><small>{item.get('estado','ACTIVO')}</small><br><small>F{fila}-C{col}</small></div>", unsafe_allow_html=True)
+                    # Mostrar la cantidad de piezas en el monitor
+                    piezas = item.get('cantidad', 1)
+                    
+                    st.markdown(f"<div style='background-color:{bg}; border:3px solid {border}; border-radius:10px; padding:10px; text-align:center; color:black; min-height:100px;'><b>{item['nombre']}</b><br><small><b>{piezas} pzas</b> | {item.get('estado','ACTIVO')}</small><br><small>F{fila}-C{col}</small></div>", unsafe_allow_html=True)
                 else:
                     st.markdown(f"<div style='background-color:#d4edda; border:3px solid #28a745; border-radius:10px; padding:10px; text-align:center; color:black; min-height:100px;'><b>DISPONIBLE</b><br><small>F{fila}-C{col}</small></div>", unsafe_allow_html=True)
 
@@ -106,39 +111,56 @@ with tabs[1]:
             if qrs:
                 sku = qrs[0].data.decode('utf-8').strip().upper()
                 
-                # --- LÓGICA DE RECONOCIMIENTO ---
                 if sku in st.session_state.db:
                     item = st.session_state.db[sku]
                     if item.get('estado') == "CONGELADO":
                         st.error(f"⚠️ EL MATERIAL {sku} ESTÁ CONGELADO. NO MOVER.")
                     else:
-                        st.success(f"📦 Material: {item['nombre']} | Ubicación: {item['rack']} (P{item['piso']}-F{item['fila']}-C{col})")
-                        # ACTIVAR HARDWARE AL INSTANTE
-                        st.session_state.mqtt_client.publish(TOPIC, item['rack'])
-                        st.toast(f"Comando {item['rack']} enviado al ESP32", icon="✅")
+                        # Cerrojo para evitar bucle en ESP32
+                        if sku != st.session_state.ultimo_sku_procesado:
+                            st.success(f"📦 Material: {item['nombre']} ({item.get('cantidad', 1)} pzas) | Rack: {item['rack']}")
+                            st.session_state.mqtt_client.publish(TOPIC, item['rack'])
+                            st.toast(f"Comando {item['rack']} enviado al ESP32", icon="✅")
+                            st.session_state.ultimo_sku_procesado = sku
+                        else:
+                            st.info(f"Visualizando: {item['nombre']} en {item['rack']}")
                 else:
                     st.session_state.sku_pendiente = sku
+                    st.session_state.ultimo_sku_procesado = None
                     st.rerun()
+        else:
+            st.session_state.ultimo_sku_procesado = None
 
     else:
-        # Formulario de registro para QR Nuevo
         st.warning(f"QR Nuevo: {st.session_state.sku_pendiente}")
         with st.form("reg_cloud"):
             nom = st.text_input("Descripción")
-            peso = st.number_input("Peso (kg)", 0.0)
-            c1, c2, c3 = st.columns(3)
-            with c1: l = st.number_input("Largo", 0.0)
-            with c2: a = st.number_input("Ancho", 0.0)
-            with c3: h = st.number_input("Alto", 0.0)
             
-            if st.form_submit_button("Registrar y Almacenar"):
+            c_peso, c_cant = st.columns(2)
+            with c_peso: peso = st.number_input("Peso total (kg)", 0.0)
+            with c_cant: cant = st.number_input("Cantidad de piezas", min_value=1, value=1)
+            
+            c1, c2, c3 = st.columns(3)
+            with c1: l = st.number_input("Largo (cm)", 0.0)
+            with c2: a = st.number_input("Ancho (cm)", 0.0)
+            with c3: h = st.number_input("Alto (cm)", 0.0)
+            
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1: submit = st.form_submit_button("Registrar y Almacenar")
+            with col_btn2: cancelar = st.form_submit_button("Cancelar Escaneo")
+            
+            if cancelar:
+                st.session_state.sku_pendiente = None
+                st.rerun()
+                
+            if submit and nom:
                 vol = (l*a*h)/1000000
                 rack = "POS_4" if peso >= 100 or vol > 1.5 else "POS_1"
                 piso, fila, col = obtener_coordenada_libre(st.session_state.db, rack)
                 
                 if piso:
                     st.session_state.db[st.session_state.sku_pendiente] = {
-                        "nombre": nom, "peso": peso, "volumen": vol, "rack": rack, 
+                        "nombre": nom, "peso": peso, "cantidad": cant, "volumen": vol, "rack": rack, 
                         "piso": piso, "fila": fila, "columna": col, "estado": "ACTIVO"
                     }
                     guardar_db(st.session_state.db)
@@ -146,6 +168,8 @@ with tabs[1]:
                     st.session_state.sku_pendiente = None
                     st.success("Registrado en Firebase y Rack activado.")
                     st.rerun()
+                else:
+                    st.error(f"El {rack} está completamente lleno.")
 
 # --- PESTAÑA 3: MAESTRO DE ARTÍCULOS ---
 with tabs[2]:
@@ -162,15 +186,69 @@ with tabs[2]:
         if sel is not None and len(sel) > 0:
             item_sel = sel.iloc[0].to_dict() if isinstance(sel, pd.DataFrame) else sel[0]
             
+            st.divider()
+            st.write(f"### Editando: {item_sel['SKU']}")
+            col_ed1, col_ed2, col_ed3 = st.columns(3)
+            
+            with col_ed1:
+                nuevo_nombre = st.text_input("Nombre", value=item_sel['nombre'])
+            with col_ed2:
+                nueva_cant = st.number_input("Piezas", min_value=1, value=int(item_sel.get('cantidad', 1)))
+            with col_ed3:
+                nuevo_estado = st.selectbox("Estado", ["ACTIVO", "CONGELADO"], index=0 if item_sel.get('estado')=="ACTIVO" else 1)
+            
             col_a, col_b = st.columns(2)
             with col_a:
-                if st.button(f"Congelar/Activar {item_sel['SKU']}"):
-                    nuevo = "CONGELADO" if item_sel['estado'] == "ACTIVO" else "ACTIVO"
-                    db_actual[item_sel['SKU']]['estado'] = nuevo
+                if st.button("Guardar Cambios"):
+                    db_actual[item_sel['SKU']]['nombre'] = nuevo_nombre
+                    db_actual[item_sel['SKU']]['cantidad'] = nueva_cant
+                    db_actual[item_sel['SKU']]['estado'] = nuevo_estado
                     guardar_db(db_actual)
+                    st.success("Cambios guardados.")
                     st.rerun()
             with col_b:
                 if st.button("Eliminar de la Nube"):
                     del db_actual[item_sel['SKU']]
                     guardar_db(db_actual)
                     st.rerun()
+
+    with st.expander("➕ Alta de Materiales y Asignación Manual"):
+        with st.form("new_part_manual"):
+            new_sku = st.text_input("Nuevo SKU (Manual)").upper()
+            new_name = st.text_input("Descripción")
+            
+            c_p, c_c = st.columns(2)
+            with c_p: p = st.number_input("Peso (kg)", min_value=0.0)
+            with c_c: cant_manual = st.number_input("Cantidad de piezas", min_value=1, value=1)
+            
+            c1, c2, c3 = st.columns(3)
+            with c1: l = st.number_input("Largo (cm)", min_value=0.0)
+            with c2: a = st.number_input("Ancho (cm)", min_value=0.0)
+            with c3: h = st.number_input("Alto (cm)", min_value=0.0)
+            
+            generar_qr_fisico = st.checkbox("Generar e imprimir código QR físico", value=True)
+            
+            if st.form_submit_button("Registrar Material"):
+                vol = (l/100) * (a/100) * (h/100)
+                if p >= 200 or vol > 2.0: r = "POS_4"
+                elif p >= 50 or vol > 1.0: r = "POS_3"
+                elif vol < 0.5 and p < 20: r = "POS_1"
+                else: r = "POS_2"
+                
+                piso, fila, columna = obtener_coordenada_libre(st.session_state.db, r)
+                
+                if piso is None:
+                    st.error(f"El {r} está lleno.")
+                else:
+                    st.session_state.db[new_sku] = {
+                        "nombre": new_name, "peso": p, "cantidad": cant_manual, "volumen": vol, "rack": r, 
+                        "piso": piso, "fila": fila, "columna": columna, "estado": "ACTIVO"
+                    }
+                    guardar_db(st.session_state.db)
+                    
+                    if generar_qr_fisico:
+                        qr_img = qrcode.make(new_sku)
+                        qr_img.save(f"label_{new_sku}.png")
+                        st.image(f"label_{new_sku}.png", width=200)
+                        
+                    st.success(f"Registrado en {r} (P{piso}-F{fila}-C{columna}).")
