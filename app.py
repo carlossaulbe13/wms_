@@ -9,6 +9,7 @@ from pyzbar.pyzbar import decode
 import qrcode
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 from streamlit_autorefresh import st_autorefresh
+import queue # NUEVA LIBRERIA PARA MANEJO SEGURO DE HILOS
 
 # --- CONFIGURACION DE NUBE (FIREBASE) ---
 FIREBASE_URL = "https://umad-wms-default-rtdb.firebaseio.com/maestro_articulos.json"
@@ -36,14 +37,16 @@ MQTT_PASS = "135700/Saul"
 TOPIC_PUB = "almacen/escaneo"
 TOPIC_SUB = "almacen/confirmacion"
 
-# --- PUENTE SEGURO ENTRE HILOS PARA MQTT ---
-if 'msg_mqtt_recibido' not in st.session_state:
-    st.session_state.msg_mqtt_recibido = None
+# --- PUENTE SEGURO ENTRE HILOS PARA MQTT (COLA) ---
+if 'mqtt_queue' not in st.session_state:
+    st.session_state.mqtt_queue = queue.Queue()
 
 def on_message(client, userdata, msg):
     payload = msg.payload.decode('utf-8')
     if payload.endswith("_OFF"):
-        st.session_state.msg_mqtt_recibido = payload.replace("_OFF", "")
+        rack_confirmado = payload.replace("_OFF", "")
+        # Metemos el mensaje a la cola de forma segura
+        st.session_state.mqtt_queue.put(rack_confirmado)
 
 def obtener_coordenada_libre(db, rack_objetivo):
     ocupadas = [(v.get('piso'), v.get('fila'), v.get('columna')) for v in db.values() if v.get('rack') == rack_objetivo]
@@ -80,11 +83,12 @@ if 'mqtt_client' not in st.session_state:
     except:
         pass
 
-# --- LOGICA DE ACTUALIZACION DE ESTADO MQTT ---
-if st.session_state.msg_mqtt_recibido:
-    if st.session_state.confirmacion_pendiente == st.session_state.msg_mqtt_recibido:
+# --- LOGICA DE ACTUALIZACION DE ESTADO MQTT (HILO PRINCIPAL) ---
+# Extraemos los mensajes de la cola de forma segura
+while not st.session_state.mqtt_queue.empty():
+    rack_recibido = st.session_state.mqtt_queue.get()
+    if st.session_state.confirmacion_pendiente == rack_recibido:
         st.session_state.confirmacion_pendiente = None
-    st.session_state.msg_mqtt_recibido = None 
 
 # --- INTERFAZ UMAD ---
 st.set_page_config(page_title="UMAD WMS Cloud", layout="wide")
@@ -109,7 +113,6 @@ with tabs[0]:
     st.header("Mapa de Racks y Buscador")
     busqueda = st.text_input("Buscar Material por Nombre, SKU o QR:", "").strip().upper()
 
-    # LOGICA DE AUTO-NAVEGACION
     default_rack = st.session_state.get('last_rack', "POS_1")
     default_piso = st.session_state.get('last_piso', 1)
 
@@ -118,7 +121,7 @@ with tabs[0]:
             if busqueda in v['nombre'].upper() or busqueda in v.get('sku_base', '').upper() or busqueda in k.upper():
                 default_rack = v.get('rack', default_rack)
                 default_piso = v.get('piso', default_piso)
-                break # Detiene la busqueda en el primer resultado para navegar
+                break 
 
     racks_list = ["POS_1", "POS_2", "POS_3", "POS_4", "POS_5"]
     pisos_list = [1, 2, 3, 4, 5]
@@ -129,11 +132,9 @@ with tabs[0]:
     with col2:
         p_sel = st.selectbox("Piso:", pisos_list, index=pisos_list.index(default_piso) if default_piso in pisos_list else 0)
 
-    # Guardamos la seleccion manual para que no se mueva sin motivo
     st.session_state.last_rack = r_sel
     st.session_state.last_piso = p_sel
 
-    # ESTILOS CSS ESTANDARIZADOS Y AUMENTADOS
     style_base = "border-radius:10px; padding:10px; text-align:center; color:black; height:150px; display:flex; flex-direction:column; justify-content:center; align-items:center; overflow:hidden;"
 
     for fila in range(1, 4):
@@ -161,13 +162,11 @@ with tabs[0]:
                     piezas = item.get('cantidad', 1)
                     sku_base = item.get('sku_base', 'N/A')
                     
-                    # Celda Ocupada (Fuente mas grande)
                     div_html = f"<div style='background-color:{bg}; border:3px solid {border}; {style_base}'>"
                     div_html += f"<b style='font-size: 16px; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%;'>{item['nombre']}</b>"
                     div_html += f"<small style='font-size: 13px; line-height: 1.3;'>SKU: {sku_base}<br><b>{piezas} pzas</b> | {item.get('estado','ACTIVO')}<br>F{fila}-C{col}</small></div>"
                     st.markdown(div_html, unsafe_allow_html=True)
                 else:
-                    # Celda Disponible
                     div_html = f"<div style='background-color:#d4edda; border:3px solid #28a745; {style_base}'>"
                     div_html += f"<b style='font-size: 14px;'>DISPONIBLE</b><br><small style='font-size: 13px;'>F{fila}-C{col}</small></div>"
                     st.markdown(div_html, unsafe_allow_html=True)
