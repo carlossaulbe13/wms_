@@ -10,7 +10,7 @@ import qrcode
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 from streamlit_autorefresh import st_autorefresh
 
-# --- CONFIGURACIÓN DE NUBE (FIREBASE) ---
+# --- CONFIGURACION DE NUBE (FIREBASE) ---
 FIREBASE_URL = "https://umad-wms-default-rtdb.firebaseio.com/maestro_articulos.json"
 
 def cargar_db():
@@ -19,16 +19,16 @@ def cargar_db():
         if res.status_code == 200 and res.json() is not None:
             return res.json()
     except Exception as e:
-        st.error(f"Error de conexión con Firebase: {e}")
+        st.error(f"ERROR DE CONEXION CON FIREBASE: {e}")
     return {}
 
 def guardar_db(db):
     try:
         requests.put(FIREBASE_URL, json=db)
     except Exception as e:
-        st.error(f"Error al guardar en Firebase: {e}")
+        st.error(f"ERROR AL GUARDAR EN FIREBASE: {e}")
 
-# --- CONFIGURACIÓN MQTT ---
+# --- CONFIGURACION MQTT ---
 MQTT_HOST = "03109e9f1c90423e81ffa63071592873.s1.eu.hivemq.cloud"
 MQTT_PORT = 8883
 MQTT_USER = "saul_mqtt"
@@ -54,7 +54,7 @@ def obtener_coordenada_libre(db, rack_objetivo):
                     return p, f, c
     return None, None, None
 
-# --- INICIALIZACIÓN DE ESTADOS ---
+# --- INICIALIZACION DE ESTADOS ---
 if 'db' not in st.session_state:
     st.session_state.db = cargar_db()
 if 'sku_pendiente' not in st.session_state:
@@ -66,7 +66,7 @@ if 'confirmacion_pendiente' not in st.session_state:
 if 'qr_generado' not in st.session_state:
     st.session_state.qr_generado = None
 
-# --- CONEXIÓN MQTT ---
+# --- CONEXION MQTT ---
 if 'mqtt_client' not in st.session_state:
     client = mqtt.Client()
     client.username_pw_set(MQTT_USER, MQTT_PASS)
@@ -80,7 +80,7 @@ if 'mqtt_client' not in st.session_state:
     except:
         pass
 
-# --- LÓGICA DE ACTUALIZACIÓN DE ESTADO MQTT ---
+# --- LOGICA DE ACTUALIZACION DE ESTADO MQTT ---
 if st.session_state.msg_mqtt_recibido:
     if st.session_state.confirmacion_pendiente == st.session_state.msg_mqtt_recibido:
         st.session_state.confirmacion_pendiente = None
@@ -90,10 +90,10 @@ if st.session_state.msg_mqtt_recibido:
 st.set_page_config(page_title="UMAD WMS Cloud", layout="wide")
 st.markdown("<h1 style='text-align: center; color: #FF4B4B;'>UMAD Warehouse Management System</h1>", unsafe_allow_html=True)
 
-# --- PANEL GLOBAL DE CONFIRMACIÓN ---
+# --- PANEL GLOBAL DE CONFIRMACION ---
 if st.session_state.confirmacion_pendiente:
-    st.warning(f"🔔 **ACCIÓN REQUERIDA:** El LED del Rack **{st.session_state.confirmacion_pendiente}** está ENCENDIDO. Confirma físicamente con el botón o hazlo manual aquí:")
-    if st.button(f"✅ Confirmar Manualmente (Apagar LED de {st.session_state.confirmacion_pendiente})"):
+    st.warning(f"ACCION REQUERIDA: El LED del Rack {st.session_state.confirmacion_pendiente} esta ENCENDIDO. Confirma fisicamente con el boton o hazlo manual aqui:")
+    if st.button(f"[ Confirmar Manualmente - Apagar LED de {st.session_state.confirmacion_pendiente} ]"):
         st.session_state.mqtt_client.publish(TOPIC_PUB, f"{st.session_state.confirmacion_pendiente}_OFF")
         st.session_state.confirmacion_pendiente = None
         st.rerun()
@@ -101,21 +101,39 @@ if st.session_state.confirmacion_pendiente:
 
 tabs = st.tabs(["Monitoreo y Ubicación", "Escáner de Campo", "Maestro de Artículos"])
 
-# --- PESTAÑA 1: MONITOR (TIEMPO REAL) ---
+# --- PESTANA 1: MONITOR (TIEMPO REAL) ---
 with tabs[0]:
     st_autorefresh(interval=3000, key="datarefresh")
     st.session_state.db = cargar_db()
 
     st.header("Mapa de Racks y Buscador")
-    busqueda = st.text_input("🔍 Buscar Material por Nombre, SKU o QR:", "").strip().upper()
+    busqueda = st.text_input("Buscar Material por Nombre, SKU o QR:", "").strip().upper()
+
+    # LOGICA DE AUTO-NAVEGACION
+    default_rack = st.session_state.get('last_rack', "POS_1")
+    default_piso = st.session_state.get('last_piso', 1)
+
+    if busqueda:
+        for k, v in st.session_state.db.items():
+            if busqueda in v['nombre'].upper() or busqueda in v.get('sku_base', '').upper() or busqueda in k.upper():
+                default_rack = v.get('rack', default_rack)
+                default_piso = v.get('piso', default_piso)
+                break # Detiene la busqueda en el primer resultado para navegar
+
+    racks_list = ["POS_1", "POS_2", "POS_3", "POS_4", "POS_5"]
+    pisos_list = [1, 2, 3, 4, 5]
 
     col1, col2 = st.columns(2)
     with col1:
-        r_sel = st.selectbox("Rack:", ["POS_1", "POS_2", "POS_3", "POS_4", "POS_5"])
+        r_sel = st.selectbox("Rack:", racks_list, index=racks_list.index(default_rack) if default_rack in racks_list else 0)
     with col2:
-        p_sel = st.selectbox("Piso:", [1, 2, 3, 4, 5])
+        p_sel = st.selectbox("Piso:", pisos_list, index=pisos_list.index(default_piso) if default_piso in pisos_list else 0)
 
-    # ESTILOS CSS ESTANDARIZADOS PARA LAS CELDAS
+    # Guardamos la seleccion manual para que no se mueva sin motivo
+    st.session_state.last_rack = r_sel
+    st.session_state.last_piso = p_sel
+
+    # ESTILOS CSS ESTANDARIZADOS Y AUMENTADOS
     style_base = "border-radius:10px; padding:10px; text-align:center; color:black; height:150px; display:flex; flex-direction:column; justify-content:center; align-items:center; overflow:hidden;"
 
     for fila in range(1, 4):
@@ -143,23 +161,23 @@ with tabs[0]:
                     piezas = item.get('cantidad', 1)
                     sku_base = item.get('sku_base', 'N/A')
                     
-                    # Celda Ocupada (Tamaño fijo)
+                    # Celda Ocupada (Fuente mas grande)
                     div_html = f"<div style='background-color:{bg}; border:3px solid {border}; {style_base}'>"
-                    div_html += f"<b style='font-size: 14px; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%;'>{item['nombre']}</b>"
-                    div_html += f"<small style='font-size: 11px; line-height: 1.2;'>SKU: {sku_base}<br><b>{piezas} pzas</b> | {item.get('estado','ACTIVO')}<br>F{fila}-C{col}</small></div>"
+                    div_html += f"<b style='font-size: 16px; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%;'>{item['nombre']}</b>"
+                    div_html += f"<small style='font-size: 13px; line-height: 1.3;'>SKU: {sku_base}<br><b>{piezas} pzas</b> | {item.get('estado','ACTIVO')}<br>F{fila}-C{col}</small></div>"
                     st.markdown(div_html, unsafe_allow_html=True)
                 else:
-                    # Celda Disponible (Tamaño fijo idéntico)
+                    # Celda Disponible
                     div_html = f"<div style='background-color:#d4edda; border:3px solid #28a745; {style_base}'>"
-                    div_html += f"<b>DISPONIBLE</b><br><small>F{fila}-C{col}</small></div>"
+                    div_html += f"<b style='font-size: 14px;'>DISPONIBLE</b><br><small style='font-size: 13px;'>F{fila}-C{col}</small></div>"
                     st.markdown(div_html, unsafe_allow_html=True)
 
-# --- PESTAÑA 2: ESCÁNER DE CAMPO ---
+# --- PESTANA 2: ESCANER DE CAMPO ---
 with tabs[1]:
     st.subheader("Captura de Pallet Físico")
     
     if st.session_state.sku_pendiente is None:
-        foto = st.camera_input("Escanea el código QR del Pallet:")
+        foto = st.camera_input("Escanea el codigo QR del Pallet:")
         if foto:
             img = cv2.imdecode(np.asarray(bytearray(foto.read()), dtype=np.uint8), 1)
             qrs = decode(img)
@@ -169,17 +187,17 @@ with tabs[1]:
                 if uid_pallet in st.session_state.db:
                     item = st.session_state.db[uid_pallet]
                     if item.get('estado') == "CONGELADO":
-                        st.error(f"⚠️ EL PALLET {uid_pallet} ESTÁ CONGELADO. NO MOVER.")
+                        st.error(f"ALERTA OPERATIVA: EL PALLET {uid_pallet} ESTA CONGELADO. NO MOVER.")
                     else:
                         if uid_pallet != st.session_state.ultimo_sku_procesado:
-                            st.success(f"📦 Identificado: {item['nombre']} ({item.get('cantidad', 1)} pzas) | Rack actual: {item['rack']}")
+                            st.success(f"IDENTIFICADO: {item['nombre']} ({item.get('cantidad', 1)} pzas) | Rack actual: {item['rack']}")
                             st.session_state.mqtt_client.publish(TOPIC_PUB, f"{item['rack']}_ON")
                             st.session_state.confirmacion_pendiente = item['rack']
-                            st.toast(f"Comando encendido enviado al ESP32", icon="✅")
+                            st.toast(f"Comando encendido enviado al ESP32")
                             st.session_state.ultimo_sku_procesado = uid_pallet
                             st.rerun()
                         else:
-                            st.info(f"Visualizando Pallet en {item['rack']}. (Hardware activado).")
+                            st.info(f"INFO: Visualizando Pallet en {item['rack']}. (Hardware activado).")
                 else:
                     st.session_state.sku_pendiente = uid_pallet
                     st.session_state.ultimo_sku_procesado = None
@@ -188,11 +206,11 @@ with tabs[1]:
             st.session_state.ultimo_sku_procesado = None
 
     else:
-        st.warning(f"QR de Pallet Nuevo Detectado: {st.session_state.sku_pendiente}")
+        st.warning(f"INFO: QR de Pallet Nuevo Detectado: {st.session_state.sku_pendiente}")
         with st.form("reg_cloud"):
             c_sku, c_nom = st.columns(2)
-            with c_sku: sku_base = st.text_input("SKU / Número de Parte de la Pieza")
-            with c_nom: nom = st.text_input("Descripción de la Pieza")
+            with c_sku: sku_base = st.text_input("SKU / Numero de Parte de la Pieza")
+            with c_nom: nom = st.text_input("Descripcion de la Pieza")
             
             c_peso, c_cant = st.columns(2)
             with c_peso: peso = st.number_input("Peso total del Pallet (kg)", min_value=0.0)
@@ -225,14 +243,14 @@ with tabs[1]:
                     st.session_state.mqtt_client.publish(TOPIC_PUB, f"{rack}_ON")
                     st.session_state.confirmacion_pendiente = rack
                     st.session_state.sku_pendiente = None
-                    st.success("Pallet registrado en Firebase y Rack activado.")
+                    st.success("EXITO: Pallet registrado en Firebase y Rack activado.")
                     st.rerun()
                 else:
-                    st.error(f"El {rack} está completamente lleno. Reubica materiales para liberar espacio.")
+                    st.error(f"ERROR: El {rack} esta completamente lleno. Reubica materiales para liberar espacio.")
 
-# --- PESTAÑA 3: MAESTRO DE ARTÍCULOS ---
+# --- PESTANA 3: MAESTRO DE ARTICULOS ---
 with tabs[2]:
-    st.header("Gestión del Inventario")
+    st.header("Gestion del Inventario")
     db_actual = cargar_db()
     
     if db_actual:
@@ -256,7 +274,7 @@ with tabs[2]:
             datos_reales = db_actual[uid_real]
             
             st.divider()
-            st.write(f"### Editando Matrícula: {uid_real}")
+            st.write(f"### Editando Matricula: {uid_real}")
             
             col_ed1, col_ed2, col_ed3 = st.columns(3)
             with col_ed1:
@@ -270,20 +288,20 @@ with tabs[2]:
             st.write("Dimensiones y Peso")
             col_p, col_v = st.columns(2)
             with col_p: nuevo_peso = st.number_input("Peso (kg)", min_value=0.0, value=float(datos_reales.get('peso', 0.0)))
-            with col_v: nuevo_vol = st.number_input("Volumen (m³)", min_value=0.0, value=float(datos_reales.get('volumen', 0.0)), step=0.1)
+            with col_v: nuevo_vol = st.number_input("Volumen (m3)", min_value=0.0, value=float(datos_reales.get('volumen', 0.0)), step=0.1)
             
             rack_actual = datos_reales.get('rack', 'POS_2')
             rack_ideal = "POS_4" if nuevo_peso >= 100 or nuevo_vol > 1.5 else ("POS_3" if nuevo_peso >= 50 or nuevo_vol > 1.0 else ("POS_1" if nuevo_vol < 0.5 and nuevo_peso < 20 else "POS_2"))
             
             if rack_actual != rack_ideal:
-                st.warning(f"⚠️ Alerta Operativa: Por las nuevas dimensiones/peso, este material debería reubicarse físicamente en **{rack_ideal}** en lugar de su posición actual ({rack_actual}).")
+                st.warning(f"ALERTA OPERATIVA: Por las nuevas dimensiones/peso, este material deberia reubicarse fisicamente en {rack_ideal} en lugar de su posicion actual ({rack_actual}).")
 
             col_a, col_b = st.columns(2)
             with col_a:
                 if st.button("Guardar Cambios"):
                     db_actual[uid_real].update({'sku_base': nuevo_sku, 'nombre': nuevo_nombre, 'cantidad': nueva_cant, 'estado': nuevo_estado, 'peso': nuevo_peso, 'volumen': nuevo_vol})
                     guardar_db(db_actual)
-                    st.success("Cambios guardados.")
+                    st.success("EXITO: Cambios guardados.")
                     st.rerun()
             with col_b:
                 if st.button("Eliminar Pallet de la Nube"):
@@ -291,12 +309,12 @@ with tabs[2]:
                     guardar_db(db_actual)
                     st.rerun()
 
-    with st.expander("➕ Alta de Materiales y Asignación Manual"):
+    with st.expander("Alta de Materiales y Asignacion Manual"):
         with st.form("new_part_manual"):
-            new_uid = st.text_input("ID Único del Pallet (Ej. PALLET-010)").upper()
+            new_uid = st.text_input("ID Unico del Pallet (Ej. PALLET-010)").upper()
             c_sk, c_nm = st.columns(2)
-            with c_sk: new_sku_base = st.text_input("SKU Genérico")
-            with c_nm: new_name = st.text_input("Descripción")
+            with c_sk: new_sku_base = st.text_input("SKU Generico")
+            with c_nm: new_name = st.text_input("Descripcion")
             
             c_p, c_c = st.columns(2)
             with c_p: p = st.number_input("Peso (kg)", min_value=0.0)
@@ -307,7 +325,7 @@ with tabs[2]:
             with c2: a = st.number_input("Ancho (cm)", min_value=0.0)
             with c3: h = st.number_input("Alto (cm)", min_value=0.0)
             
-            generar_qr_fisico = st.checkbox("Generar e imprimir código QR físico", value=True)
+            generar_qr_fisico = st.checkbox("Generar e imprimir codigo QR fisico", value=True)
             
             if st.form_submit_button("Registrar Material"):
                 vol = (l/100) * (a/100) * (h/100)
@@ -319,7 +337,7 @@ with tabs[2]:
                 piso, fila, columna = obtener_coordenada_libre(st.session_state.db, r)
                 
                 if piso is None:
-                    st.error(f"El {r} está lleno.")
+                    st.error(f"ERROR: El {r} esta lleno.")
                 else:
                     st.session_state.db[new_uid] = {
                         "sku_base": new_sku_base, "nombre": new_name, "peso": p, "cantidad": cant_manual, 
@@ -338,8 +356,8 @@ with tabs[2]:
                     st.rerun()
 
         if st.session_state.qr_generado:
-            st.success("¡Material registrado con éxito! Esperando confirmación física en el Rack.")
-            st.image(st.session_state.qr_generado, width=200, caption="Código QR listo para impresión")
-            if st.button("Limpiar Pantalla de Impresión"):
+            st.success("EXITO: ¡Material registrado con exito! Esperando confirmacion fisica en el Rack.")
+            st.image(st.session_state.qr_generado, width=200, caption="Codigo QR listo para impresion")
+            if st.button("Limpiar Pantalla de Impresion"):
                 st.session_state.qr_generado = None
                 st.rerun()
