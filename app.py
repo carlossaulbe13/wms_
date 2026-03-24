@@ -115,6 +115,9 @@ with tabs[0]:
     with col2:
         p_sel = st.selectbox("Piso:", [1, 2, 3, 4, 5])
 
+    # ESTILOS CSS ESTANDARIZADOS PARA LAS CELDAS
+    style_base = "border-radius:10px; padding:10px; text-align:center; color:black; height:150px; display:flex; flex-direction:column; justify-content:center; align-items:center; overflow:hidden;"
+
     for fila in range(1, 4):
         cols = st.columns(4)
         for col in range(1, 5):
@@ -139,9 +142,17 @@ with tabs[0]:
                         
                     piezas = item.get('cantidad', 1)
                     sku_base = item.get('sku_base', 'N/A')
-                    st.markdown(f"<div style='background-color:{bg}; border:3px solid {border}; border-radius:10px; padding:10px; text-align:center; color:black; min-height:100px;'><b>{item['nombre']}</b><br><small>SKU: {sku_base}</small><br><small><b>{piezas} pzas</b> | {item.get('estado','ACTIVO')}</small><br><small>F{fila}-C{col}</small></div>", unsafe_allow_html=True)
+                    
+                    # Celda Ocupada (Tamaño fijo)
+                    div_html = f"<div style='background-color:{bg}; border:3px solid {border}; {style_base}'>"
+                    div_html += f"<b style='font-size: 14px; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%;'>{item['nombre']}</b>"
+                    div_html += f"<small style='font-size: 11px; line-height: 1.2;'>SKU: {sku_base}<br><b>{piezas} pzas</b> | {item.get('estado','ACTIVO')}<br>F{fila}-C{col}</small></div>"
+                    st.markdown(div_html, unsafe_allow_html=True)
                 else:
-                    st.markdown(f"<div style='background-color:#d4edda; border:3px solid #28a745; border-radius:10px; padding:10px; text-align:center; color:black; min-height:100px;'><b>DISPONIBLE</b><br><small>F{fila}-C{col}</small></div>", unsafe_allow_html=True)
+                    # Celda Disponible (Tamaño fijo idéntico)
+                    div_html = f"<div style='background-color:#d4edda; border:3px solid #28a745; {style_base}'>"
+                    div_html += f"<b>DISPONIBLE</b><br><small>F{fila}-C{col}</small></div>"
+                    st.markdown(div_html, unsafe_allow_html=True)
 
 # --- PESTAÑA 2: ESCÁNER DE CAMPO ---
 with tabs[1]:
@@ -326,7 +337,6 @@ with tabs[2]:
                     st.session_state.confirmacion_pendiente = r
                     st.rerun()
 
-        # Imagen fuera del form para que sobreviva a la recarga
         if st.session_state.qr_generado:
             st.success("¡Material registrado con éxito! Esperando confirmación física en el Rack.")
             st.image(st.session_state.qr_generado, width=200, caption="Código QR listo para impresión")
