@@ -34,9 +34,17 @@ MQTT_PORT = 8883
 MQTT_USER = "saul_mqtt"
 MQTT_PASS = "135700/Saul"
 TOPIC_PUB = "almacen/escaneo"
-TOPIC_SUB = "almacen/confirmacion" # NUEVO: Canal para escuchar al ESP32
+TOPIC_SUB = "almacen/confirmacion"
 
-# --- ALGORITMO DE AUTO-ASIGNACIÓN ---
+# --- PUENTE SEGURO ENTRE HILOS PARA MQTT ---
+if 'msg_mqtt_recibido' not in st.session_state:
+    st.session_state.msg_mqtt_recibido = None
+
+def on_message(client, userdata, msg):
+    payload = msg.payload.decode('utf-8')
+    if payload.endswith("_OFF"):
+        st.session_state.msg_mqtt_recibido = payload.replace("_OFF", "")
+
 def obtener_coordenada_libre(db, rack_objetivo):
     ocupadas = [(v.get('piso'), v.get('fila'), v.get('columna')) for v in db.values() if v.get('rack') == rack_objetivo]
     for p in range(1, 6):
@@ -54,39 +62,37 @@ if 'sku_pendiente' not in st.session_state:
 if 'ultimo_sku_procesado' not in st.session_state:
     st.session_state.ultimo_sku_procesado = None
 if 'confirmacion_pendiente' not in st.session_state:
-    st.session_state.confirmacion_pendiente = None # NUEVO: Estado del botón
-
-# --- NUEVO: FUNCIÓN PARA ESCUCHAR AL ESP32 ---
-def on_message(client, userdata, msg):
-    payload = msg.payload.decode('utf-8')
-    # Si recibimos la confirmación física de apagado
-    if payload.endswith("_OFF"):
-        rack_confirmado = payload.replace("_OFF", "")
-        # Liberamos la pantalla
-        if st.session_state.confirmacion_pendiente == rack_confirmado:
-            st.session_state.confirmacion_pendiente = None
+    st.session_state.confirmacion_pendiente = None
+if 'qr_generado' not in st.session_state:
+    st.session_state.qr_generado = None
 
 # --- CONEXIÓN MQTT ---
 if 'mqtt_client' not in st.session_state:
     client = mqtt.Client()
     client.username_pw_set(MQTT_USER, MQTT_PASS)
     client.tls_set()
-    client.on_message = on_message # Conectamos la oreja de Python
+    client.on_message = on_message
     try:
         client.connect(MQTT_HOST, MQTT_PORT)
-        client.subscribe(TOPIC_SUB) # Nos suscribimos al canal de respuesta
+        client.subscribe(TOPIC_SUB)
         client.loop_start()
         st.session_state.mqtt_client = client
     except:
         pass
 
+# --- LÓGICA DE ACTUALIZACIÓN DE ESTADO MQTT ---
+if st.session_state.msg_mqtt_recibido:
+    if st.session_state.confirmacion_pendiente == st.session_state.msg_mqtt_recibido:
+        st.session_state.confirmacion_pendiente = None
+    st.session_state.msg_mqtt_recibido = None 
+
 # --- INTERFAZ UMAD ---
 st.set_page_config(page_title="UMAD WMS Cloud", layout="wide")
 st.markdown("<h1 style='text-align: center; color: #FF4B4B;'>UMAD Warehouse Management System</h1>", unsafe_allow_html=True)
 
-# --- NUEVO: PANEL GLOBAL DE CONFIRMACIÓN ---
+# --- PANEL GLOBAL DE CONFIRMACIÓN ---
 if st.session_state.confirmacion_pendiente:
-    st.warning(f"🔔 **ACCIÓN REQUERIDA:** El LED del Rack **{st.session_state.confirmacion_pendiente}** está ENCENDIDO. Presiona el botón físico en el rack para confirmar, o hazlo manualmente aquí:")
+    st.warning(f"🔔 **ACCIÓN REQUERIDA:** El LED del Rack **{st.session_state.confirmacion_pendiente}** está ENCENDIDO. Confirma físicamente con el botón o hazlo manual aquí:")
     if st.button(f"✅ Confirmar Manualmente (Apagar LED de {st.session_state.confirmacion_pendiente})"):
         st.session_state.mqtt_client.publish(TOPIC_PUB, f"{st.session_state.confirmacion_pendiente}_OFF")
         st.session_state.confirmacion_pendiente = None
@@ -100,7 +106,9 @@ with tabs[0]:
     st_autorefresh(interval=3000, key="datarefresh")
     st.session_state.db = cargar_db()
 
-    st.header("Mapa de Racks en Tiempo Real")
+    st.header("Mapa de Racks y Buscador")
+    busqueda = st.text_input("🔍 Buscar Material por Nombre, SKU o QR:", "").strip().upper()
+
     col1, col2 = st.columns(2)
     with col1:
         r_sel = st.selectbox("Rack:", ["POS_1", "POS_2", "POS_3", "POS_4", "POS_5"])
@@ -110,15 +118,27 @@ with tabs[0]:
     for fila in range(1, 4):
         cols = st.columns(4)
         for col in range(1, 5):
-            item = next((v for v in st.session_state.db.values() if v.get('rack')==r_sel and v.get('piso')==p_sel and v.get('fila')==fila and v.get('columna')==col), None)
+            item = None
+            item_key = None
+            for k, v in st.session_state.db.items():
+                if v.get('rack') == r_sel and v.get('piso') == p_sel and v.get('fila') == fila and v.get('columna') == col:
+                    item = v
+                    item_key = k
+                    break
+            
             with cols[col-1]:
                 if item:
                     es_congelado = item.get('estado') == "CONGELADO"
-                    bg = "#f8d7da" if es_congelado else "#fff3cd"
-                    border = "#dc3545" if es_congelado else "#ffc107"
+                    es_buscado = busqueda != "" and (busqueda in item['nombre'].upper() or busqueda in item.get('sku_base', '').upper() or busqueda in item_key.upper())
+                    
+                    if es_buscado:
+                        bg, border = "#cce5ff", "#004085"
+                    else:
+                        bg = "#f8d7da" if es_congelado else "#fff3cd"
+                        border = "#dc3545" if es_congelado else "#ffc107"
+                        
                     piezas = item.get('cantidad', 1)
                     sku_base = item.get('sku_base', 'N/A')
-                    
                     st.markdown(f"<div style='background-color:{bg}; border:3px solid {border}; border-radius:10px; padding:10px; text-align:center; color:black; min-height:100px;'><b>{item['nombre']}</b><br><small>SKU: {sku_base}</small><br><small><b>{piezas} pzas</b> | {item.get('estado','ACTIVO')}</small><br><small>F{fila}-C{col}</small></div>", unsafe_allow_html=True)
                 else:
                     st.markdown(f"<div style='background-color:#d4edda; border:3px solid #28a745; border-radius:10px; padding:10px; text-align:center; color:black; min-height:100px;'><b>DISPONIBLE</b><br><small>F{fila}-C{col}</small></div>", unsafe_allow_html=True)
@@ -142,10 +162,9 @@ with tabs[1]:
                     else:
                         if uid_pallet != st.session_state.ultimo_sku_procesado:
                             st.success(f"📦 Identificado: {item['nombre']} ({item.get('cantidad', 1)} pzas) | Rack actual: {item['rack']}")
-                            # MODIFICADO: Enviamos _ON y activamos pendiente
                             st.session_state.mqtt_client.publish(TOPIC_PUB, f"{item['rack']}_ON")
                             st.session_state.confirmacion_pendiente = item['rack']
-                            st.toast(f"Comando {item['rack']} encendido. Esperando botón.", icon="✅")
+                            st.toast(f"Comando encendido enviado al ESP32", icon="✅")
                             st.session_state.ultimo_sku_procesado = uid_pallet
                             st.rerun()
                         else:
@@ -159,7 +178,6 @@ with tabs[1]:
 
     else:
         st.warning(f"QR de Pallet Nuevo Detectado: {st.session_state.sku_pendiente}")
-        st.info("Asigna el SKU (pieza) y la cantidad a esta matrícula de pallet.")
         with st.form("reg_cloud"):
             c_sku, c_nom = st.columns(2)
             with c_sku: sku_base = st.text_input("SKU / Número de Parte de la Pieza")
@@ -193,7 +211,6 @@ with tabs[1]:
                         "volumen": vol, "rack": rack, "piso": piso, "fila": fila, "columna": col, "estado": "ACTIVO"
                     }
                     guardar_db(st.session_state.db)
-                    # MODIFICADO: Enviamos _ON y activamos pendiente
                     st.session_state.mqtt_client.publish(TOPIC_PUB, f"{rack}_ON")
                     st.session_state.confirmacion_pendiente = rack
                     st.session_state.sku_pendiente = None
@@ -211,15 +228,9 @@ with tabs[2]:
         data_tabla = []
         for k, v in db_actual.items():
             data_tabla.append({
-                "QR del Pallet": k,
-                "SKU Pieza": v.get('sku_base', 'N/A'),
-                "Nombre": v.get('nombre', ''),
-                "Piezas": v.get('cantidad', 1),
-                "Rack": v.get('rack', ''),
-                "Piso": v.get('piso', ''),
-                "Fila": v.get('fila', ''),
-                "Col": v.get('columna', ''),
-                "Estado": v.get('estado', 'ACTIVO')
+                "QR del Pallet": k, "SKU Pieza": v.get('sku_base', 'N/A'), "Nombre": v.get('nombre', ''),
+                "Piezas": v.get('cantidad', 1), "Rack": v.get('rack', ''), "Piso": v.get('piso', ''),
+                "Fila": v.get('fila', ''), "Col": v.get('columna', ''), "Estado": v.get('estado', 'ACTIVO')
             })
             
         df = pd.DataFrame(data_tabla)
@@ -247,10 +258,8 @@ with tabs[2]:
             
             st.write("Dimensiones y Peso")
             col_p, col_v = st.columns(2)
-            with col_p:
-                nuevo_peso = st.number_input("Peso (kg)", min_value=0.0, value=float(datos_reales.get('peso', 0.0)))
-            with col_v:
-                nuevo_vol = st.number_input("Volumen (m³)", min_value=0.0, value=float(datos_reales.get('volumen', 0.0)), step=0.1)
+            with col_p: nuevo_peso = st.number_input("Peso (kg)", min_value=0.0, value=float(datos_reales.get('peso', 0.0)))
+            with col_v: nuevo_vol = st.number_input("Volumen (m³)", min_value=0.0, value=float(datos_reales.get('volumen', 0.0)), step=0.1)
             
             rack_actual = datos_reales.get('rack', 'POS_2')
             rack_ideal = "POS_4" if nuevo_peso >= 100 or nuevo_vol > 1.5 else ("POS_3" if nuevo_peso >= 50 or nuevo_vol > 1.0 else ("POS_1" if nuevo_vol < 0.5 and nuevo_peso < 20 else "POS_2"))
@@ -261,12 +270,7 @@ with tabs[2]:
             col_a, col_b = st.columns(2)
             with col_a:
                 if st.button("Guardar Cambios"):
-                    db_actual[uid_real]['sku_base'] = nuevo_sku
-                    db_actual[uid_real]['nombre'] = nuevo_nombre
-                    db_actual[uid_real]['cantidad'] = nueva_cant
-                    db_actual[uid_real]['estado'] = nuevo_estado
-                    db_actual[uid_real]['peso'] = nuevo_peso
-                    db_actual[uid_real]['volumen'] = nuevo_vol
+                    db_actual[uid_real].update({'sku_base': nuevo_sku, 'nombre': nuevo_nombre, 'cantidad': nueva_cant, 'estado': nuevo_estado, 'peso': nuevo_peso, 'volumen': nuevo_vol})
                     guardar_db(db_actual)
                     st.success("Cambios guardados.")
                     st.rerun()
@@ -314,11 +318,18 @@ with tabs[2]:
                     
                     if generar_qr_fisico:
                         qr_img = qrcode.make(new_uid)
-                        qr_img.save(f"label_{new_uid}.png")
-                        st.image(f"label_{new_uid}.png", width=200)
+                        nombre_archivo = f"label_{new_uid}.png"
+                        qr_img.save(nombre_archivo)
+                        st.session_state.qr_generado = nombre_archivo
                     
-                    # MODIFICADO: Enviamos _ON y activamos pendiente también en el alta manual
                     st.session_state.mqtt_client.publish(TOPIC_PUB, f"{r}_ON")
                     st.session_state.confirmacion_pendiente = r
-                    st.success(f"Registrado en {r} (P{piso}-F{fila}-C{columna}). Esperando confirmación física en el Rack.")
                     st.rerun()
+
+        # Imagen fuera del form para que sobreviva a la recarga
+        if st.session_state.qr_generado:
+            st.success("¡Material registrado con éxito! Esperando confirmación física en el Rack.")
+            st.image(st.session_state.qr_generado, width=200, caption="Código QR listo para impresión")
+            if st.button("Limpiar Pantalla de Impresión"):
+                st.session_state.qr_generado = None
+                st.rerun()
