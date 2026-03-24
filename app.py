@@ -33,7 +33,8 @@ MQTT_HOST = "03109e9f1c90423e81ffa63071592873.s1.eu.hivemq.cloud"
 MQTT_PORT = 8883
 MQTT_USER = "saul_mqtt"
 MQTT_PASS = "135700/Saul"
-TOPIC = "almacen/escaneo"
+TOPIC_PUB = "almacen/escaneo"
+TOPIC_SUB = "almacen/confirmacion" # NUEVO: Canal para escuchar al ESP32
 
 # --- ALGORITMO DE AUTO-ASIGNACIÓN ---
 def obtener_coordenada_libre(db, rack_objetivo):
@@ -52,14 +53,28 @@ if 'sku_pendiente' not in st.session_state:
     st.session_state.sku_pendiente = None
 if 'ultimo_sku_procesado' not in st.session_state:
     st.session_state.ultimo_sku_procesado = None
+if 'confirmacion_pendiente' not in st.session_state:
+    st.session_state.confirmacion_pendiente = None # NUEVO: Estado del botón
+
+# --- NUEVO: FUNCIÓN PARA ESCUCHAR AL ESP32 ---
+def on_message(client, userdata, msg):
+    payload = msg.payload.decode('utf-8')
+    # Si recibimos la confirmación física de apagado
+    if payload.endswith("_OFF"):
+        rack_confirmado = payload.replace("_OFF", "")
+        # Liberamos la pantalla
+        if st.session_state.confirmacion_pendiente == rack_confirmado:
+            st.session_state.confirmacion_pendiente = None
 
 # --- CONEXIÓN MQTT ---
 if 'mqtt_client' not in st.session_state:
     client = mqtt.Client()
     client.username_pw_set(MQTT_USER, MQTT_PASS)
     client.tls_set()
+    client.on_message = on_message # Conectamos la oreja de Python
     try:
         client.connect(MQTT_HOST, MQTT_PORT)
+        client.subscribe(TOPIC_SUB) # Nos suscribimos al canal de respuesta
         client.loop_start()
         st.session_state.mqtt_client = client
     except:
@@ -68,6 +83,15 @@ if 'mqtt_client' not in st.session_state:
 # --- INTERFAZ UMAD ---
 st.set_page_config(page_title="UMAD WMS Cloud", layout="wide")
 st.markdown("<h1 style='text-align: center; color: #FF4B4B;'>UMAD Warehouse Management System</h1>", unsafe_allow_html=True)
+
+# --- NUEVO: PANEL GLOBAL DE CONFIRMACIÓN ---
+if st.session_state.confirmacion_pendiente:
+    st.warning(f"🔔 **ACCIÓN REQUERIDA:** El LED del Rack **{st.session_state.confirmacion_pendiente}** está ENCENDIDO. Presiona el botón físico en el rack para confirmar, o hazlo manualmente aquí:")
+    if st.button(f"✅ Confirmar Manualmente (Apagar LED de {st.session_state.confirmacion_pendiente})"):
+        st.session_state.mqtt_client.publish(TOPIC_PUB, f"{st.session_state.confirmacion_pendiente}_OFF")
+        st.session_state.confirmacion_pendiente = None
+        st.rerun()
+    st.divider()
 
 tabs = st.tabs(["Monitoreo y Ubicación", "Escáner de Campo", "Maestro de Artículos"])
 
@@ -118,9 +142,12 @@ with tabs[1]:
                     else:
                         if uid_pallet != st.session_state.ultimo_sku_procesado:
                             st.success(f"📦 Identificado: {item['nombre']} ({item.get('cantidad', 1)} pzas) | Rack actual: {item['rack']}")
-                            st.session_state.mqtt_client.publish(TOPIC, item['rack'])
-                            st.toast(f"Comando {item['rack']} enviado al ESP32", icon="✅")
+                            # MODIFICADO: Enviamos _ON y activamos pendiente
+                            st.session_state.mqtt_client.publish(TOPIC_PUB, f"{item['rack']}_ON")
+                            st.session_state.confirmacion_pendiente = item['rack']
+                            st.toast(f"Comando {item['rack']} encendido. Esperando botón.", icon="✅")
                             st.session_state.ultimo_sku_procesado = uid_pallet
+                            st.rerun()
                         else:
                             st.info(f"Visualizando Pallet en {item['rack']}. (Hardware activado).")
                 else:
@@ -166,7 +193,9 @@ with tabs[1]:
                         "volumen": vol, "rack": rack, "piso": piso, "fila": fila, "columna": col, "estado": "ACTIVO"
                     }
                     guardar_db(st.session_state.db)
-                    st.session_state.mqtt_client.publish(TOPIC, rack)
+                    # MODIFICADO: Enviamos _ON y activamos pendiente
+                    st.session_state.mqtt_client.publish(TOPIC_PUB, f"{rack}_ON")
+                    st.session_state.confirmacion_pendiente = rack
                     st.session_state.sku_pendiente = None
                     st.success("Pallet registrado en Firebase y Rack activado.")
                     st.rerun()
@@ -287,5 +316,9 @@ with tabs[2]:
                         qr_img = qrcode.make(new_uid)
                         qr_img.save(f"label_{new_uid}.png")
                         st.image(f"label_{new_uid}.png", width=200)
-                        
-                    st.success(f"Registrado en {r} (P{piso}-F{fila}-C{columna}).")
+                    
+                    # MODIFICADO: Enviamos _ON y activamos pendiente también en el alta manual
+                    st.session_state.mqtt_client.publish(TOPIC_PUB, f"{r}_ON")
+                    st.session_state.confirmacion_pendiente = r
+                    st.success(f"Registrado en {r} (P{piso}-F{fila}-C{columna}). Esperando confirmación física en el Rack.")
+                    st.rerun()
