@@ -341,6 +341,10 @@ with tabs[0]:
                 f"</div></div></div></a>"
             )
 
+        # Clase y borde del botón sobredimensiones
+        clase_sobre = 'fila-res' if (res_activo and rack_res == 'POS_5') else ''
+        borde_sobre = '#facc15'  if (res_activo and rack_res == 'POS_5') else '#4a5080'
+
         nave_html = (
             '<div style="display:grid;grid-template-columns:1fr 1fr 3fr 1fr;gap:8px;align-items:stretch;">'
 
@@ -352,9 +356,10 @@ with tabs[0]:
             '</div>'
 
             f'<div style="display:flex;flex-direction:column;gap:6px;">'
-            '<a href="?zona=SOBREDIMENSIONES" target="_self" style="text-decoration:none;flex:1;display:flex;">'
-            '<div style="flex:1;background:#2e3550;border:1.5px solid #4a5080;border-radius:10px;'
-            'padding:14px 10px;text-align:center;color:#cdd3ea;cursor:pointer;'
+            f'<a href="?zona=SOBREDIMENSIONES" target="_self" style="text-decoration:none;flex:1;display:flex;">'
+            f'<div class="{clase_sobre}" '
+            f'style="flex:1;background:#2e3550;border:1.5px solid {borde_sobre};'
+            'border-radius:10px;padding:14px 10px;text-align:center;color:#cdd3ea;cursor:pointer;'
             'display:flex;flex-direction:column;align-items:center;justify-content:center;'
             'font-size:12px;font-weight:600;">'
             f'SOBREDIMENSIONES<br><span style="font-size:22px;font-weight:300;margin-top:8px;">{t5}</span>'
