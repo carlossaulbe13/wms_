@@ -216,132 +216,88 @@ with tabs[0]:
     if fila_sel: crumbs.append(fila_sel)
     st.markdown("  ›  ".join(f"**{c}**" for c in crumbs))
 
-    # ── NIVEL 1: Layout de nave ─────────────────────────────────
+    # ── NIVEL 1: Layout de nave ───────────────────────────────────────────
     if zona_sel is None:
-        st.subheader("Selecciona una zona del almacen")
+        st.subheader('Selecciona una zona del almacen')
 
-        # CSS para estirar botones de Streamlit a altura completa dentro del layout
-        st.markdown("""
-        <style>
-        /* Hace que los stButton dentro de .nave-col ocupen toda la altura disponible */
-        .nave-col .stButton { height: 100%; }
-        .nave-col .stButton > button {
-            height: 100% !important;
-            min-height: 260px !important;
-            width: 100% !important;
-            white-space: pre-wrap !important;
-            font-size: 12px !important;
-            font-weight: 600 !important;
-            letter-spacing: 0.5px !important;
-        }
-        .fila-btn .stButton > button {
-            min-height: 44px !important;
-            height: 44px !important;
-            font-size: 12px !important;
-            font-weight: 600 !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
+        # Navegacion via query params
+        qp = st.query_params
+        if 'zona' in qp:
+            st.session_state.twin_zona = qp['zona']
+            st.session_state.twin_fila = qp.get('fila', None)
+            st.query_params.clear()
+            st.rerun()
 
-        # Calculamos datos de todas las zonas
-        t5, c5 = rack_stats(db, "POS_5")
-        badge5 = "#dc3545" if c5 > 0 else ("#ffc107" if t5 > 0 else "#3a3f55")
+        t5, c5 = rack_stats(db, 'POS_5')
+        badge5 = '#dc3545' if c5 > 0 else ('#ffc107' if t5 > 0 else '#3a3f55')
 
-        filas_data = []
+        filas_html = ''
         for fila_label, rack_id in [
-            ("FILA A", "POS_1"), ("FILA B", "POS_2"),
-            ("FILA C", "POS_3"), ("FILA D", "POS_4")
+            ('FILA A','POS_1'),('FILA B','POS_2'),('FILA C','POS_3'),('FILA D','POS_4')
         ]:
             t, c = rack_stats(db, rack_id)
-            ocupacion = min(int(t / 60 * 100), 100)
-            color_barra = (
-                "#dc3545" if ocupacion > 80
-                else ("#ffc107" if ocupacion > 50 else "#28a745")
-            )
-            alerta = " — CONGELADO" if c > 0 else (" — LLENO" if ocupacion >= 100 else "")
-            filas_data.append((fila_label, rack_id, t, c, ocupacion, color_barra, alerta))
-
-        # Layout: 4 columnas con proporciones fijas
-        col_rec, col_sobre, col_alma, col_ret = st.columns([1.2, 1.2, 3, 1.2])
-
-        # RECEPCION — informativo, solo HTML
-        with col_rec:
-            st.markdown(
-                """<div style='background:#2a2f45;border:2px solid #3a3f55;border-radius:10px;
-                    padding:20px 10px;text-align:center;color:#cdd3ea;height:100%;min-height:260px;
-                    display:flex;flex-direction:column;align-items:center;justify-content:center;
-                    box-sizing:border-box;'>
-                    <div style='font-size:10px;letter-spacing:2px;color:#8892b0;margin-bottom:12px;'>
-                        RECEPCION</div>
-                    <div style='font-size:13px;color:#8892b0;'>Zona de entrada</div>
-                </div>""",
-                unsafe_allow_html=True
+            occ = min(int(t / 60 * 100), 100)
+            cb  = '#dc3545' if occ > 80 else ('#ffc107' if occ > 50 else '#28a745')
+            tag = (' CONGELADO' if c > 0 else (' LLENO' if occ >= 100 else ''))
+            fenc = fila_label.replace(' ', '+')
+            filas_html += (
+                f"<a href='?zona=ALMACENAJE&fila={fenc}' target='_self' "
+                f"style='text-decoration:none;display:block;margin-bottom:8px;'>"
+                f"<div style='display:flex;align-items:center;gap:10px;'>"
+                f"<div style='flex:0 0 150px;background:#2e3550;border:1.5px solid #4a5080;"
+                f"border-radius:8px;padding:11px 8px;text-align:center;color:#cdd3ea;"
+                f"font-size:12px;font-weight:600;cursor:pointer;'>{fila_label}{tag}</div>"
+                f"<div style='flex:1;'>"
+                f"<div style='font-size:10px;color:#8892b0;margin-bottom:3px;'>{t} pallets — {occ}% ocup.</div>"
+                f"<div style='background:#2a2f45;border-radius:4px;height:8px;'>"
+                f"<div style='background:{cb};width:{max(occ,1)}%;height:8px;border-radius:4px;'></div>"
+                f"</div></div></div></a>"
             )
 
-        # SOBREDIMENSIONES — botón que ocupa toda la altura
-        with col_sobre:
-            # Wrapper para que el CSS .nave-col aplique
-            st.markdown("<div class='nave-col'>", unsafe_allow_html=True)
-            if st.button(
-                f"SOBREDIMENSIONES\n{t5} pallets",
-                key="btn_sobre", use_container_width=True
-            ):
-                st.session_state.twin_zona = "SOBREDIMENSIONES"
-                st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
-            st.markdown(
-                f"<div style='background:#2a2f45;border:2px solid {badge5};border-radius:8px;"
-                f"padding:6px;text-align:center;color:#cdd3ea;font-size:11px;margin-top:6px;'>"
-                f"{t5} pallets &nbsp;·&nbsp; {c5} congelados</div>",
-                unsafe_allow_html=True
-            )
+        nave_html = (
+            '<div style="display:grid;grid-template-columns:1fr 1fr 3fr 1fr;gap:8px;align-items:stretch;">'
 
-        # ALMACENAJE — contenedor con filas internas
-        with col_alma:
-            st.markdown(
-                """<div style='background:#1e2130;border:2px dashed #3a3f55;border-radius:10px;
-                    padding:12px 14px;box-sizing:border-box;'>
-                    <div style='text-align:center;color:#8892b0;font-size:10px;
-                        letter-spacing:2px;margin-bottom:12px;'>ALMACENAJE</div>""",
-                unsafe_allow_html=True
-            )
-            for fila_label, rack_id, t, c, ocupacion, color_barra, alerta in filas_data:
-                c_btn, c_bar = st.columns([2, 3])
-                with c_btn:
-                    st.markdown("<div class='fila-btn'>", unsafe_allow_html=True)
-                    if st.button(f"{fila_label}{alerta}", key=f"btn_{fila_label}",
-                                 use_container_width=True):
-                        st.session_state.twin_zona = "ALMACENAJE"
-                        st.session_state.twin_fila = fila_label
-                        st.rerun()
-                    st.markdown("</div>", unsafe_allow_html=True)
-                with c_bar:
-                    st.markdown(
-                        f"<div style='margin-top:4px;'>"
-                        f"<div style='font-size:10px;color:#8892b0;margin-bottom:3px;'>"
-                        f"{t} pallets — {ocupacion}% ocup.</div>"
-                        f"<div style='background:#2a2f45;border-radius:4px;height:8px;'>"
-                        f"<div style='background:{color_barra};width:{max(ocupacion,1)}%;"
-                        f"height:8px;border-radius:4px;'></div></div></div>",
-                        unsafe_allow_html=True
-                    )
-            st.markdown("</div>", unsafe_allow_html=True)
+            '<div style="background:#2a2f45;border:2px solid #3a3f55;border-radius:10px;'
+            'padding:16px 10px;text-align:center;color:#cdd3ea;'
+            'display:flex;flex-direction:column;align-items:center;justify-content:center;">'
+            '<div style="font-size:10px;letter-spacing:2px;color:#8892b0;margin-bottom:10px;">RECEPCION</div>'
+            '<div style="font-size:12px;color:#8892b0;">Zona de entrada</div>'
+            '</div>'
 
-        # RETORNO — informativo, solo HTML
-        with col_ret:
-            st.markdown(
-                """<div style='background:#2a2f45;border:2px solid #3a3f55;border-radius:10px;
-                    padding:20px 10px;text-align:center;color:#cdd3ea;height:100%;min-height:260px;
-                    display:flex;flex-direction:column;align-items:center;justify-content:center;
-                    box-sizing:border-box;'>
-                    <div style='font-size:10px;letter-spacing:2px;color:#8892b0;margin-bottom:12px;'>
-                        RETORNO</div>
-                    <div style='font-size:13px;color:#8892b0;'>Devoluciones</div>
-                </div>""",
-                unsafe_allow_html=True
-            )
+            f'<div style="display:flex;flex-direction:column;gap:6px;">'
+            '<a href="?zona=SOBREDIMENSIONES" target="_self" style="text-decoration:none;flex:1;display:flex;">'
+            '<div style="flex:1;background:#2e3550;border:1.5px solid #4a5080;border-radius:10px;'
+            'padding:14px 10px;text-align:center;color:#cdd3ea;cursor:pointer;'
+            'display:flex;flex-direction:column;align-items:center;justify-content:center;'
+            'font-size:12px;font-weight:600;">'
+            f'SOBREDIMENSIONES<br><span style="font-size:22px;font-weight:300;margin-top:8px;">{t5}</span>'
+            '<span style="font-size:10px;color:#8892b0;margin-top:2px;">pallets</span>'
+            '</div></a>'
+            f'<div style="background:#2a2f45;border:1.5px solid {badge5};border-radius:8px;'
+            f'padding:7px;text-align:center;color:#cdd3ea;font-size:11px;">'
+            f'{t5} pallets &nbsp;&middot;&nbsp; {c5} congelados</div>'
+            '</div>'
 
-        st.caption("Haz clic en una zona o fila para ver el detalle de posiciones.")
+            f'<div style="background:#1e2130;border:2px dashed #3a3f55;border-radius:10px;'
+            'padding:12px 14px;box-sizing:border-box;">'
+            '<div style="text-align:center;color:#8892b0;font-size:10px;'
+            'letter-spacing:2px;margin-bottom:12px;">ALMACENAJE</div>'
+            f'{filas_html}'
+            '</div>'
+
+            '<div style="background:#2a2f45;border:2px solid #3a3f55;border-radius:10px;'
+            'padding:16px 10px;text-align:center;color:#cdd3ea;'
+            'display:flex;flex-direction:column;align-items:center;justify-content:center;">'
+            '<div style="font-size:10px;letter-spacing:2px;color:#8892b0;margin-bottom:10px;">RETORNO</div>'
+            '<div style="font-size:12px;color:#8892b0;">Devoluciones</div>'
+            '</div>'
+
+            '</div>'
+            '<p style="font-size:11px;color:#8892b0;margin-top:10px;">'
+            'Haz clic en una zona o fila para ver el detalle de posiciones.</p>'
+        )
+        st.markdown(nave_html, unsafe_allow_html=True)
+
 
     # ── NIVEL 2: Sobredimensiones (POS_5) ─────────────────────
     elif fila_sel is None:
