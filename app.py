@@ -297,7 +297,7 @@ with tabs[0]:
             t, c = rack_stats(db, rack_id)
             occ = min(int(t / 60 * 100), 100)
             cb  = '#dc3545' if occ > 80 else ('#ffc107' if occ > 50 else '#28a745')
-            tag = (' CONGELADO' if c > 0 else (' LLENO' if occ >= 100 else ''))
+            tag = (' — LLENO' if occ >= 100 else '')
             fenc = fila_label.replace(' ', '+')
             filas_html += (
                 f"<a href='?zona=ALMACENAJE&fila={fenc}' target='_self' "
@@ -780,10 +780,8 @@ with tabs[2]:
                 "Reglas de altura: < 100 cm libre en cualquier nivel | "
                 "100–150 cm: niveles 1 y 2 | 150–180 cm: solo nivel 3 | > 180 cm: sobredimensiones"
             )
-            c1, c2, c3 = st.columns(3)
-            with c1: l_cm  = st.number_input("LARGO (CM)",  min_value=0.0, step=1.0)
-            with c2: a_cm  = st.number_input("ANCHO (CM)",  min_value=0.0, step=1.0)
-            with c3: h_cm  = st.number_input("ALTO (CM)",   min_value=0.0, step=1.0)
+            h_cm = st.number_input("ALTO DEL MATERIAL (CM)", min_value=0.0, step=1.0,
+                                   help="Determina en qué nivel del rack se almacenará")
 
             generar_qr_fisico = st.checkbox("GENERAR CODIGO QR FISICO", value=True)
             submitted = st.form_submit_button("REGISTRAR MATERIAL", use_container_width=True)
@@ -795,7 +793,7 @@ with tabs[2]:
                     st.error(f"El ID {new_uid} ya existe en el sistema.")
                 else:
                     alto_m = h_cm / 100.0
-                    vol    = (l_cm / 100) * (a_cm / 100) * alto_m
+                    vol    = 0.0  # largo y ancho definidos por tipo de embalaje
                     avisos = []
 
                     # Discriminante de altura → puede forzar sobredimensiones
