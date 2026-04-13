@@ -114,10 +114,11 @@ def asignar_rack_por_peso_vol(peso, vol):
 def obtener_coordenada_libre(db, rack_objetivo, peso_nuevo=0, alto_m=0):
     """
     Busca el primer espacio libre respetando:
-      - Carga máxima por nivel (CARGA_MAX_NIVEL)
-      - Restricción de altura por nivel
+      - Carga máxima por nivel (CARGA_MAX_NIVEL)  — no aplica en POS_5
+      - Restricción de altura por nivel            — no aplica en POS_5
     Orden: piso → nivel (1→3) → columna
     """
+    es_sobre = rack_objetivo == "POS_5"
     ocupadas = {
         (v.get('piso'), v.get('fila'), v.get('columna'))
         for v in db.values()
@@ -125,11 +126,12 @@ def obtener_coordenada_libre(db, rack_objetivo, peso_nuevo=0, alto_m=0):
     }
     for p in range(1, NUM_PISOS + 1):
         for niv in range(1, NUM_NIVELES + 1):
-            if not nivel_acepta_altura(niv, alto_m):
+            if not es_sobre and not nivel_acepta_altura(niv, alto_m):
                 continue
-            carga_actual = peso_en_nivel(db, rack_objetivo, p, niv)
-            if carga_actual + peso_nuevo > CARGA_MAX_NIVEL:
-                continue
+            if not es_sobre:
+                carga_actual = peso_en_nivel(db, rack_objetivo, p, niv)
+                if carga_actual + peso_nuevo > CARGA_MAX_NIVEL:
+                    continue
             for c in range(1, NUM_COLS + 1):
                 if (p, niv, c) not in ocupadas:
                     return p, niv, c
@@ -936,9 +938,6 @@ with tabs[2]:
                         }
                         guardar_db(st.session_state.db)
 
-                        for av in avisos:
-                            st.warning(av)
-
                         if generar_qr_fisico:
                             qr_img = qrcode.make(new_uid)
                             nombre_archivo = f"label_{new_uid}.png"
@@ -951,6 +950,11 @@ with tabs[2]:
                         st.session_state.confirmacion_pendiente = r
                         st.session_state.rack_resaltado    = r
                         st.session_state.rack_resaltado_ts = time.time()
+                        # Volver al layout general para ver la animacion
+                        st.session_state.twin_zona = None
+                        st.session_state.twin_fila = None
+                        for av in avisos:
+                            st.warning(av)
                         st.success(
                             f"Pallet registrado — Rack: {r} | Piso {piso} | Nivel {nivel} | Col {columna} | "
                             f"Embalaje: {tipo_embalaje}"
