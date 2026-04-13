@@ -1,110 +1,124 @@
 import streamlit as st
 import paho.mqtt.client as mqtt
+import json
 import requests
 import pandas as pd
+import qrcode
 import plotly.graph_objects as go
 import time
+from datetime import datetime
+
+# --- CONFIGURACIÓN DE NUBE Y MQTT (DATOS ORIGINALES) ---
+FIREBASE_URL = "https://umad-wms-default-rtdb.firebaseio.com/maestro_articulos.json"
+MQTT_HOST = "03109e9f1c90423e81ffa63071592873.s1.eu.hivemq.cloud"
+MQTT_PORT = 8883
+MQTT_USER = "saul_mqtt"
+MQTT_PASS = "135700/Saul"
+TOPIC_PUB = "almacen/escaneo"
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="UMAD Warehouse System", layout="wide")
 
-# --- CONFIGURACIÓN DE NUBE (FIREBASE) ---
-FIREBASE_URL = "https://umad-wms-default-rtdb.firebaseio.com/maestro_articulos.json"
-
+# --- FUNCIONES DE BASE DE DATOS ---
 def cargar_db():
     try:
         res = requests.get(FIREBASE_URL)
-        if res.status_code == 200 and res.json() is not None:
-            return res.json()
+        return res.json() if res.status_code == 200 and res.json() else {}
     except:
-        pass
-    return {}
+        return {}
 
-# --- LÓGICA DE VISUALIZACIÓN DEL LAYOUT ---
-def dibujar_layout_interactivo():
+def guardar_db(db):
+    requests.put(FIREBASE_URL, json=db)
+
+# --- LÓGICA DE BÚSQUEDA DE UBICACIÓN (NUEVAS DIMENSIONES) ---
+def obtener_espacio_disponible(db, peso_nuevo, tipo_contenedor):
+    # Definición de estructura basada en el layout 13x37
+    filas = ["A", "B", "C", "D"]
+    secciones = range(1, 6) # 5 secciones de 3 metros
+    niveles = range(1, 4)   # 3 niveles de altura
+    posiciones = range(1, 4) # 3 posiciones por viga de 3m
+    LIMITE_PESO_NIVEL = 2100.0
+
+    # Lógica para Tinas/Tambos (Zona Sobredimensiones 7-17m)
+    if tipo_contenedor in ["Tina LAMTEC", "Tambo 200L"]:
+        # Aquí buscaría en una lista de slots de piso (simplificado por ahora)
+        return "PISO", "ZONA_NARANJA", 0, 0
+
+    # Lógica para Racks (Pintura/KLT)
+    for f in filas:
+        for s in secciones:
+            for n in niveles:
+                # Calcular peso actual en este nivel (viga de 3m)
+                peso_actual = sum([float(item.get('peso', 0)) for item in db.values() 
+                                  if item.get('fila') == f and item.get('seccion') == s and item.get('nivel') == n])
+                
+                if (peso_actual + peso_nuevo) <= LIMITE_PESO_NIVEL:
+                    for p in posiciones:
+                        # Verificar si la posición exacta está libre
+                        ocupado = any(item for item in db.values() 
+                                     if item.get('fila') == f and item.get('seccion') == s 
+                                     and item.get('nivel') == n and item.get('posicion') == p)
+                        if not ocupado:
+                            return f, s, n, p
+    return None
+
+# --- MAPA VISUAL (LAYOUT LIMPIO) ---
+def dibujar_layout():
     fig = go.Figure()
-
-    # 1. Contorno de la Nave (13m x 37m)
-    fig.add_shape(type="rect", x0=0, y0=0, x1=13, y1=37, line=dict(color="Black", width=4))
-
-    # 2. Zonificación Longitudinal (Eje Y)
-    # Recepción (0-7m)
-    fig.add_shape(type="rect", x0=0, y0=0, x1=13, y1=7, fillcolor="SkyBlue", opacity=0.3, layer="below")
+    fig.add_shape(type="rect", x0=0, y0=0, x1=13, y1=37, line=dict(color="Black", width=3)) # Nave
+    fig.add_shape(type="rect", x0=0, y0=0, x1=13, y1=7, fillcolor="LightSteelBlue", opacity=0.3, line_width=0) # Recepción
+    fig.add_shape(type="rect", x0=0, y0=7, x1=13, y1=17, fillcolor="NavajoWhite", opacity=0.3, line_width=0) # Sobredimensiones
+    fig.add_shape(type="rect", x0=0, y0=33, x1=13, y1=37, fillcolor="PaleGreen", opacity=0.3, line_width=0) # Retorno
     
-    # Sobredimensiones (7-17m)
-    fig.add_shape(type="rect", x0=0, y0=7, x1=13, y1=17, fillcolor="Orange", opacity=0.2, layer="below")
-    
-    # Zona de Racks (17-33m)
-    fig.add_shape(type="rect", x0=0, y0=17, x1=13, y1=33, fillcolor="LightGrey", opacity=0.1, layer="below")
-    
-    # Maniobra de Retorno (33-37m)
-    fig.add_shape(type="rect", x0=0, y0=33, x1=13, y1=37, fillcolor="LimeGreen", opacity=0.2, layer="below")
+    # Racks (Bloques consolidados por ahora)
+    racks_x = [(0, 1.05), (5.05, 7.15), (11.15, 12.2)]
+    for rx in racks_x:
+        fig.add_shape(type="rect", x0=rx[0], y0=17, x1=rx[1], y1=32.5, fillcolor="DarkSlateBlue")
 
-    # 3. Dibujo de Racks (Basado en vigas de 3m y marcos de 1.05m)
-    # Rack Izquierdo
-    fig.add_shape(type="rect", x0=0, y0=17, x1=1.05, y1=32.5, fillcolor="RoyalBlue", line=dict(color="DarkBlue"))
-    
-    # Rack Doble Central (2.10m de profundidad total)
-    fig.add_shape(type="rect", x0=5.05, y0=17, x1=7.15, y1=32.5, fillcolor="RoyalBlue", line=dict(color="DarkBlue"))
-    
-    # Rack Derecho
-    fig.add_shape(type="rect", x0=11.15, y0=17, x1=12.2, y1=32.5, fillcolor="RoyalBlue", line=dict(color="DarkBlue"))
-
-    # Anotaciones de Zonas
-    fig.add_annotation(x=6.5, y=3.5, text="RECEPCIÓN", showarrow=False, font=dict(size=14, color="DarkBlue"))
-    fig.add_annotation(x=6.5, y=12, text="SOBREDIMENSIONES (TINAS/TAMBOS)", showarrow=False, font=dict(size=14, color="DarkOrange"))
-    fig.add_annotation(x=6.5, y=35, text="MANIOBRA DE RETORNO", showarrow=False, font=dict(size=14, color="DarkGreen"))
-
-    fig.update_layout(
-        title="MAPA OPERATIVO DEL ALMACÉN (13m x 37m)",
-        xaxis=dict(range=[-1, 14], title="Frente (m)", dtick=1),
-        yaxis=dict(range=[-1, 38], title="Largo (m)", dtick=5),
-        width=450,
-        height=800,
-        margin=dict(l=20, r=20, t=40, b=20),
-        showlegend=False
-    )
+    fig.update_layout(xaxis=dict(range=[-1, 14], showgrid=False), yaxis=dict(range=[-1, 38], showgrid=False),
+                      plot_bgcolor='white', width=450, height=800, showlegend=False)
     return fig
 
-# --- INTERFAZ PRINCIPAL ---
-st.title("🛡️ UMAD Warehouse System")
-st.sidebar.header("Panel de Control")
-menu = st.sidebar.radio("Navegación", ["Monitoreo y Ubicación", "Registro de Entrada", "Salida a Producción"])
+# --- INTERFAZ ---
+st.sidebar.title("Navegación")
+menu = st.sidebar.radio("Ir a:", ["Monitoreo y Ubicación", "Registro de Entrada", "Salida a Producción"])
 
 if menu == "Monitoreo y Ubicación":
-    st.header("📍 Estado Actual del Almacén")
-    
+    st.header("📍 Monitoreo en Tiempo Real")
     col1, col2 = st.columns([1, 1])
-    
     with col1:
-        st.subheader("Mapa de Planta")
-        mapa = dibujar_layout_interactivo()
-        st.plotly_chart(mapa, use_container_width=True)
-    
+        st.plotly_chart(dibujar_layout())
     with col2:
-        st.subheader("Leyenda y Detalles")
-        st.info("""
-        **Guía de Colores:**
-        - 🟦 **Azul:** Racks Selectivos (Vigas 3m).
-        - 🟧 **Naranja:** Zona de Piso para Tinas Pesadas.
-        - 🟩 **Verde:** Área de Retorno (Circulación).
-        - 🟦 **Cian:** Área de Recepción.
-        """)
-        
+        st.subheader("Inventario Activo")
         db = cargar_db()
         if db:
             df = pd.DataFrame.from_dict(db, orient='index')
-            st.write("Últimos movimientos registrados:")
-            st.dataframe(df[['nombre', 'rack', 'estado']].tail(5))
+            st.dataframe(df[['nombre', 'fila', 'seccion', 'nivel', 'peso']])
         else:
-            st.warning("No hay datos en el inventario.")
+            st.info("Almacén vacío.")
 
 elif menu == "Registro de Entrada":
-    st.subheader("📥 Ingreso de Material de Proveedor")
-    # Aquí irá tu lógica de formulario de registro...
-    st.write("Formulario de entrada en desarrollo conforme al nuevo proceso...")
+    st.header("📥 Entrada de Material")
+    with st.form("registro_entrada"):
+        nombre = st.text_input("Nombre del Material (ej. Pintura Blanca)")
+        tipo = st.selectbox("Tipo de Contenedor", ["Caja KLT", "Pallet Estándar", "Tina LAMTEC", "Tambo 200L"])
+        peso = st.number_input("Peso Total (kg)", min_value=1.0)
+        submit = st.form_submit_button("Asignar Ubicación Automática")
 
-elif menu == "Salida a Producción":
-    st.subheader("📤 Despacho de Material")
-    # Aquí irá tu lógica de salida...
-    st.write("Módulo de picking en desarrollo...")
+        if submit:
+            db = cargar_db()
+            resultado = obtener_espacio_disponible(db, peso, tipo)
+            
+            if resultado:
+                fila, seccion, nivel, pos = resultado
+                new_id = f"ID-{int(time.time())}"
+                db[new_id] = {
+                    "nombre": nombre, "tipo": tipo, "peso": peso,
+                    "fila": fila, "seccion": seccion, "nivel": nivel, "posicion": pos,
+                    "fecha": str(datetime.now())
+                }
+                guardar_db(db)
+                st.success(f"Asignado a: FILA {fila}, SECCIÓN {seccion}, NIVEL {nivel}, POSICIÓN {pos}")
+                st.image(qrcode.make(new_id).get_image(), width=200)
+            else:
+                st.error("No hay espacio disponible para esta carga.")
