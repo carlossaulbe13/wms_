@@ -1,11 +1,7 @@
+plotly
 streamlit
 paho-mqtt
-opencv-python-headless
-pyzbar
+requests
+pandas
 qrcode
 pillow
-streamlit-aggrid
-pandas
-requests
-streamlit-autorefresh
-plotly
