@@ -131,13 +131,35 @@ CELDA_STYLE = (
     "border-radius:8px; padding:8px 6px; text-align:center; color:black;"
     "height:130px; width:100%; display:flex; flex-direction:column;"
     "justify-content:center; align-items:center; overflow:hidden;"
-    "box-sizing:border-box; margin:0;"
+    "box-sizing:border-box; margin:0px 0px 6px 0px;"
 )
 
 # ─────────────────────────────────────────
 # PAGINA
 # ─────────────────────────────────────────
 st.set_page_config(page_title="UMAD WMS Cloud", layout="wide")
+
+# CSS global: elimina el gap interno de Streamlit en las columnas marcadas con .rack-grid
+st.markdown("""
+<style>
+/* Elimina el gap horizontal entre columnas en las grillas de racks */
+div[data-testid="column"] > div {
+    padding: 0 !important;
+}
+.rack-row > div[data-testid="stHorizontalBlock"] {
+    gap: 6px !important;
+}
+/* Elimina margen extra entre filas de celdas */
+.rack-row {
+    margin-bottom: 6px !important;
+}
+/* Asegura que el contenido del column no tenga padding lateral */
+div[data-testid="stVerticalBlockBorderWrapper"] {
+    padding: 0 !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 st.markdown(
     "<h1 style='text-align:center;color:#FF4B4B;margin-bottom:4px;'>"
     "UMAD Warehouse Management System</h1>",
@@ -303,40 +325,43 @@ with tabs[0]:
         items_zona = {k: v for k, v in db.items() if v.get('rack') == rack_id}
         busq = st.text_input("Buscar en esta zona:", "").strip().upper()
 
+        grid_html = "<div style='display:grid;grid-template-columns:repeat(4,1fr);gap:6px;'>"
         for fila in range(1, 4):
-            cols = st.columns(4, gap="small")
             for col in range(1, 5):
                 item, item_key = None, None
                 for k, v in items_zona.items():
                     if v.get('fila') == fila and v.get('columna') == col:
                         item = v; item_key = k; break
-
                 buscado = busq and item and (
                     busq in item.get('nombre', '').upper() or
                     busq in item.get('sku_base', '').upper() or
                     (item_key and busq in item_key.upper())
                 )
                 bg, border = color_celda(item, buscado)
-
-                with cols[col - 1]:
-                    if item:
-                        st.markdown(
-                            f"<div style='background:{bg};border:2px solid {border};{CELDA_STYLE}'>"
-                            f"<b style='font-size:12px;white-space:nowrap;overflow:hidden;"
-                            f"text-overflow:ellipsis;width:95%;display:block;'>{item['nombre']}</b>"
-                            f"<span style='font-size:10px;line-height:1.5;'>"
-                            f"SKU: {item.get('sku_base','N/A')}<br>"
-                            f"<b>{item.get('cantidad',1)} PZAS</b><br>"
-                            f"{item.get('estado','ACTIVO')}</span></div>",
-                            unsafe_allow_html=True
-                        )
-                    else:
-                        st.markdown(
-                            f"<div style='background:{bg};border:2px solid {border};{CELDA_STYLE}'>"
-                            f"<b style='font-size:12px;'>DISPONIBLE</b>"
-                            f"<span style='font-size:10px;color:#555;'>F{fila}-C{col}</span></div>",
-                            unsafe_allow_html=True
-                        )
+                if item:
+                    grid_html += (
+                        f"<div style='background:{bg};border:2px solid {border};"
+                        f"border-radius:8px;padding:8px 6px;text-align:center;color:black;"
+                        f"height:130px;display:flex;flex-direction:column;"
+                        f"justify-content:center;align-items:center;overflow:hidden;box-sizing:border-box;'>"
+                        f"<b style='font-size:12px;white-space:nowrap;overflow:hidden;"
+                        f"text-overflow:ellipsis;width:95%;display:block;'>{item['nombre']}</b>"
+                        f"<span style='font-size:10px;line-height:1.5;'>"
+                        f"SKU: {item.get('sku_base','N/A')}<br>"
+                        f"<b>{item.get('cantidad',1)} PZAS</b><br>"
+                        f"{item.get('estado','ACTIVO')}</span></div>"
+                    )
+                else:
+                    grid_html += (
+                        f"<div style='background:{bg};border:2px solid {border};"
+                        f"border-radius:8px;padding:8px 6px;text-align:center;color:black;"
+                        f"height:130px;display:flex;flex-direction:column;"
+                        f"justify-content:center;align-items:center;overflow:hidden;box-sizing:border-box;'>"
+                        f"<b style='font-size:12px;'>DISPONIBLE</b>"
+                        f"<span style='font-size:10px;color:#555;'>F{fila}-C{col}</span></div>"
+                    )
+        grid_html += "</div>"
+        st.markdown(grid_html, unsafe_allow_html=True)
 
     # ── NIVEL 3: Fila con posiciones exactas ──────────────────
     else:
@@ -351,49 +376,47 @@ with tabs[0]:
         items_fila = {k: v for k, v in db.items() if v.get('rack') == rack_id}
         busq = st.text_input("Buscar material en esta fila:", "").strip().upper()
 
+        grid_html = "<div style='display:grid;grid-template-columns:repeat(4,1fr);gap:6px;'>"
         for fila in range(1, 4):
-            st.markdown(
-                f"<div style='color:#8892b0;font-size:11px;letter-spacing:1px;"
-                f"margin:12px 0 4px 0;'>FILA {fila}</div>",
-                unsafe_allow_html=True
-            )
-            cols = st.columns(4, gap="small")
             for col in range(1, 5):
                 item, item_key = None, None
                 for k, v in items_fila.items():
                     if v.get('fila') == fila and v.get('columna') == col:
                         item = v; item_key = k; break
-
                 buscado = busq and item and (
                     busq in item.get('nombre', '').upper() or
                     busq in item.get('sku_base', '').upper() or
                     (item_key and busq in item_key.upper())
                 )
                 bg, border = color_celda(item, buscado)
-
-                with cols[col - 1]:
-                    if item:
-                        congelado    = item.get('estado') == 'CONGELADO'
-                        label_estado = "[CONGELADO]" if congelado else item.get('estado', 'ACTIVO')
-                        st.markdown(
-                            f"<div style='background:{bg};border:2px solid {border};{CELDA_STYLE}'>"
-                            f"<b style='font-size:12px;white-space:nowrap;overflow:hidden;"
-                            f"text-overflow:ellipsis;width:95%;display:block;'>{item['nombre']}</b>"
-                            f"<span style='font-size:10px;line-height:1.5;'>"
-                            f"SKU: {item.get('sku_base','N/A')}<br>"
-                            f"<b>{item.get('cantidad',1)} PZAS</b><br>"
-                            f"{label_estado}<br>"
-                            f"<span style='color:#666;'>F{fila}-C{col}</span>"
-                            f"</span></div>",
-                            unsafe_allow_html=True
-                        )
-                    else:
-                        st.markdown(
-                            f"<div style='background:{bg};border:2px solid {border};{CELDA_STYLE}'>"
-                            f"<b style='font-size:12px;'>DISPONIBLE</b>"
-                            f"<span style='font-size:10px;color:#555;'>F{fila}-C{col}</span></div>",
-                            unsafe_allow_html=True
-                        )
+                if item:
+                    congelado    = item.get('estado') == 'CONGELADO'
+                    label_estado = "[CONGELADO]" if congelado else item.get('estado', 'ACTIVO')
+                    grid_html += (
+                        f"<div style='background:{bg};border:2px solid {border};"
+                        f"border-radius:8px;padding:8px 6px;text-align:center;color:black;"
+                        f"height:130px;display:flex;flex-direction:column;"
+                        f"justify-content:center;align-items:center;overflow:hidden;box-sizing:border-box;'>"
+                        f"<b style='font-size:12px;white-space:nowrap;overflow:hidden;"
+                        f"text-overflow:ellipsis;width:95%;display:block;'>{item['nombre']}</b>"
+                        f"<span style='font-size:10px;line-height:1.5;'>"
+                        f"SKU: {item.get('sku_base','N/A')}<br>"
+                        f"<b>{item.get('cantidad',1)} PZAS</b><br>"
+                        f"{label_estado}<br>"
+                        f"<span style='color:#666;'>F{fila}-C{col}</span>"
+                        f"</span></div>"
+                    )
+                else:
+                    grid_html += (
+                        f"<div style='background:{bg};border:2px solid {border};"
+                        f"border-radius:8px;padding:8px 6px;text-align:center;color:black;"
+                        f"height:130px;display:flex;flex-direction:column;"
+                        f"justify-content:center;align-items:center;overflow:hidden;box-sizing:border-box;'>"
+                        f"<b style='font-size:12px;'>DISPONIBLE</b>"
+                        f"<span style='font-size:10px;color:#555;'>F{fila}-C{col}</span></div>"
+                    )
+        grid_html += "</div>"
+        st.markdown(grid_html, unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════
 # PESTANA 1 — ESCANER DE CAMPO
