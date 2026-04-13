@@ -192,26 +192,19 @@ with tabs[0]:
     st_autorefresh(interval=4000, key="twin_refresh")
     db = cargar_db()
     st.session_state.db = db
-    # KPIs globales
+
+    # Calculos (necesarios para el layout y los KPIs)
     total_items      = len(db)
     congelados_total = sum(1 for v in db.values() if v.get('estado') == 'CONGELADO')
     activos_total    = total_items - congelados_total
     racks_activos    = len(set(v.get('rack') for v in db.values() if v.get('rack')))
 
-
-    # Breadcrumb
+    # Estado de navegacion
     zona_sel = st.session_state.twin_zona
     fila_sel = st.session_state.twin_fila
 
-    crumbs = ["Nave principal"]
-    if zona_sel: crumbs.append(zona_sel)
-    if fila_sel: crumbs.append(fila_sel)
-    st.markdown("  ›  ".join(f"**{c}**" for c in crumbs))
-
     # ── NIVEL 1: Layout de nave ───────────────────────────────────────────
     if zona_sel is None:
-        st.subheader('Selecciona una zona del almacen')
-
         # Navegacion via query params
         qp = st.query_params
         if 'zona' in qp:
@@ -285,14 +278,14 @@ with tabs[0]:
             '</div>'
 
             '</div>'
-            '<p style="font-size:11px;color:#8892b0;margin-top:10px;">'
-            'Haz clic en una zona o fila para ver el detalle de posiciones.</p>'
         )
         st.markdown(nave_html, unsafe_allow_html=True)
-
+        st.caption("Haz clic en una zona o fila para ver el detalle de posiciones.")
 
     # ── NIVEL 2: Sobredimensiones (POS_5) ─────────────────────
     elif fila_sel is None:
+        crumbs = ["Nave principal", zona_sel]
+        st.markdown("  ›  ".join(f"**{c}**" for c in crumbs))
         if st.button("Volver a la nave"):
             st.session_state.twin_zona = None
             st.rerun()
@@ -343,6 +336,8 @@ with tabs[0]:
 
     # ── NIVEL 3: Fila con posiciones exactas ──────────────────
     else:
+        crumbs = ["Nave principal", zona_sel, fila_sel]
+        st.markdown("  ›  ".join(f"**{c}**" for c in crumbs))
         if st.button("Volver a la nave"):
             st.session_state.twin_zona = None
             st.session_state.twin_fila = None
@@ -395,13 +390,14 @@ with tabs[0]:
                     )
         grid_html += "</div>"
         st.markdown(grid_html, unsafe_allow_html=True)
-    st.markdown('---')
-    k1, k2, k3, k4 = st.columns(4)
-    k1.metric('Total pallets', total_items)
-    k2.metric('Activos',       activos_total)
-    k3.metric('Congelados',    congelados_total)
-    k4.metric('Racks en uso',  racks_activos)
 
+    # KPIs — siempre al final, debajo del layout
+    st.markdown("---")
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric("Total pallets", total_items)
+    k2.metric("Activos",       activos_total)
+    k3.metric("Congelados",    congelados_total)
+    k4.metric("Racks en uso",  racks_activos)
 
 # ══════════════════════════════════════════════════════════════
 # PESTANA 1 — ESCANER DE CAMPO
