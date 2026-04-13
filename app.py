@@ -292,7 +292,7 @@ with tabs[0]:
             st.rerun()
 
         t5, c5 = rack_stats(db, 'POS_5')
-        badge5 = '#dc3545' if c5 > 0 else ('#ffc107' if t5 > 0 else '#3a3f55')
+        badge5 = '#dc3545' if c5 > 0 else '#3a3f55'  # solo rojo si hay congelados, neutro si no
 
         # Resaltado amarillo: activo si el rack se asignó hace menos de 5 seg
         rack_res    = st.session_state.get('rack_resaltado')
