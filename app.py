@@ -48,17 +48,57 @@ def on_message(client, userdata, msg):
     if payload.endswith("_OFF"):
         st.session_state.msg_mqtt_recibido = payload.replace("_OFF", "")
 
-def obtener_coordenada_libre(db, rack_objetivo):
-    ocupadas = [
+# Constantes estructurales del almacen
+CARGA_MAX_NIVEL = 2000.0   # kg maximos por nivel de rack
+PESO_SOBRE      = 2000.0   # si el pallet solo supera esto → sobredimensiones
+NUM_PISOS       = 5
+NUM_NIVELES     = 3
+NUM_COLS        = 3
+
+def peso_en_nivel(db, rack, piso, nivel):
+    """Suma el peso de todos los pallets en rack+piso+nivel."""
+    return sum(
+        v.get('peso', 0)
+        for v in db.values()
+        if v.get('rack') == rack
+        and v.get('piso') == piso
+        and v.get('fila') == nivel
+    )
+
+def asignar_rack_por_peso_vol(peso, vol):
+    """Regla de negocio: qué rack le corresponde según peso/volumen."""
+    if peso > PESO_SOBRE:
+        return "POS_5"   # sobredimensiones
+    if peso >= 100:
+        return "POS_4"
+    if vol > 1.5:
+        return "POS_5"
+    if peso >= 50 or vol > 1.0:
+        return "POS_3"
+    if peso >= 20 or vol > 0.5:
+        return "POS_2"
+    return "POS_1"
+
+def obtener_coordenada_libre(db, rack_objetivo, peso_nuevo=0):
+    """
+    Busca el primer espacio libre en rack_objetivo respetando la carga máxima
+    por nivel (CARGA_MAX_NIVEL). Si un nivel ya no aguanta el peso nuevo,
+    lo salta. Itera piso → nivel → columna.
+    Devuelve (piso, nivel, columna) o (None, None, None) si no hay espacio.
+    """
+    ocupadas = {
         (v.get('piso'), v.get('fila'), v.get('columna'))
         for v in db.values()
         if v.get('rack') == rack_objetivo
-    ]
-    for p in range(1, 6):
-        for f in range(1, 4):
-            for c in range(1, 5):
-                if (p, f, c) not in ocupadas:
-                    return p, f, c
+    }
+    for p in range(1, NUM_PISOS + 1):
+        for niv in range(1, NUM_NIVELES + 1):
+            carga_actual = peso_en_nivel(db, rack_objetivo, p, niv)
+            if carga_actual + peso_nuevo > CARGA_MAX_NIVEL:
+                continue   # este nivel no aguanta, probar el siguiente
+            for c in range(1, NUM_COLS + 1):
+                if (p, niv, c) not in ocupadas:
+                    return p, niv, c
     return None, None, None
 
 # ─────────────────────────────────────────
@@ -538,149 +578,119 @@ with tabs[1]:
 # PESTANA 2 — MAESTRO DE ARTICULOS
 # ══════════════════════════════════════════════════════════════
 with tabs[2]:
+    import datetime
     st.header("GESTION DEL INVENTARIO")
     db_actual = cargar_db()
 
+    # ── Tabla principal con filtros ───────────────────────────
     if db_actual:
-        import datetime
         data_tabla = []
         for k, v in db_actual.items():
             data_tabla.append({
                 "MATRICULA (QR)": k,
                 "SKU":            v.get('sku_base', 'N/A'),
                 "NOMBRE":         v.get('nombre', ''),
-                "PZAS":           v.get('cantidad', 1),
-                "PESO (KG)":      v.get('peso', 0.0),
+                "PZAS":           int(v.get('cantidad', 1)),
+                "PESO (KG)":      float(v.get('peso', 0.0)),
                 "RACK":           v.get('rack', ''),
                 "PISO":           v.get('piso', ''),
-                "FILA":           v.get('fila', ''),
+                "NIVEL":          v.get('fila', ''),
                 "COL":            v.get('columna', ''),
                 "ESTADO":         v.get('estado', 'ACTIVO'),
                 "FECHA LLEGADA":  v.get('fecha_llegada', 'N/A'),
             })
-
         df_full = pd.DataFrame(data_tabla)
 
-        # ── Filtros ──────────────────────────────────────────
+        # Filtros
         st.markdown("#### Filtros")
         fc1, fc2, fc3, fc4 = st.columns(4)
         with fc1:
             f_nombre = st.text_input("Nombre", "").strip().upper()
         with fc2:
-            f_sku = st.text_input("Codigo / SKU", "").strip().upper()
+            f_sku = st.text_input("Codigo / Matricula", "").strip().upper()
         with fc3:
-            pesos_disponibles = sorted(df_full["PESO (KG)"].unique().tolist())
             f_peso_max = st.number_input(
                 "Peso max (KG)", min_value=0.0,
-                value=float(df_full["PESO (KG)"].max()) if len(df_full) else 0.0,
-                step=1.0
+                value=float(df_full["PESO (KG)"].max()) if len(df_full) else 9999.0,
+                step=10.0
             )
         with fc4:
-            f_estado = st.selectbox("Estado", ["TODOS", "ACTIVO", "CONGELADO"])
+            f_estado = st.selectbox("Estado", ["TODOS", "ACTIVO", "CONGELADO", "BAJA"])
 
-        df_filtrado = df_full.copy()
+        df_f = df_full.copy()
         if f_nombre:
-            df_filtrado = df_filtrado[df_filtrado["NOMBRE"].str.upper().str.contains(f_nombre)]
+            df_f = df_f[df_f["NOMBRE"].str.upper().str.contains(f_nombre, na=False)]
         if f_sku:
-            df_filtrado = df_filtrado[
-                df_filtrado["SKU"].str.upper().str.contains(f_sku) |
-                df_filtrado["MATRICULA (QR)"].str.upper().str.contains(f_sku)
+            df_f = df_f[
+                df_f["SKU"].str.upper().str.contains(f_sku, na=False) |
+                df_f["MATRICULA (QR)"].str.upper().str.contains(f_sku, na=False)
             ]
-        if f_peso_max:
-            df_filtrado = df_filtrado[df_filtrado["PESO (KG)"] <= f_peso_max]
+        df_f = df_f[df_f["PESO (KG)"] <= f_peso_max]
         if f_estado != "TODOS":
-            df_filtrado = df_filtrado[df_filtrado["ESTADO"] == f_estado]
+            df_f = df_f[df_f["ESTADO"] == f_estado]
 
-        st.caption(f"{len(df_filtrado)} de {len(df_full)} articulos")
+        st.caption(f"{len(df_f)} de {len(df_full)} articulos")
 
-        # ── Tabla de inventario filtrada ─────────────────────
-        st.markdown("##### Inventario")
         st.dataframe(
-            df_filtrado,
+            df_f,
             use_container_width=True,
-            height=min(400, 40 + len(df_filtrado) * 36),
+            height=max(120, min(420, 44 + len(df_f) * 36)),
             column_config={
                 "MATRICULA (QR)": st.column_config.TextColumn("Matricula QR", width="medium"),
-                "NOMBRE":         st.column_config.TextColumn("Nombre",        width="large"),
-                "SKU":            st.column_config.TextColumn("SKU",           width="small"),
-                "PZAS":           st.column_config.NumberColumn("Pzas",        width="small"),
-                "PESO (KG)":      st.column_config.NumberColumn("Peso (kg)",   width="small", format="%.1f"),
-                "RACK":           st.column_config.TextColumn("Rack",          width="small"),
-                "PISO":           st.column_config.TextColumn("Piso",          width="small"),
-                "FILA":           st.column_config.TextColumn("Fila",          width="small"),
-                "COL":            st.column_config.TextColumn("Col",           width="small"),
-                "ESTADO":         st.column_config.TextColumn("Estado",        width="small"),
-                "FECHA LLEGADA":  st.column_config.TextColumn("Fecha llegada", width="medium"),
+                "NOMBRE":         st.column_config.TextColumn("Nombre",       width="large"),
+                "SKU":            st.column_config.TextColumn("SKU",          width="small"),
+                "PZAS":           st.column_config.NumberColumn("Pzas",       width="small"),
+                "PESO (KG)":      st.column_config.NumberColumn("Peso (kg)",  width="small", format="%.1f"),
+                "RACK":           st.column_config.TextColumn("Rack",         width="small"),
+                "PISO":           st.column_config.TextColumn("Piso",         width="small"),
+                "NIVEL":          st.column_config.TextColumn("Nivel",        width="small"),
+                "COL":            st.column_config.TextColumn("Col",          width="small"),
+                "ESTADO":         st.column_config.TextColumn("Estado",       width="small"),
+                "FECHA LLEGADA":  st.column_config.TextColumn("Fecha llegada",width="medium"),
             },
             hide_index=True,
         )
+
         st.divider()
 
-        # ── Seleccion para edicion via AgGrid (debajo) ───────
-        st.markdown("##### Seleccionar articulo para editar")
-        gb = GridOptionsBuilder.from_dataframe(df_filtrado)
-        gb.configure_selection('single', use_checkbox=True)
-        gb.configure_default_column(resizable=True, sortable=True)
-        grid_response = AgGrid(
-            df_filtrado[['MATRICULA (QR)','NOMBRE','SKU','ESTADO']],
-            gridOptions=gb.build(),
-            update_mode=GridUpdateMode.SELECTION_CHANGED,
-            theme='streamlit',
-            height=200,
+        # ── Seleccionar articulo para editar / dar de baja ────
+        st.markdown("##### Seleccionar articulo")
+        uid_sel = st.selectbox(
+            "Matricula QR",
+            options=["— selecciona —"] + list(db_actual.keys()),
+            key="sel_matricula"
         )
 
-        sel = grid_response['selected_rows']
-        if sel is not None and len(sel) > 0:
-            item_sel     = sel.iloc[0].to_dict() if isinstance(sel, pd.DataFrame) else sel[0]
-            uid_real     = item_sel['MATRICULA (QR)']
-            datos_reales = db_actual[uid_real]
+        if uid_sel != "— selecciona —" and uid_sel in db_actual:
+            datos = db_actual[uid_sel]
+            st.markdown(f"**Editando:** {uid_sel} — {datos.get('nombre','')}")
 
-            st.divider()
-            st.write(f"### EDITANDO MATRICULA: {uid_real}")
+            ed1, ed2, ed3 = st.columns(3)
+            with ed1:
+                nuevo_sku    = st.text_input("SKU BASE", value=datos.get('sku_base', ''), key="e_sku")
+                nuevo_nombre = st.text_input("NOMBRE",   value=datos.get('nombre', ''),   key="e_nom")
+            with ed2:
+                nueva_cant   = st.number_input("PIEZAS", min_value=1,
+                                               value=int(datos.get('cantidad', 1)), key="e_cant")
+                nuevo_peso   = st.number_input("PESO (KG)", min_value=0.0,
+                                               value=float(datos.get('peso', 0.0)), key="e_peso")
+            with ed3:
+                nuevo_estado = st.selectbox("ESTADO", ["ACTIVO", "CONGELADO"],
+                                            index=0 if datos.get('estado') == "ACTIVO" else 1,
+                                            key="e_estado")
+                nuevo_vol    = st.number_input("VOLUMEN (M3)", min_value=0.0,
+                                               value=float(datos.get('volumen', 0.0)),
+                                               step=0.1, key="e_vol")
 
-            col_ed1, col_ed2, col_ed3 = st.columns(3)
-            with col_ed1:
-                nuevo_sku    = st.text_input("SKU BASE", value=datos_reales.get('sku_base', ''))
-                nuevo_nombre = st.text_input("NOMBRE",   value=datos_reales['nombre'])
-            with col_ed2:
-                nueva_cant = st.number_input(
-                    "PIEZAS", min_value=1, value=int(datos_reales.get('cantidad', 1))
-                )
-            with col_ed3:
-                nuevo_estado = st.selectbox(
-                    "ESTADO", ["ACTIVO", "CONGELADO"],
-                    index=0 if datos_reales.get('estado') == "ACTIVO" else 1
-                )
-
-            st.write("DIMENSIONES Y PESO")
-            col_p, col_v = st.columns(2)
-            with col_p:
-                nuevo_peso = st.number_input(
-                    "PESO (KG)", min_value=0.0, value=float(datos_reales.get('peso', 0.0))
-                )
-            with col_v:
-                nuevo_vol = st.number_input(
-                    "VOLUMEN (M3)", min_value=0.0,
-                    value=float(datos_reales.get('volumen', 0.0)), step=0.1
-                )
-
-            rack_actual = datos_reales.get('rack', 'POS_2')
-            if   nuevo_peso >= 100:                    rack_ideal = "POS_4"
-            elif nuevo_vol  >  1.5:                    rack_ideal = "POS_5"
-            elif nuevo_peso >= 50 or nuevo_vol > 1.0:  rack_ideal = "POS_3"
-            elif nuevo_peso >= 20 or nuevo_vol > 0.5:  rack_ideal = "POS_2"
-            else:                                      rack_ideal = "POS_1"
-
+            rack_actual = datos.get('rack', 'POS_1')
+            rack_ideal  = asignar_rack_por_peso_vol(nuevo_peso, nuevo_vol)
             if rack_actual != rack_ideal:
-                st.warning(
-                    f"ALERTA OPERATIVA: Por las nuevas dimensiones/peso, este material "
-                    f"deberia reubicarse en {rack_ideal} (actualmente en {rack_actual})."
-                )
+                st.warning(f"ALERTA: Por peso/volumen este material deberia estar en {rack_ideal} (actualmente {rack_actual}).")
 
-            col_a, col_b = st.columns(2)
-            with col_a:
-                if st.button("GUARDAR CAMBIOS"):
-                    db_actual[uid_real].update({
+            ba1, ba2, ba3 = st.columns(3)
+            with ba1:
+                if st.button("GUARDAR CAMBIOS", use_container_width=True):
+                    db_actual[uid_sel].update({
                         'sku_base': nuevo_sku, 'nombre': nuevo_nombre,
                         'cantidad': nueva_cant, 'estado': nuevo_estado,
                         'peso': nuevo_peso, 'volumen': nuevo_vol
@@ -688,64 +698,92 @@ with tabs[2]:
                     guardar_db(db_actual)
                     st.success("CAMBIOS GUARDADOS.")
                     st.rerun()
-            with col_b:
-                if st.button("ELIMINAR PALLET DE LA NUBE"):
-                    del db_actual[uid_real]
+            with ba2:
+                if st.button("DAR DE BAJA", use_container_width=True):
+                    # Marca como BAJA sin eliminar (trazabilidad)
+                    db_actual[uid_sel]['estado'] = 'BAJA'
+                    db_actual[uid_sel]['fecha_baja'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
                     guardar_db(db_actual)
+                    st.warning(f"Pallet {uid_sel} dado de baja.")
+                    st.rerun()
+            with ba3:
+                if st.button("ELIMINAR PERMANENTE", use_container_width=True):
+                    del db_actual[uid_sel]
+                    guardar_db(db_actual)
+                    st.error("Pallet eliminado permanentemente.")
                     st.rerun()
 
-    with st.expander("ALTA DE MATERIALES Y ASIGNACION MANUAL"):
-        with st.form("new_part_manual"):
-            new_uid = st.text_input("ID UNICO DEL PALLET (EJ. PALLET-010)").upper()
+    st.divider()
 
-            c_sk, c_nm = st.columns(2)
-            with c_sk: new_sku_base = st.text_input("SKU GENERICO")
+    # ── Alta de materiales ────────────────────────────────────
+    with st.expander("ALTA DE MATERIALES Y ASIGNACION MANUAL", expanded=False):
+        with st.form("new_part_manual"):
+            st.markdown("**Datos del pallet**")
+            c_id, c_sk, c_nm = st.columns(3)
+            with c_id: new_uid      = st.text_input("ID UNICO (EJ. PALLET-010)").upper()
+            with c_sk: new_sku_base = st.text_input("SKU / NUMERO DE PARTE")
             with c_nm: new_name     = st.text_input("DESCRIPCION")
 
+            st.markdown("**Peso y cantidad**")
             c_p, c_c = st.columns(2)
-            with c_p: p           = st.number_input("PESO (KG)", min_value=0.0)
-            with c_c: cant_manual = st.number_input("CANTIDAD DE PIEZAS", min_value=1, value=1)
+            with c_p: p           = st.number_input("PESO TOTAL PALLET (KG)", min_value=0.0, step=1.0)
+            with c_c: cant_manual = st.number_input("CANTIDAD DE PIEZAS",     min_value=1, value=1)
 
+            st.markdown("**Dimensiones**")
             c1, c2, c3 = st.columns(3)
             with c1: l = st.number_input("LARGO (CM)", min_value=0.0)
-            with c2: a = st.number_input("ANCHO (CM)", min_value=0.0)
+            with c2: a_dim = st.number_input("ANCHO (CM)", min_value=0.0)
             with c3: h = st.number_input("ALTO (CM)",  min_value=0.0)
 
             generar_qr_fisico = st.checkbox("GENERAR CODIGO QR FISICO", value=True)
 
-            if st.form_submit_button("REGISTRAR MATERIAL"):
-                vol = (l / 100) * (a / 100) * (h / 100)
-
-                if   p >= 100:             r = "POS_4"
-                elif vol > 1.5:            r = "POS_5"
-                elif p >= 50 or vol > 1.0: r = "POS_3"
-                elif p >= 20 or vol > 0.5: r = "POS_2"
-                else:                      r = "POS_1"
-
-                piso, fila, columna = obtener_coordenada_libre(st.session_state.db, r)
-
-                if piso is None:
-                    st.error(f"ERROR OPERATIVO: EL {r} ESTA LLENO.")
+            submitted = st.form_submit_button("REGISTRAR MATERIAL", use_container_width=True)
+            if submitted:
+                if not new_uid or not new_name or not new_sku_base:
+                    st.error("Completa ID, SKU y Descripcion.")
+                elif new_uid in st.session_state.db:
+                    st.error(f"El ID {new_uid} ya existe en el sistema.")
                 else:
-                    st.session_state.db[new_uid] = {
-                        "sku_base": new_sku_base, "nombre": new_name,
-                        "peso": p, "cantidad": cant_manual,
-                        "volumen": vol, "rack": r,
-                        "piso": piso, "fila": fila, "columna": columna, "estado": "ACTIVO"
-                    }
-                    guardar_db(st.session_state.db)
+                    vol = (l / 100) * (a_dim / 100) * (h / 100)
+                    r   = asignar_rack_por_peso_vol(p, vol)
 
-                    if generar_qr_fisico:
-                        qr_img = qrcode.make(new_uid)
-                        nombre_archivo = f"label_{new_uid}.png"
-                        qr_img.save(nombre_archivo)
-                        st.session_state.qr_generado = nombre_archivo
+                    if p > PESO_SOBRE:
+                        st.warning(f"Pallet supera {PESO_SOBRE} kg — asignado a SOBREDIMENSIONES (POS_5).")
 
-                    if st.session_state.mqtt_client:
-                        st.session_state.mqtt_client.publish(TOPIC_PUB, f"{r}_ON")
-                    time.sleep(0.1)
-                    st.session_state.confirmacion_pendiente = r
-                    st.rerun()
+                    piso, nivel, columna = obtener_coordenada_libre(st.session_state.db, r, peso_nuevo=p)
+
+                    if piso is None:
+                        # Intentar en sobredimensiones como fallback
+                        r = "POS_5"
+                        piso, nivel, columna = obtener_coordenada_libre(st.session_state.db, r, peso_nuevo=p)
+                        if piso is None:
+                            st.error("No hay espacio disponible en ningun rack. Reorganiza el almacen.")
+                        else:
+                            st.warning(f"Rack asignado lleno — redirigido a {r}.")
+
+                    if piso is not None:
+                        fecha_hoy = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+                        st.session_state.db[new_uid] = {
+                            "sku_base": new_sku_base, "nombre": new_name,
+                            "peso": p, "cantidad": cant_manual,
+                            "volumen": vol, "rack": r,
+                            "piso": piso, "fila": nivel, "columna": columna,
+                            "estado": "ACTIVO", "fecha_llegada": fecha_hoy
+                        }
+                        guardar_db(st.session_state.db)
+
+                        if generar_qr_fisico:
+                            qr_img = qrcode.make(new_uid)
+                            nombre_archivo = f"label_{new_uid}.png"
+                            qr_img.save(nombre_archivo)
+                            st.session_state.qr_generado = nombre_archivo
+
+                        if st.session_state.mqtt_client:
+                            st.session_state.mqtt_client.publish(TOPIC_PUB, f"{r}_ON")
+                        time.sleep(0.1)
+                        st.session_state.confirmacion_pendiente = r
+                        st.success(f"Pallet registrado en {r} — Piso {piso}, Nivel {nivel}, Col {columna}.")
+                        st.rerun()
 
     if st.session_state.qr_generado:
         st.success("MATERIAL REGISTRADO. ESPERANDO CONFIRMACION FISICA EN EL RACK.")
