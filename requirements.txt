@@ -8,3 +8,4 @@ streamlit-aggrid
 pandas
 requests
 streamlit-autorefresh
+plotly
