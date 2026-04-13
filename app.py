@@ -146,6 +146,8 @@ defaults = {
     'qr_generado': None,
     'twin_zona': None,
     'twin_fila': None,
+    'rack_resaltado': None,
+    'rack_resaltado_ts': 0.0,
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -290,6 +292,26 @@ with tabs[0]:
         t5, c5 = rack_stats(db, 'POS_5')
         badge5 = '#dc3545' if c5 > 0 else ('#ffc107' if t5 > 0 else '#3a3f55')
 
+        # Resaltado amarillo: activo si el rack se asignó hace menos de 5 seg
+        rack_res   = st.session_state.get('rack_resaltado')
+        res_activo = (
+            rack_res is not None and
+            (time.time() - st.session_state.get('rack_resaltado_ts', 0)) < 5
+        )
+        if not res_activo:
+            st.session_state.rack_resaltado = None
+
+        if res_activo:
+            st.markdown("""
+            <style>
+            @keyframes pulso_amarillo {
+                0%,100% { background:#2e3550; border-color:#4a5080; box-shadow:none; }
+                30%,70% { background:#713f12; border-color:#facc15;
+                          box-shadow:0 0 18px 4px rgba(250,204,21,0.55); }
+            }
+            .fila-res { animation: pulso_amarillo 5s ease forwards !important; }
+            </style>""", unsafe_allow_html=True)
+
         filas_html = ''
         for fila_label, rack_id in [
             ('FILA A','POS_1'),('FILA B','POS_2'),('FILA C','POS_3'),('FILA D','POS_4')
@@ -299,11 +321,15 @@ with tabs[0]:
             cb  = '#dc3545' if occ > 80 else ('#ffc107' if occ > 50 else '#28a745')
             tag = (' — LLENO' if occ >= 100 else '')
             fenc = fila_label.replace(' ', '+')
+            es_res   = res_activo and rack_res == rack_id
+            clase    = 'fila-res' if es_res else ''
+            borde    = '#facc15' if es_res else '#4a5080'
             filas_html += (
                 f"<a href='?zona=ALMACENAJE&fila={fenc}' target='_self' "
                 f"style='text-decoration:none;display:block;margin-bottom:8px;'>"
                 f"<div style='display:flex;align-items:center;gap:10px;'>"
-                f"<div style='flex:0 0 150px;background:#2e3550;border:1.5px solid #4a5080;"
+                f"<div class='{clase}' style='flex:0 0 150px;background:#2e3550;"
+                f"border:1.5px solid {borde};"
                 f"border-radius:8px;padding:11px 8px;text-align:center;color:#cdd3ea;"
                 f"font-size:12px;font-weight:600;cursor:pointer;'>{fila_label}{tag}</div>"
                 f"<div style='flex:1;'>"
@@ -665,6 +691,8 @@ with tabs[1]:
                         st.session_state.mqtt_client.publish(TOPIC_PUB, f"{rack}_ON")
                     time.sleep(0.1)
                     st.session_state.confirmacion_pendiente = rack
+                    st.session_state.rack_resaltado    = rack
+                    st.session_state.rack_resaltado_ts = time.time()
                     st.session_state.sku_pendiente = None
                     st.success("PALLET REGISTRADO EN FIREBASE Y RACK ACTIVADO.")
                     st.rerun()
@@ -921,6 +949,8 @@ with tabs[2]:
                             st.session_state.mqtt_client.publish(TOPIC_PUB, f"{r}_ON")
                         time.sleep(0.1)
                         st.session_state.confirmacion_pendiente = r
+                        st.session_state.rack_resaltado    = r
+                        st.session_state.rack_resaltado_ts = time.time()
                         st.success(
                             f"Pallet registrado — Rack: {r} | Piso {piso} | Nivel {nivel} | Col {columna} | "
                             f"Embalaje: {tipo_embalaje}"
