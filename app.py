@@ -282,114 +282,127 @@ with tabs[0]:
         st.markdown(nave_html, unsafe_allow_html=True)
         st.caption("Haz clic en una zona o fila para ver el detalle de posiciones.")
 
-    # ── NIVEL 2: Sobredimensiones (POS_5) ─────────────────────
-    elif fila_sel is None:
-        crumbs = ["Nave principal", zona_sel]
-        st.markdown("  ›  ".join(f"**{c}**" for c in crumbs))
-        if st.button("Volver a la nave"):
-            st.session_state.twin_zona = None
-            st.rerun()
+    # ── NIVEL 2 / 3: Vista de racks (5 racks × 3 niveles × 4 columnas) ──
+    elif fila_sel is None or True:
+        # Determinar rack y label
+        if fila_sel:
+            rack_id   = ZONA_A_RACK.get(fila_sel, "POS_1")
+            titulo    = fila_sel
+            crumbs    = ["Nave principal", zona_sel, fila_sel]
+        else:
+            rack_id   = ZONA_A_RACK.get(zona_sel, "POS_5")
+            titulo    = zona_sel
+            crumbs    = ["Nave principal", zona_sel]
 
-        rack_id = ZONA_A_RACK.get(zona_sel, "POS_5")
-        st.subheader(f"Zona: {zona_sel}  |  Rack: {rack_id}")
-
-        items_zona = {k: v for k, v in db.items() if v.get('rack') == rack_id}
-        busq = st.text_input("Buscar en esta zona:", "").strip().upper()
-
-        grid_html = "<div style='display:grid;grid-template-columns:repeat(4,1fr);gap:6px;'>"
-        for fila in range(1, 4):
-            for col in range(1, 5):
-                item, item_key = None, None
-                for k, v in items_zona.items():
-                    if v.get('fila') == fila and v.get('columna') == col:
-                        item = v; item_key = k; break
-                buscado = busq and item and (
-                    busq in item.get('nombre', '').upper() or
-                    busq in item.get('sku_base', '').upper() or
-                    (item_key and busq in item_key.upper())
-                )
-                bg, border = color_celda(item, buscado)
-                if item:
-                    grid_html += (
-                        f"<div style='background:{bg};border:2px solid {border};"
-                        f"border-radius:8px;padding:8px 6px;text-align:center;color:black;"
-                        f"height:130px;display:flex;flex-direction:column;"
-                        f"justify-content:center;align-items:center;overflow:hidden;box-sizing:border-box;'>"
-                        f"<b style='font-size:12px;white-space:nowrap;overflow:hidden;"
-                        f"text-overflow:ellipsis;width:95%;display:block;'>{item['nombre']}</b>"
-                        f"<span style='font-size:10px;line-height:1.5;'>"
-                        f"SKU: {item.get('sku_base','N/A')}<br>"
-                        f"<b>{item.get('cantidad',1)} PZAS</b><br>"
-                        f"{item.get('estado','ACTIVO')}</span></div>"
-                    )
-                else:
-                    grid_html += (
-                        f"<div style='background:{bg};border:2px solid {border};"
-                        f"border-radius:8px;padding:8px 6px;text-align:center;color:black;"
-                        f"height:130px;display:flex;flex-direction:column;"
-                        f"justify-content:center;align-items:center;overflow:hidden;box-sizing:border-box;'>"
-                        f"<b style='font-size:12px;'>DISPONIBLE</b>"
-                        f"<span style='font-size:10px;color:#555;'>F{fila}-C{col}</span></div>"
-                    )
-        grid_html += "</div>"
-        st.markdown(grid_html, unsafe_allow_html=True)
-
-    # ── NIVEL 3: Fila con posiciones exactas ──────────────────
-    else:
-        crumbs = ["Nave principal", zona_sel, fila_sel]
         st.markdown("  ›  ".join(f"**{c}**" for c in crumbs))
         if st.button("Volver a la nave"):
             st.session_state.twin_zona = None
             st.session_state.twin_fila = None
             st.rerun()
 
-        rack_id = ZONA_A_RACK.get(fila_sel, "POS_1")
-        st.subheader(f"{fila_sel}  |  Rack: {rack_id}")
+        busq = st.text_input("Buscar material:", "").strip().upper()
+        items_rack = {k: v for k, v in db.items() if v.get('rack') == rack_id}
 
-        items_fila = {k: v for k, v in db.items() if v.get('rack') == rack_id}
-        busq = st.text_input("Buscar material en esta fila:", "").strip().upper()
+        # Icono SVG de caja (blanco)
+        ICONO = (
+            "<svg width='36' height='36' viewBox='0 0 24 24' fill='none' "
+            "xmlns='http://www.w3.org/2000/svg'>"
+            "<rect x='2' y='7' width='20' height='14' rx='2' stroke='white' stroke-width='1.5'/>"
+            "<path d='M2 10h20' stroke='white' stroke-width='1.5'/>"
+            "<path d='M9 10v11' stroke='white' stroke-width='1.5'/>"
+            "<path d='M15 10v11' stroke='white' stroke-width='1.5'/>"
+            "<path d='M7 7l2-4h6l2 4' stroke='white' stroke-width='1.5' stroke-linejoin='round'/>"
+            "</svg>"
+        )
 
-        grid_html = "<div style='display:grid;grid-template-columns:repeat(4,1fr);gap:6px;'>"
-        for fila in range(1, 4):
-            for col in range(1, 5):
-                item, item_key = None, None
-                for k, v in items_fila.items():
-                    if v.get('fila') == fila and v.get('columna') == col:
-                        item = v; item_key = k; break
-                buscado = busq and item and (
-                    busq in item.get('nombre', '').upper() or
-                    busq in item.get('sku_base', '').upper() or
-                    (item_key and busq in item_key.upper())
-                )
-                bg, border = color_celda(item, buscado)
-                if item:
-                    congelado    = item.get('estado') == 'CONGELADO'
-                    label_estado = "[CONGELADO]" if congelado else item.get('estado', 'ACTIVO')
-                    grid_html += (
-                        f"<div style='background:{bg};border:2px solid {border};"
-                        f"border-radius:8px;padding:8px 6px;text-align:center;color:black;"
-                        f"height:130px;display:flex;flex-direction:column;"
-                        f"justify-content:center;align-items:center;overflow:hidden;box-sizing:border-box;'>"
-                        f"<b style='font-size:12px;white-space:nowrap;overflow:hidden;"
-                        f"text-overflow:ellipsis;width:95%;display:block;'>{item['nombre']}</b>"
-                        f"<span style='font-size:10px;line-height:1.5;'>"
-                        f"SKU: {item.get('sku_base','N/A')}<br>"
-                        f"<b>{item.get('cantidad',1)} PZAS</b><br>"
-                        f"{label_estado}<br>"
-                        f"<span style='color:#666;'>F{fila}-C{col}</span>"
-                        f"</span></div>"
+        # Leyenda de colores
+        st.markdown(
+            "<div style='display:flex;gap:20px;margin-bottom:12px;font-size:12px;color:#cdd3ea;'>"
+            "<span><span style='display:inline-block;width:12px;height:12px;"
+            "background:#1a472a;border-radius:3px;margin-right:5px;'></span>Ocupado</span>"
+            "<span><span style='display:inline-block;width:12px;height:12px;"
+            "background:#7f1d1d;border-radius:3px;margin-right:5px;'></span>Congelado</span>"
+            "<span><span style='display:inline-block;width:12px;height:12px;"
+            "background:#1e2130;border:1px solid #3a3f55;border-radius:3px;margin-right:5px;'></span>Disponible</span>"
+            "</div>",
+            unsafe_allow_html=True
+        )
+
+        # 5 racks lado a lado, cada rack = 3 niveles × 4 columnas
+        NUM_RACKS  = 5
+        NUM_NIVELES = 3
+        NUM_COLS   = 4
+        CELL_H     = 110
+
+        racks_html = "<div style='display:grid;grid-template-columns:repeat(5,1fr);gap:10px;'>"
+
+        for rack_num in range(1, NUM_RACKS + 1):
+            rack_html = (
+                f"<div style='background:#16192a;border:1.5px solid #3a3f55;"
+                f"border-radius:10px;padding:8px;'>"
+                f"<div style='text-align:center;font-size:10px;letter-spacing:1px;"
+                f"color:#8892b0;margin-bottom:6px;'>RACK {rack_num}</div>"
+                f"<div style='display:grid;grid-template-columns:repeat({NUM_COLS},1fr);gap:3px;'>"
+            )
+
+            # Niveles de arriba a abajo (nivel 3=top, nivel 1=bottom)
+            for nivel in range(NUM_NIVELES, 0, -1):
+                for col in range(1, NUM_COLS + 1):
+                    item, item_key = None, None
+                    for k, v in items_rack.items():
+                        if (v.get('piso') == rack_num and
+                                v.get('fila') == nivel and
+                                v.get('columna') == col):
+                            item = v; item_key = k; break
+
+                    buscado = busq and item and (
+                        busq in item.get('nombre','').upper() or
+                        busq in item.get('sku_base','').upper() or
+                        (item_key and busq in item_key.upper())
                     )
-                else:
-                    grid_html += (
-                        f"<div style='background:{bg};border:2px solid {border};"
-                        f"border-radius:8px;padding:8px 6px;text-align:center;color:black;"
-                        f"height:130px;display:flex;flex-direction:column;"
-                        f"justify-content:center;align-items:center;overflow:hidden;box-sizing:border-box;'>"
-                        f"<b style='font-size:12px;'>DISPONIBLE</b>"
-                        f"<span style='font-size:10px;color:#555;'>F{fila}-C{col}</span></div>"
+
+                    if buscado:
+                        bg = "#0c3559"; border = "#3b9edd"
+                    elif item:
+                        congelado = item.get('estado') == 'CONGELADO'
+                        bg     = "#7f1d1d" if congelado else "#1a472a"
+                        border = "#ef4444" if congelado else "#22c55e"
+                    else:
+                        bg = "#1e2130"; border = "#3a3f55"
+
+                    label_nivel = f"Niv {nivel} - Pos {col}"
+                    if item:
+                        nombre_corto = item['nombre'][:12] + ('...' if len(item['nombre']) > 12 else '')
+                        tooltip = f"{item['nombre']} | SKU: {item.get('sku_base','N/A')} | {item.get('cantidad',1)} pzas"
+                        contenido = (
+                            f"<div title='{tooltip}' style='display:flex;flex-direction:column;"
+                            f"align-items:center;justify-content:center;height:100%;gap:3px;'>"
+                            f"{ICONO}"
+                            f"<span style='font-size:8px;color:white;margin-top:2px;"
+                            f"white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
+                            f"width:95%;text-align:center;'>{nombre_corto}</span>"
+                            f"<span style='font-size:7px;color:rgba(255,255,255,0.6);'>{label_nivel}</span>"
+                            f"</div>"
+                        )
+                    else:
+                        contenido = (
+                            f"<div style='display:flex;flex-direction:column;"
+                            f"align-items:center;justify-content:center;height:100%;'>"
+                            f"<span style='font-size:8px;color:#4a5080;'>{label_nivel}</span>"
+                            f"</div>"
+                        )
+
+                    rack_html += (
+                        f"<div style='background:{bg};border:1px solid {border};"
+                        f"border-radius:4px;height:{CELL_H}px;box-sizing:border-box;'>"
+                        f"{contenido}</div>"
                     )
-        grid_html += "</div>"
-        st.markdown(grid_html, unsafe_allow_html=True)
+
+            rack_html += "</div></div>"
+            racks_html += rack_html
+
+        racks_html += "</div>"
+        st.markdown(racks_html, unsafe_allow_html=True)
 
     # KPIs — siempre al final, debajo del layout
     st.markdown("---")
@@ -501,27 +514,67 @@ with tabs[2]:
     db_actual = cargar_db()
 
     if db_actual:
+        import datetime
         data_tabla = []
         for k, v in db_actual.items():
             data_tabla.append({
                 "MATRICULA (QR)": k,
-                "SKU":    v.get('sku_base', 'N/A'),
-                "NOMBRE": v.get('nombre', ''),
-                "PZAS":   v.get('cantidad', 1),
-                "RACK":   v.get('rack', ''),
-                "PISO":   v.get('piso', ''),
-                "FILA":   v.get('fila', ''),
-                "COL":    v.get('columna', ''),
-                "ESTADO": v.get('estado', 'ACTIVO')
+                "SKU":            v.get('sku_base', 'N/A'),
+                "NOMBRE":         v.get('nombre', ''),
+                "PZAS":           v.get('cantidad', 1),
+                "PESO (KG)":      v.get('peso', 0.0),
+                "RACK":           v.get('rack', ''),
+                "PISO":           v.get('piso', ''),
+                "FILA":           v.get('fila', ''),
+                "COL":            v.get('columna', ''),
+                "ESTADO":         v.get('estado', 'ACTIVO'),
+                "FECHA LLEGADA":  v.get('fecha_llegada', 'N/A'),
             })
 
-        df = pd.DataFrame(data_tabla)
-        gb = GridOptionsBuilder.from_dataframe(df)
+        df_full = pd.DataFrame(data_tabla)
+
+        # ── Filtros ──────────────────────────────────────────
+        st.markdown("#### Filtros")
+        fc1, fc2, fc3, fc4 = st.columns(4)
+        with fc1:
+            f_nombre = st.text_input("Nombre", "").strip().upper()
+        with fc2:
+            f_sku = st.text_input("Codigo / SKU", "").strip().upper()
+        with fc3:
+            pesos_disponibles = sorted(df_full["PESO (KG)"].unique().tolist())
+            f_peso_max = st.number_input(
+                "Peso max (KG)", min_value=0.0,
+                value=float(df_full["PESO (KG)"].max()) if len(df_full) else 0.0,
+                step=1.0
+            )
+        with fc4:
+            f_estado = st.selectbox("Estado", ["TODOS", "ACTIVO", "CONGELADO"])
+
+        df_filtrado = df_full.copy()
+        if f_nombre:
+            df_filtrado = df_filtrado[df_filtrado["NOMBRE"].str.upper().str.contains(f_nombre)]
+        if f_sku:
+            df_filtrado = df_filtrado[
+                df_filtrado["SKU"].str.upper().str.contains(f_sku) |
+                df_filtrado["MATRICULA (QR)"].str.upper().str.contains(f_sku)
+            ]
+        if f_peso_max:
+            df_filtrado = df_filtrado[df_filtrado["PESO (KG)"] <= f_peso_max]
+        if f_estado != "TODOS":
+            df_filtrado = df_filtrado[df_filtrado["ESTADO"] == f_estado]
+
+        st.caption(f"{len(df_filtrado)} de {len(df_full)} articulos")
+
+        # ── Tabla con seleccion ───────────────────────────────
+        gb = GridOptionsBuilder.from_dataframe(df_filtrado)
         gb.configure_selection('single', use_checkbox=True)
+        gb.configure_default_column(resizable=True, sortable=True, filter=True)
+        gb.configure_column("NOMBRE",   minWidth=180)
+        gb.configure_column("MATRICULA (QR)", minWidth=160)
         grid_response = AgGrid(
-            df, gridOptions=gb.build(),
+            df_filtrado, gridOptions=gb.build(),
             update_mode=GridUpdateMode.SELECTION_CHANGED,
-            theme='streamlit'
+            theme='streamlit', fit_columns_on_grid_load=True
         )
 
         sel = grid_response['selected_rows']
