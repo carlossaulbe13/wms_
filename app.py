@@ -48,15 +48,37 @@ def on_message(client, userdata, msg):
     if payload.endswith("_OFF"):
         st.session_state.msg_mqtt_recibido = payload.replace("_OFF", "")
 
-# Constantes estructurales del almacen
-CARGA_MAX_NIVEL = 2000.0   # kg maximos por nivel de rack
-PESO_SOBRE      = 2000.0   # si el pallet solo supera esto → sobredimensiones
-NUM_PISOS       = 5
-NUM_NIVELES     = 3
-NUM_COLS        = 3
+# ─────────────────────────────────────────────────────────────
+# CONSTANTES ESTRUCTURALES DEL ALMACEN
+# ─────────────────────────────────────────────────────────────
+CARGA_MAX_NIVEL  = 2000.0  # kg máximos por nivel de rack
+PESO_SOBRE       = 2000.0  # pallet que supere esto → sobredimensiones
+
+# Reglas de altura por nivel (en metros):
+#   nivel 1 y 2 → máx 1.50 m
+#   nivel 3      → máx 1.80 m
+#   > 1.80 m     → sobredimensiones
+ALTO_LIBRE       = 1.00    # < 1 m: bajo, puede ir en cualquier nivel
+ALTO_MAX_N1_N2   = 1.50    # niveles 1 y 2 aceptan hasta 1.50 m
+ALTO_MAX_N3      = 1.80    # nivel 3 acepta hasta 1.80 m
+                            # > 1.80 m → sobredimensiones
+
+NUM_PISOS        = 5
+NUM_NIVELES      = 3
+NUM_COLS         = 3
+
+# Tipos de embalaje disponibles
+TIPOS_EMBALAJE = [
+    "Pallet americano (1219×1016 mm)",
+    "Pallet europeo / EUR (1200×800 mm)",
+    "Pallet industrial (1200×1000 mm)",
+    "Pallet semilla (1200×1200 mm)",
+    "Caja de carton",
+    "Granel / sin embalaje",
+    "Personalizado",
+]
 
 def peso_en_nivel(db, rack, piso, nivel):
-    """Suma el peso de todos los pallets en rack+piso+nivel."""
     return sum(
         v.get('peso', 0)
         for v in db.values()
@@ -65,10 +87,20 @@ def peso_en_nivel(db, rack, piso, nivel):
         and v.get('fila') == nivel
     )
 
+def nivel_acepta_altura(nivel, alto_m):
+    """True si el nivel puede alojar un artículo de alto_m metros."""
+    if alto_m <= ALTO_LIBRE:
+        return True          # artículo bajo: cualquier nivel
+    if nivel in (1, 2):
+        return alto_m <= ALTO_MAX_N1_N2
+    if nivel == 3:
+        return alto_m <= ALTO_MAX_N3
+    return False
+
 def asignar_rack_por_peso_vol(peso, vol):
-    """Regla de negocio: qué rack le corresponde según peso/volumen."""
+    """Rack según peso/volumen. La altura se evalúa aparte."""
     if peso > PESO_SOBRE:
-        return "POS_5"   # sobredimensiones
+        return "POS_5"
     if peso >= 100:
         return "POS_4"
     if vol > 1.5:
@@ -79,12 +111,12 @@ def asignar_rack_por_peso_vol(peso, vol):
         return "POS_2"
     return "POS_1"
 
-def obtener_coordenada_libre(db, rack_objetivo, peso_nuevo=0):
+def obtener_coordenada_libre(db, rack_objetivo, peso_nuevo=0, alto_m=0):
     """
-    Busca el primer espacio libre en rack_objetivo respetando la carga máxima
-    por nivel (CARGA_MAX_NIVEL). Si un nivel ya no aguanta el peso nuevo,
-    lo salta. Itera piso → nivel → columna.
-    Devuelve (piso, nivel, columna) o (None, None, None) si no hay espacio.
+    Busca el primer espacio libre respetando:
+      - Carga máxima por nivel (CARGA_MAX_NIVEL)
+      - Restricción de altura por nivel
+    Orden: piso → nivel (1→3) → columna
     """
     ocupadas = {
         (v.get('piso'), v.get('fila'), v.get('columna'))
@@ -93,9 +125,11 @@ def obtener_coordenada_libre(db, rack_objetivo, peso_nuevo=0):
     }
     for p in range(1, NUM_PISOS + 1):
         for niv in range(1, NUM_NIVELES + 1):
+            if not nivel_acepta_altura(niv, alto_m):
+                continue
             carga_actual = peso_en_nivel(db, rack_objetivo, p, niv)
             if carga_actual + peso_nuevo > CARGA_MAX_NIVEL:
-                continue   # este nivel no aguanta, probar el siguiente
+                continue
             for c in range(1, NUM_COLS + 1):
                 if (p, niv, c) not in ocupadas:
                     return p, niv, c
@@ -718,59 +752,103 @@ with tabs[2]:
     # ── Alta de materiales ────────────────────────────────────
     with st.expander("ALTA DE MATERIALES Y ASIGNACION MANUAL", expanded=False):
         with st.form("new_part_manual"):
-            st.markdown("**Datos del pallet**")
+
+            # — Identificacion —
+            st.markdown("**Identificacion**")
             c_id, c_sk, c_nm = st.columns(3)
             with c_id: new_uid      = st.text_input("ID UNICO (EJ. PALLET-010)").upper()
             with c_sk: new_sku_base = st.text_input("SKU / NUMERO DE PARTE")
-            with c_nm: new_name     = st.text_input("DESCRIPCION")
+            with c_nm: new_name     = st.text_input("DESCRIPCION DEL MATERIAL")
 
+            # — Embalaje —
+            st.markdown("**Tipo de embalaje**")
+            emb1, emb2 = st.columns(2)
+            with emb1:
+                tipo_embalaje = st.selectbox("Tipo de embalaje", TIPOS_EMBALAJE)
+            with emb2:
+                embalaje_obs = st.text_input("Observaciones de embalaje (opcional)", "")
+
+            # — Peso y cantidad —
             st.markdown("**Peso y cantidad**")
             c_p, c_c = st.columns(2)
             with c_p: p           = st.number_input("PESO TOTAL PALLET (KG)", min_value=0.0, step=1.0)
             with c_c: cant_manual = st.number_input("CANTIDAD DE PIEZAS",     min_value=1, value=1)
 
-            st.markdown("**Dimensiones**")
+            # — Dimensiones (largo, ancho, alto en cm) —
+            st.markdown("**Dimensiones del material**")
+            st.caption(
+                "Reglas de altura: < 100 cm libre en cualquier nivel | "
+                "100–150 cm: niveles 1 y 2 | 150–180 cm: solo nivel 3 | > 180 cm: sobredimensiones"
+            )
             c1, c2, c3 = st.columns(3)
-            with c1: l = st.number_input("LARGO (CM)", min_value=0.0)
-            with c2: a_dim = st.number_input("ANCHO (CM)", min_value=0.0)
-            with c3: h = st.number_input("ALTO (CM)",  min_value=0.0)
+            with c1: l_cm  = st.number_input("LARGO (CM)",  min_value=0.0, step=1.0)
+            with c2: a_cm  = st.number_input("ANCHO (CM)",  min_value=0.0, step=1.0)
+            with c3: h_cm  = st.number_input("ALTO (CM)",   min_value=0.0, step=1.0)
 
             generar_qr_fisico = st.checkbox("GENERAR CODIGO QR FISICO", value=True)
-
             submitted = st.form_submit_button("REGISTRAR MATERIAL", use_container_width=True)
+
             if submitted:
                 if not new_uid or not new_name or not new_sku_base:
                     st.error("Completa ID, SKU y Descripcion.")
                 elif new_uid in st.session_state.db:
                     st.error(f"El ID {new_uid} ya existe en el sistema.")
                 else:
-                    vol = (l / 100) * (a_dim / 100) * (h / 100)
-                    r   = asignar_rack_por_peso_vol(p, vol)
+                    alto_m = h_cm / 100.0
+                    vol    = (l_cm / 100) * (a_cm / 100) * alto_m
+                    avisos = []
 
+                    # Discriminante de altura → puede forzar sobredimensiones
+                    forzar_sobre = alto_m > ALTO_MAX_N3
+                    if forzar_sobre:
+                        avisos.append(f"Alto {h_cm:.0f} cm > 180 cm → SOBREDIMENSIONES.")
+                        r = "POS_5"
+                    elif alto_m > ALTO_MAX_N1_N2:
+                        avisos.append(f"Alto {h_cm:.0f} cm > 150 cm → solo nivel 3.")
+                        r = asignar_rack_por_peso_vol(p, vol)
+                    else:
+                        r = asignar_rack_por_peso_vol(p, vol)
+
+                    # Discriminante de peso
                     if p > PESO_SOBRE:
-                        st.warning(f"Pallet supera {PESO_SOBRE} kg — asignado a SOBREDIMENSIONES (POS_5).")
+                        avisos.append(f"Peso {p:.0f} kg > {PESO_SOBRE:.0f} kg → SOBREDIMENSIONES.")
+                        r = "POS_5"
 
-                    piso, nivel, columna = obtener_coordenada_libre(st.session_state.db, r, peso_nuevo=p)
+                    piso, nivel, columna = obtener_coordenada_libre(
+                        st.session_state.db, r, peso_nuevo=p, alto_m=alto_m
+                    )
+
+                    if piso is None and r != "POS_5":
+                        r = "POS_5"
+                        avisos.append("Rack asignado lleno — redirigido a SOBREDIMENSIONES.")
+                        piso, nivel, columna = obtener_coordenada_libre(
+                            st.session_state.db, r, peso_nuevo=p, alto_m=alto_m
+                        )
 
                     if piso is None:
-                        # Intentar en sobredimensiones como fallback
-                        r = "POS_5"
-                        piso, nivel, columna = obtener_coordenada_libre(st.session_state.db, r, peso_nuevo=p)
-                        if piso is None:
-                            st.error("No hay espacio disponible en ningun rack. Reorganiza el almacen.")
-                        else:
-                            st.warning(f"Rack asignado lleno — redirigido a {r}.")
-
-                    if piso is not None:
+                        st.error("Sin espacio disponible en ningun rack. Reorganiza el almacen.")
+                    else:
                         fecha_hoy = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
                         st.session_state.db[new_uid] = {
-                            "sku_base": new_sku_base, "nombre": new_name,
-                            "peso": p, "cantidad": cant_manual,
-                            "volumen": vol, "rack": r,
-                            "piso": piso, "fila": nivel, "columna": columna,
-                            "estado": "ACTIVO", "fecha_llegada": fecha_hoy
+                            "sku_base":      new_sku_base,
+                            "nombre":        new_name,
+                            "peso":          p,
+                            "cantidad":      cant_manual,
+                            "volumen":       round(vol, 4),
+                            "alto_m":        round(alto_m, 2),
+                            "rack":          r,
+                            "piso":          piso,
+                            "fila":          nivel,
+                            "columna":       columna,
+                            "estado":        "ACTIVO",
+                            "embalaje":      tipo_embalaje,
+                            "embalaje_obs":  embalaje_obs,
+                            "fecha_llegada": fecha_hoy,
                         }
                         guardar_db(st.session_state.db)
+
+                        for av in avisos:
+                            st.warning(av)
 
                         if generar_qr_fisico:
                             qr_img = qrcode.make(new_uid)
@@ -782,7 +860,10 @@ with tabs[2]:
                             st.session_state.mqtt_client.publish(TOPIC_PUB, f"{r}_ON")
                         time.sleep(0.1)
                         st.session_state.confirmacion_pendiente = r
-                        st.success(f"Pallet registrado en {r} — Piso {piso}, Nivel {nivel}, Col {columna}.")
+                        st.success(
+                            f"Pallet registrado — Rack: {r} | Piso {piso} | Nivel {nivel} | Col {columna} | "
+                            f"Embalaje: {tipo_embalaje}"
+                        )
                         st.rerun()
 
     if st.session_state.qr_generado:
