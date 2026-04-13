@@ -325,13 +325,23 @@ with tabs[0]:
         items_rack = {k: v for k, v in db.items() if v.get('rack') == rack_id}
 
         ICONO = (
-            "<svg width='32' height='32' viewBox='0 0 24 24' fill='none' "
+            "<svg width='34' height='34' viewBox='0 0 100 100' "
             "xmlns='http://www.w3.org/2000/svg'>"
-            "<rect x='2' y='7' width='20' height='14' rx='2' stroke='white' stroke-width='1.5'/>"
-            "<path d='M2 10h20' stroke='white' stroke-width='1.5'/>"
-            "<path d='M9 10v11' stroke='white' stroke-width='1.5'/>"
-            "<path d='M15 10v11' stroke='white' stroke-width='1.5'/>"
-            "<path d='M7 7l2-4h6l2 4' stroke='white' stroke-width='1.5' stroke-linejoin='round'/>"
+            "<!-- cuerpo de la caja -->"
+            "<rect x='8' y='38' width='84' height='56' rx='4' fill='none' stroke='white' stroke-width='5'/>"
+            "<!-- tapa izquierda -->"
+            "<path d='M8 38 L8 18 L50 14' stroke='white' stroke-width='5' fill='none' stroke-linejoin='round'/>"
+            "<!-- tapa derecha -->"
+            "<path d='M92 38 L92 18 L50 14' stroke='white' stroke-width='5' fill='none' stroke-linejoin='round'/>"
+            "<!-- linea horizontal del cuerpo -->"
+            "<line x1='8' y1='60' x2='92' y2='60' stroke='white' stroke-width='4'/>"
+            "<!-- asas de la tapa (hendidura) -->"
+            "<rect x='34' y='22' width='32' height='10' rx='5' fill='none' stroke='white' stroke-width='4'/>"
+            "<!-- simbolo flechas arriba -->"
+            "<text x='72' y='88' font-size='18' fill='white' text-anchor='middle' "
+            "font-family='sans-serif' font-weight='bold'>&#8679;</text>"
+            "<!-- mini recuadro simbolo -->"
+            "<rect x='60' y='68' width='24' height='22' rx='2' fill='none' stroke='white' stroke-width='3'/>"
             "</svg>"
         )
 
@@ -583,16 +593,40 @@ with tabs[2]:
 
         st.caption(f"{len(df_filtrado)} de {len(df_full)} articulos")
 
-        # ── Tabla con seleccion ───────────────────────────────
+        # ── Tabla de inventario filtrada ─────────────────────
+        st.markdown("##### Inventario")
+        st.dataframe(
+            df_filtrado,
+            use_container_width=True,
+            height=min(400, 40 + len(df_filtrado) * 36),
+            column_config={
+                "MATRICULA (QR)": st.column_config.TextColumn("Matricula QR", width="medium"),
+                "NOMBRE":         st.column_config.TextColumn("Nombre",        width="large"),
+                "SKU":            st.column_config.TextColumn("SKU",           width="small"),
+                "PZAS":           st.column_config.NumberColumn("Pzas",        width="small"),
+                "PESO (KG)":      st.column_config.NumberColumn("Peso (kg)",   width="small", format="%.1f"),
+                "RACK":           st.column_config.TextColumn("Rack",          width="small"),
+                "PISO":           st.column_config.TextColumn("Piso",          width="small"),
+                "FILA":           st.column_config.TextColumn("Fila",          width="small"),
+                "COL":            st.column_config.TextColumn("Col",           width="small"),
+                "ESTADO":         st.column_config.TextColumn("Estado",        width="small"),
+                "FECHA LLEGADA":  st.column_config.TextColumn("Fecha llegada", width="medium"),
+            },
+            hide_index=True,
+        )
+        st.divider()
+
+        # ── Seleccion para edicion via AgGrid (debajo) ───────
+        st.markdown("##### Seleccionar articulo para editar")
         gb = GridOptionsBuilder.from_dataframe(df_filtrado)
         gb.configure_selection('single', use_checkbox=True)
-        gb.configure_default_column(resizable=True, sortable=True, filter=True)
-        gb.configure_column("NOMBRE",   minWidth=180)
-        gb.configure_column("MATRICULA (QR)", minWidth=160)
+        gb.configure_default_column(resizable=True, sortable=True)
         grid_response = AgGrid(
-            df_filtrado, gridOptions=gb.build(),
+            df_filtrado[['MATRICULA (QR)','NOMBRE','SKU','ESTADO']],
+            gridOptions=gb.build(),
             update_mode=GridUpdateMode.SELECTION_CHANGED,
-            theme='streamlit', fit_columns_on_grid_load=True
+            theme='streamlit',
+            height=200,
         )
 
         sel = grid_response['selected_rows']
