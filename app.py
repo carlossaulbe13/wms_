@@ -719,16 +719,18 @@ with tabs[2]:
                 "NOMBRE":         v.get('nombre', ''),
                 "PZAS":           int(v.get('cantidad', 1)),
                 "PESO (KG)":      float(v.get('peso', 0.0)),
+                "ALTO (M)":       float(v.get('alto_m', 0.0)),
                 "RACK":           v.get('rack', ''),
                 "PISO":           v.get('piso', ''),
                 "NIVEL":          v.get('fila', ''),
                 "COL":            v.get('columna', ''),
+                "EMBALAJE":       v.get('embalaje', 'N/A'),
                 "ESTADO":         v.get('estado', 'ACTIVO'),
                 "FECHA LLEGADA":  v.get('fecha_llegada', 'N/A'),
             })
         df_full = pd.DataFrame(data_tabla)
 
-        # Filtros
+        # Filtros — fila 1
         st.markdown("#### Filtros")
         fc1, fc2, fc3, fc4 = st.columns(4)
         with fc1:
@@ -744,6 +746,20 @@ with tabs[2]:
         with fc4:
             f_estado = st.selectbox("Estado", ["TODOS", "ACTIVO", "CONGELADO", "BAJA"])
 
+        # Filtros — fila 2 (altura)
+        fa1, fa2, _ = st.columns(3)
+        with fa1:
+            f_alto_min = st.number_input(
+                "Alto min (M)", min_value=0.0,
+                value=0.0, step=0.1, format="%.2f"
+            )
+        with fa2:
+            f_alto_max = st.number_input(
+                "Alto max (M)", min_value=0.0,
+                value=float(df_full["ALTO (M)"].max()) if len(df_full) else 9.99,
+                step=0.1, format="%.2f"
+            )
+
         df_f = df_full.copy()
         if f_nombre:
             df_f = df_f[df_f["NOMBRE"].str.upper().str.contains(f_nombre, na=False)]
@@ -753,6 +769,7 @@ with tabs[2]:
                 df_f["MATRICULA (QR)"].str.upper().str.contains(f_sku, na=False)
             ]
         df_f = df_f[df_f["PESO (KG)"] <= f_peso_max]
+        df_f = df_f[(df_f["ALTO (M)"] >= f_alto_min) & (df_f["ALTO (M)"] <= f_alto_max)]
         if f_estado != "TODOS":
             df_f = df_f[df_f["ESTADO"] == f_estado]
 
@@ -768,10 +785,12 @@ with tabs[2]:
                 "SKU":            st.column_config.TextColumn("SKU",          width="small"),
                 "PZAS":           st.column_config.NumberColumn("Pzas",       width="small"),
                 "PESO (KG)":      st.column_config.NumberColumn("Peso (kg)",  width="small", format="%.1f"),
+                "ALTO (M)":       st.column_config.NumberColumn("Alto (m)",   width="small", format="%.2f"),
                 "RACK":           st.column_config.TextColumn("Rack",         width="small"),
                 "PISO":           st.column_config.TextColumn("Piso",         width="small"),
                 "NIVEL":          st.column_config.TextColumn("Nivel",        width="small"),
                 "COL":            st.column_config.TextColumn("Col",          width="small"),
+                "EMBALAJE":       st.column_config.TextColumn("Embalaje",     width="medium"),
                 "ESTADO":         st.column_config.TextColumn("Estado",       width="small"),
                 "FECHA LLEGADA":  st.column_config.TextColumn("Fecha llegada",width="medium"),
             },
