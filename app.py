@@ -282,30 +282,50 @@ with tabs[0]:
         st.markdown(nave_html, unsafe_allow_html=True)
         st.caption("Haz clic en una zona o fila para ver el detalle de posiciones.")
 
-    # ── NIVEL 2 / 3: Vista de racks (5 racks × 3 niveles × 4 columnas) ──
-    elif fila_sel is None or True:
-        # Determinar rack y label
-        if fila_sel:
-            rack_id   = ZONA_A_RACK.get(fila_sel, "POS_1")
-            titulo    = fila_sel
-            crumbs    = ["Nave principal", zona_sel, fila_sel]
-        else:
-            rack_id   = ZONA_A_RACK.get(zona_sel, "POS_5")
-            titulo    = zona_sel
-            crumbs    = ["Nave principal", zona_sel]
+    # ── NIVEL 2: Sobredimensiones — vista simple sin racks ───────
+    elif fila_sel is None:
+        crumbs = ["Nave principal", zona_sel]
+        st.markdown("  ›  ".join(f"**{c}**" for c in crumbs))
+        if st.button("Volver a la nave"):
+            st.session_state.twin_zona = None
+            st.rerun()
 
+        rack_id    = ZONA_A_RACK.get(zona_sel, "POS_5")
+        items_zona = {k: v for k, v in db.items() if v.get('rack') == rack_id}
+        st.subheader(f"Zona: {zona_sel}  |  {len(items_zona)} pallets registrados")
+
+        if items_zona:
+            filas_sobre = []
+            for k, v in items_zona.items():
+                filas_sobre.append({
+                    "MATRICULA": k,
+                    "NOMBRE": v.get('nombre',''),
+                    "SKU": v.get('sku_base','N/A'),
+                    "PZAS": v.get('cantidad',1),
+                    "PESO (KG)": v.get('peso',0),
+                    "ESTADO": v.get('estado','ACTIVO'),
+                })
+            st.dataframe(pd.DataFrame(filas_sobre), use_container_width=True)
+        else:
+            st.info("No hay materiales en zona de sobredimensiones.")
+
+    # ── NIVEL 3: Fila A/B/C/D — 5 racks × 3 niveles × 3 posiciones ──
+    else:
+        crumbs = ["Nave principal", zona_sel, fila_sel]
         st.markdown("  ›  ".join(f"**{c}**" for c in crumbs))
         if st.button("Volver a la nave"):
             st.session_state.twin_zona = None
             st.session_state.twin_fila = None
             st.rerun()
 
+        rack_id    = ZONA_A_RACK.get(fila_sel, "POS_1")
+        st.subheader(f"{fila_sel}  |  Rack: {rack_id}")
+
         busq = st.text_input("Buscar material:", "").strip().upper()
         items_rack = {k: v for k, v in db.items() if v.get('rack') == rack_id}
 
-        # Icono SVG de caja (blanco)
         ICONO = (
-            "<svg width='36' height='36' viewBox='0 0 24 24' fill='none' "
+            "<svg width='32' height='32' viewBox='0 0 24 24' fill='none' "
             "xmlns='http://www.w3.org/2000/svg'>"
             "<rect x='2' y='7' width='20' height='14' rx='2' stroke='white' stroke-width='1.5'/>"
             "<path d='M2 10h20' stroke='white' stroke-width='1.5'/>"
@@ -315,24 +335,23 @@ with tabs[0]:
             "</svg>"
         )
 
-        # Leyenda de colores
         st.markdown(
-            "<div style='display:flex;gap:20px;margin-bottom:12px;font-size:12px;color:#cdd3ea;'>"
+            "<div style='display:flex;gap:20px;margin-bottom:14px;font-size:12px;color:#cdd3ea;'>"
             "<span><span style='display:inline-block;width:12px;height:12px;"
             "background:#1a472a;border-radius:3px;margin-right:5px;'></span>Ocupado</span>"
             "<span><span style='display:inline-block;width:12px;height:12px;"
             "background:#7f1d1d;border-radius:3px;margin-right:5px;'></span>Congelado</span>"
             "<span><span style='display:inline-block;width:12px;height:12px;"
-            "background:#1e2130;border:1px solid #3a3f55;border-radius:3px;margin-right:5px;'></span>Disponible</span>"
-            "</div>",
+            "background:#1e2130;border:1px solid #3a3f55;border-radius:3px;margin-right:5px;'></span>"
+            "Disponible</span></div>",
             unsafe_allow_html=True
         )
 
-        # 5 racks lado a lado, cada rack = 3 niveles × 4 columnas
-        NUM_RACKS  = 5
+        # 5 racks, cada uno: 3 niveles × 3 posiciones
+        NUM_RACKS   = 5
         NUM_NIVELES = 3
-        NUM_COLS   = 4
-        CELL_H     = 110
+        NUM_COLS    = 3
+        CELL_H      = 115
 
         racks_html = "<div style='display:grid;grid-template-columns:repeat(5,1fr);gap:10px;'>"
 
@@ -341,11 +360,10 @@ with tabs[0]:
                 f"<div style='background:#16192a;border:1.5px solid #3a3f55;"
                 f"border-radius:10px;padding:8px;'>"
                 f"<div style='text-align:center;font-size:10px;letter-spacing:1px;"
-                f"color:#8892b0;margin-bottom:6px;'>RACK {rack_num}</div>"
+                f"color:#8892b0;margin-bottom:6px;font-weight:600;'>RACK {rack_num}</div>"
                 f"<div style='display:grid;grid-template-columns:repeat({NUM_COLS},1fr);gap:3px;'>"
             )
 
-            # Niveles de arriba a abajo (nivel 3=top, nivel 1=bottom)
             for nivel in range(NUM_NIVELES, 0, -1):
                 for col in range(1, NUM_COLS + 1):
                     item, item_key = None, None
@@ -370,25 +388,25 @@ with tabs[0]:
                     else:
                         bg = "#1e2130"; border = "#3a3f55"
 
-                    label_nivel = f"Niv {nivel} - Pos {col}"
+                    label = f"N{nivel}-P{col}"
                     if item:
-                        nombre_corto = item['nombre'][:12] + ('...' if len(item['nombre']) > 12 else '')
+                        nombre_corto = item['nombre'][:10] + ('…' if len(item['nombre']) > 10 else '')
                         tooltip = f"{item['nombre']} | SKU: {item.get('sku_base','N/A')} | {item.get('cantidad',1)} pzas"
                         contenido = (
                             f"<div title='{tooltip}' style='display:flex;flex-direction:column;"
-                            f"align-items:center;justify-content:center;height:100%;gap:3px;'>"
+                            f"align-items:center;justify-content:center;height:100%;gap:2px;padding:4px;'>"
                             f"{ICONO}"
-                            f"<span style='font-size:8px;color:white;margin-top:2px;"
+                            f"<span style='font-size:7px;color:white;margin-top:2px;"
                             f"white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
                             f"width:95%;text-align:center;'>{nombre_corto}</span>"
-                            f"<span style='font-size:7px;color:rgba(255,255,255,0.6);'>{label_nivel}</span>"
+                            f"<span style='font-size:6px;color:rgba(255,255,255,0.5);'>{label}</span>"
                             f"</div>"
                         )
                     else:
                         contenido = (
-                            f"<div style='display:flex;flex-direction:column;"
-                            f"align-items:center;justify-content:center;height:100%;'>"
-                            f"<span style='font-size:8px;color:#4a5080;'>{label_nivel}</span>"
+                            f"<div style='display:flex;align-items:center;"
+                            f"justify-content:center;height:100%;'>"
+                            f"<span style='font-size:7px;color:#4a5080;'>{label}</span>"
                             f"</div>"
                         )
 
