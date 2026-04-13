@@ -506,13 +506,76 @@ with tabs[0]:
         racks_html += "</div>"
         st.markdown(racks_html, unsafe_allow_html=True)
 
-    # KPIs — siempre al final, debajo del layout
+    # ── KPIs — cambian según nivel de navegacion ────────────────
     st.markdown("---")
-    k1, k2, k3, k4 = st.columns(4)
-    k1.metric("Total pallets", total_items)
-    k2.metric("Activos",       activos_total)
-    k3.metric("Congelados",    congelados_total)
-    k4.metric("Racks en uso",  racks_activos)
+
+    if zona_sel is None:
+        # Vista general: KPIs globales + barra activos/congelados
+        pct_activos    = round(activos_total    / total_items * 100) if total_items else 0
+        pct_congelados = round(congelados_total / total_items * 100) if total_items else 0
+
+        k1, k2, k3, k4 = st.columns(4)
+        k1.metric("Total pallets", total_items)
+        k2.metric("Activos",       activos_total)
+        k3.metric("Congelados",    congelados_total)
+        k4.metric("Racks en uso",  racks_activos)
+
+        # Barra de composicion activos / congelados
+        st.markdown(
+            f"<div style='margin-top:6px;'>"
+            f"<div style='display:flex;justify-content:space-between;font-size:11px;"
+            f"color:#8892b0;margin-bottom:4px;'>"
+            f"<span>Activos {pct_activos}%</span>"
+            f"<span>Congelados {pct_congelados}%</span>"
+            f"</div>"
+            f"<div style='display:flex;height:10px;border-radius:6px;overflow:hidden;"
+            f"background:#2a2f45;'>"
+            f"<div style='width:{pct_activos}%;background:#22c55e;transition:width 0.4s;'></div>"
+            f"<div style='width:{pct_congelados}%;background:#ef4444;transition:width 0.4s;'></div>"
+            f"</div></div>",
+            unsafe_allow_html=True
+        )
+
+    else:
+        # Vista de fila: KPIs específicos de esa fila
+        rack_id_kpi = ZONA_A_RACK.get(fila_sel or zona_sel, "POS_1")
+        items_fila_kpi = [v for v in db.values() if v.get('rack') == rack_id_kpi]
+
+        total_fila      = len(items_fila_kpi)
+        activos_fila    = sum(1 for v in items_fila_kpi if v.get('estado') == 'ACTIVO')
+        congelados_fila = sum(1 for v in items_fila_kpi if v.get('estado') == 'CONGELADO')
+        bajas_fila      = sum(1 for v in items_fila_kpi if v.get('estado') == 'BAJA')
+        cap_total       = NUM_PISOS * NUM_NIVELES * NUM_COLS   # 5×3×3 = 45
+        ocupacion_fila  = round(total_fila / cap_total * 100) if cap_total else 0
+        peso_total_fila = round(sum(v.get('peso', 0) for v in items_fila_kpi), 1)
+
+        pct_act  = round(activos_fila    / total_fila * 100) if total_fila else 0
+        pct_cong = round(congelados_fila / total_fila * 100) if total_fila else 0
+
+        fk1, fk2, fk3, fk4, fk5 = st.columns(5)
+        fk1.metric("Pallets en fila",  total_fila)
+        fk2.metric("Activos",          activos_fila)
+        fk3.metric("Congelados",       congelados_fila)
+        fk4.metric("Ocupacion",        f"{ocupacion_fila}%")
+        fk5.metric("Peso total (kg)",  peso_total_fila)
+
+        # Barra activos / congelados de la fila
+        st.markdown(
+            f"<div style='margin-top:6px;'>"
+            f"<div style='display:flex;justify-content:space-between;font-size:11px;"
+            f"color:#8892b0;margin-bottom:4px;'>"
+            f"<span>Activos {pct_act}%</span>"
+            f"<span>Congelados {pct_cong}%</span>"
+            f"</div>"
+            f"<div style='display:flex;height:10px;border-radius:6px;overflow:hidden;"
+            f"background:#2a2f45;'>"
+            f"<div style='width:{pct_act}%;background:#22c55e;transition:width 0.4s;'></div>"
+            f"<div style='width:{pct_cong}%;background:#ef4444;transition:width 0.4s;'></div>"
+            f"</div></div>",
+            unsafe_allow_html=True
+        )
+        if bajas_fila:
+            st.caption(f"{bajas_fila} pallet(s) dados de baja en esta fila.")
 
 # ══════════════════════════════════════════════════════════════
 # PESTANA 1 — ESCANER DE CAMPO
