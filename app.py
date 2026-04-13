@@ -192,20 +192,12 @@ with tabs[0]:
     st_autorefresh(interval=4000, key="twin_refresh")
     db = cargar_db()
     st.session_state.db = db
-
     # KPIs globales
     total_items      = len(db)
     congelados_total = sum(1 for v in db.values() if v.get('estado') == 'CONGELADO')
     activos_total    = total_items - congelados_total
     racks_activos    = len(set(v.get('rack') for v in db.values() if v.get('rack')))
 
-    k1, k2, k3, k4 = st.columns(4)
-    k1.metric("Total pallets", total_items)
-    k2.metric("Activos",       activos_total)
-    k3.metric("Congelados",    congelados_total)
-    k4.metric("Racks en uso",  racks_activos)
-
-    st.markdown("---")
 
     # Breadcrumb
     zona_sel = st.session_state.twin_zona
@@ -403,6 +395,13 @@ with tabs[0]:
                     )
         grid_html += "</div>"
         st.markdown(grid_html, unsafe_allow_html=True)
+    st.markdown('---')
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric('Total pallets', total_items)
+    k2.metric('Activos',       activos_total)
+    k3.metric('Congelados',    congelados_total)
+    k4.metric('Racks en uso',  racks_activos)
+
 
 # ══════════════════════════════════════════════════════════════
 # PESTANA 1 — ESCANER DE CAMPO
