@@ -593,6 +593,25 @@ if not tabs_movil:
         activos_total    = total_items - congelados_total
         racks_activos    = len(set(v.get('rack') for v in db.values() if v.get('rack')))
 
+        # ── Leer query params de navegacion al inicio (antes del if/elif) ──────
+        _qp = dict(st.query_params)
+        if 'rack' in _qp:
+            # Seleccion de rack: preservar zona y fila antes de limpiar
+            if 'zona' in _qp:
+                st.session_state.twin_zona = _qp['zona']
+            if 'fila' in _qp:
+                st.session_state.twin_fila = _qp['fila'].replace('+', ' ')
+            st.session_state.twin_rack = int(_qp['rack'])
+            st.query_params.clear()
+            st.query_params['_s'] = _TOKEN_SECRETO
+            st.rerun()
+        elif 'zona' in _qp:
+            st.session_state.twin_zona = _qp['zona']
+            st.session_state.twin_fila = _qp.get('fila', None)
+            st.query_params.clear()
+            st.query_params['_s'] = _TOKEN_SECRETO
+            st.rerun()
+
         # Estado de navegacion
         zona_sel = st.session_state.twin_zona
         fila_sel = st.session_state.twin_fila
@@ -600,13 +619,6 @@ if not tabs_movil:
 
         # ── NIVEL 1: Layout de nave ───────────────────────────────────────────
         if zona_sel is None:
-            # Navegacion via query params
-            qp = st.query_params
-            if 'zona' in qp:
-                st.session_state.twin_zona = qp['zona']
-                st.session_state.twin_fila = qp.get('fila', None)
-                st.query_params.clear()
-                st.rerun()
 
             t5, c5 = rack_stats(db, 'POS_5')
             badge5 = '#dc3545' if c5 > 0 else '#3a3f55'  # solo rojo si hay congelados, neutro si no
@@ -785,12 +797,13 @@ if not tabs_movil:
                 total_occ = len(ocupadas)
                 occ_pct   = round(total_occ / TOTAL_CELDAS * 100)
 
-                W, H    = 150, 170
-                pad_l   = 12
-                pad_r   = 12
+                W, H    = 160, 180
+                pad_l   = 14
+                pad_r   = 14
                 pad_top = 38
+                pad_bot = 14
                 area_w  = W - pad_l - pad_r
-                est_h   = (H - pad_top - 12) // NUM_NIVELES
+                est_h   = (H - pad_top - pad_bot) // NUM_NIVELES
                 cel_w   = area_w // NUM_COLS
 
                 def caja_carton(x, y, cw, ch, sc):
@@ -831,12 +844,12 @@ if not tabs_movil:
 
                 svg = (
                     f"<svg width='{W}' height='{H}' viewBox='0 0 {W} {H}' "
-                    f"xmlns='http://www.w3.org/2000/svg' style='display:block;'>"
+                    f"xmlns='http://www.w3.org/2000/svg' style='display:block;margin:0 auto;'>"
                     # Columnas estructurales
-                    f"<rect x='{pad_l-6}' y='{pad_top-2}' width='5' height='{H-pad_top-8}' fill='#3a3f55'/>"
-                    f"<rect x='{W-pad_r+1}' y='{pad_top-2}' width='5' height='{H-pad_top-8}' fill='#3a3f55'/>"
+                    f"<rect x='{pad_l-6}' y='{pad_top-2}' width='5' height='{H-pad_top-pad_bot}' fill='#3a3f55'/>"
+                    f"<rect x='{W-pad_r+1}' y='{pad_top-2}' width='5' height='{H-pad_top-pad_bot}' fill='#3a3f55'/>"
                     # Piso
-                    f"<rect x='{pad_l-6}' y='{H-12}' width='{area_w+12}' height='5' fill='#3a3f55' rx='1'/>"
+                    f"<rect x='{pad_l-6}' y='{H-pad_bot}' width='{area_w+12}' height='5' fill='#3a3f55' rx='1'/>"
                     # Labels
                     f"<text x='{W//2}' y='16' text-anchor='middle' font-size='10' "
                     f"font-weight='600' fill='#cdd3ea' font-family='sans-serif'>RACK {rack_num}</text>"
@@ -853,10 +866,10 @@ if not tabs_movil:
                         f"stroke='#3a3f55' stroke-width='2.5'/>"
                     )
                     for ci, col in enumerate(range(1, NUM_COLS + 1)):
-                        cx = pad_l + (ci - 1) * cel_w
-                        cy = y_base + 2
+                        cx = pad_l + ci * cel_w - cel_w + 1
+                        cy = y_base + 3
                         cw = cel_w - 2
-                        ch = est_h - 8
+                        ch = est_h - 9
                         pos = (nivel, col)
 
                         if pos in ocupadas:
@@ -879,7 +892,10 @@ if not tabs_movil:
                 return svg, total_occ, occ_pct
 
             # Renderizar los 5 racks — el SVG completo es el enlace
-            racks_grid = "<div style='display:grid;grid-template-columns:repeat(5,1fr);gap:10px;'>"
+            racks_grid = (
+                "<div style='display:flex;flex-wrap:wrap;justify-content:center;"
+                "gap:12px;margin:8px 0;'>"
+            )
             for rack_num in range(1, NUM_RACKS + 1):
                 svg_r, occ_n, occ_p = svg_rack_resumen(rack_num, items_rack, rack_id)
                 fila_enc = fila_sel.replace(' ', '+')
@@ -887,7 +903,8 @@ if not tabs_movil:
                 racks_grid += (
                     f"<a href='{url}' target='_self' style='text-decoration:none;cursor:pointer;'>"
                     f"<div style='background:#16192a;border:1.5px solid #3a3f55;"
-                    f"border-radius:10px;padding:8px 4px;text-align:center;"
+                    f"border-radius:10px;padding:8px 6px;text-align:center;"
+                    f"min-width:160px;max-width:200px;"
                     f"transition:border-color 0.15s;'"
                     f"onmouseover=\"this.style.borderColor='#7f8ac0'\""
                     f"onmouseout=\"this.style.borderColor='#3a3f55'\">"
@@ -895,19 +912,6 @@ if not tabs_movil:
                 )
             racks_grid += "</div>"
             st.markdown(racks_grid, unsafe_allow_html=True)
-
-            # Leer seleccion de rack via query param
-            _qp_now = dict(st.query_params)
-            if 'rack' in _qp_now:
-                st.session_state.twin_rack = int(_qp_now['rack'])
-                # Preservar zona y fila en session_state antes de limpiar
-                if 'zona' in _qp_now:
-                    st.session_state.twin_zona = _qp_now['zona']
-                if 'fila' in _qp_now:
-                    st.session_state.twin_fila = _qp_now['fila'].replace('+', ' ')
-                st.query_params.clear()
-                st.query_params['_s'] = _TOKEN_SECRETO
-                st.rerun()
 
         # ── NIVEL 4: Rack seleccionado en detalle ────────────────────
         else:
