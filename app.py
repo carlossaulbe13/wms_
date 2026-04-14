@@ -277,6 +277,7 @@ defaults = {
     'es_movil': None,           # None = aun no detectado
     # Autenticacion
     'autenticado': False,
+    'rol': 'operador',          # 'admin' o 'operador'
     'uid_rfid_recibido': None,
     'intentos_password': 0,
     'bloqueado_hasta': 0.0,
@@ -361,9 +362,10 @@ def pantalla_login():
         st.session_state.uid_rfid_recibido = None  # consumir
         if uid_entrante in UIDS_AUTORIZADOS:
             st.session_state.autenticado       = True
+            st.session_state.rol               = 'admin'
             st.session_state.intentos_password = 0
-            st.session_state.session_token     = _TOKEN_SECRETO
-            st.query_params['_s'] = _TOKEN_SECRETO
+            st.session_state.session_token     = _TOKEN_SECRETO + '_admin'
+            st.query_params['_s'] = _TOKEN_SECRETO + '_admin'
             st.rerun()
         else:
             st.session_state.intentos_password += 1
@@ -416,9 +418,10 @@ def pantalla_login():
             if submitted:
                 if pwd == PASSWORD_ACCESO:
                     st.session_state.autenticado       = True
+                    st.session_state.rol               = 'operador'
                     st.session_state.intentos_password = 0
-                    st.session_state.session_token     = _TOKEN_SECRETO
-                    st.query_params['_s'] = _TOKEN_SECRETO
+                    st.session_state.session_token     = _TOKEN_SECRETO + '_operador'
+                    st.query_params['_s'] = _TOKEN_SECRETO + '_operador'
                     st.rerun()
                 else:
                     st.session_state.intentos_password += 1
@@ -438,9 +441,14 @@ _TOKEN_SECRETO = _hashlib.sha256(PASSWORD_ACCESO.encode()).hexdigest()[:16]
 # restaurar la sesion verificando el token en la URL
 if not st.session_state.get('autenticado'):
     _token_url = st.query_params.get('_s', '')
-    if _token_url == _TOKEN_SECRETO:
+    if _token_url == _TOKEN_SECRETO + '_admin':
         st.session_state.autenticado   = True
-        st.session_state.session_token = _TOKEN_SECRETO
+        st.session_state.rol           = 'admin'
+        st.session_state.session_token = _TOKEN_SECRETO + '_admin'
+    elif _token_url == _TOKEN_SECRETO + '_operador':
+        st.session_state.autenticado   = True
+        st.session_state.rol           = 'operador'
+        st.session_state.session_token = _TOKEN_SECRETO + '_operador'
 
 if not st.session_state.get('autenticado', False):
     pantalla_login()
@@ -449,9 +457,18 @@ if not st.session_state.get('autenticado', False):
 # Botón de cerrar sesión (esquina superior derecha)
 with st.sidebar:
     st.markdown("### UMAD WMS")
+    _rol_actual = st.session_state.get('rol', 'operador')
+    _rol_color  = '#22c55e' if _rol_actual == 'admin' else '#8892b0'
+    _rol_label  = 'Administrador' if _rol_actual == 'admin' else 'Operador'
+    st.markdown(
+        f"<div style='font-size:11px;color:{_rol_color};margin-bottom:4px;'"
+        f">Rol: <b>{_rol_label}</b></div>",
+        unsafe_allow_html=True
+    )
     st.markdown("---")
     if st.button("Cerrar sesion", use_container_width=True):
         st.session_state.autenticado   = False
+        st.session_state.rol           = 'operador'
         st.session_state.session_token = None
         st.query_params.clear()
         st.rerun()
@@ -1223,56 +1240,81 @@ if not tabs_movil:
             )
 
             if uid_sel != "— selecciona —" and uid_sel in db_actual:
-                datos = db_actual[uid_sel]
-                st.markdown(f"**Editando:** {uid_sel} — {datos.get('nombre','')}")
+                datos    = db_actual[uid_sel]
+                es_admin = st.session_state.get('rol') == 'admin'
 
-                ed1, ed2, ed3 = st.columns(3)
-                with ed1:
-                    nuevo_sku    = st.text_input("SKU BASE", value=datos.get('sku_base', ''), key="e_sku")
-                    nuevo_nombre = st.text_input("NOMBRE",   value=datos.get('nombre', ''),   key="e_nom")
-                with ed2:
-                    nueva_cant   = st.number_input("PIEZAS", min_value=1,
-                                                   value=int(datos.get('cantidad', 1)), key="e_cant")
-                    nuevo_peso   = st.number_input("PESO (KG)", min_value=0.0,
-                                                   value=float(datos.get('peso', 0.0)), key="e_peso")
-                with ed3:
-                    nuevo_estado = st.selectbox("ESTADO", ["ACTIVO", "CONGELADO"],
-                                                index=0 if datos.get('estado') == "ACTIVO" else 1,
-                                                key="e_estado")
-                    nuevo_vol    = st.number_input("VOLUMEN (M3)", min_value=0.0,
-                                                   value=float(datos.get('volumen', 0.0)),
-                                                   step=0.1, key="e_vol")
+                st.markdown(f"**{uid_sel}** — {datos.get('nombre','')}")
 
-                rack_actual = datos.get('rack', 'POS_1')
-                rack_ideal  = asignar_rack_por_peso_vol(nuevo_peso, nuevo_vol)
-                if rack_actual != rack_ideal:
-                    st.warning(f"ALERTA: Por peso/volumen este material deberia estar en {rack_ideal} (actualmente {rack_actual}).")
+                if es_admin:
+                    # Admin: formulario completo de edicion
+                    ed1, ed2, ed3 = st.columns(3)
+                    with ed1:
+                        nuevo_sku    = st.text_input("SKU BASE", value=datos.get('sku_base', ''), key="e_sku")
+                        nuevo_nombre = st.text_input("NOMBRE",   value=datos.get('nombre', ''),   key="e_nom")
+                    with ed2:
+                        nueva_cant   = st.number_input("PIEZAS", min_value=1,
+                                                       value=int(datos.get('cantidad', 1)), key="e_cant")
+                        nuevo_peso   = st.number_input("PESO (KG)", min_value=0.0,
+                                                       value=float(datos.get('peso', 0.0)), key="e_peso")
+                    with ed3:
+                        nuevo_estado = st.selectbox("ESTADO", ["ACTIVO", "CONGELADO"],
+                                                    index=0 if datos.get('estado') == "ACTIVO" else 1,
+                                                    key="e_estado")
+                        nuevo_vol    = st.number_input("VOLUMEN (M3)", min_value=0.0,
+                                                       value=float(datos.get('volumen', 0.0)),
+                                                       step=0.1, key="e_vol")
 
-                ba1, ba2, ba3 = st.columns(3)
-                with ba1:
-                    if st.button("GUARDAR CAMBIOS", use_container_width=True):
-                        db_actual[uid_sel].update({
-                            'sku_base': nuevo_sku, 'nombre': nuevo_nombre,
-                            'cantidad': nueva_cant, 'estado': nuevo_estado,
-                            'peso': nuevo_peso, 'volumen': nuevo_vol
-                        })
-                        guardar_db(db_actual)
-                        st.success("CAMBIOS GUARDADOS.")
-                        st.rerun()
-                with ba2:
-                    if st.button("DAR DE BAJA", use_container_width=True):
-                        # Marca como BAJA sin eliminar (trazabilidad)
-                        db_actual[uid_sel]['estado'] = 'BAJA'
-                        db_actual[uid_sel]['fecha_baja'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-                        guardar_db(db_actual)
-                        st.warning(f"Pallet {uid_sel} dado de baja.")
-                        st.rerun()
-                with ba3:
-                    if st.button("ELIMINAR PERMANENTE", use_container_width=True):
-                        del db_actual[uid_sel]
-                        guardar_db(db_actual)
-                        st.error("Pallet eliminado permanentemente.")
-                        st.rerun()
+                    rack_actual = datos.get('rack', 'POS_1')
+                    rack_ideal  = asignar_rack_por_peso_vol(nuevo_peso, nuevo_vol)
+                    if rack_actual != rack_ideal:
+                        st.warning(f"ALERTA: Por peso/volumen este material deberia estar en {rack_ideal} (actualmente {rack_actual}).")
+
+                    ba1, ba2, ba3 = st.columns(3)
+                    with ba1:
+                        if st.button("GUARDAR CAMBIOS", use_container_width=True):
+                            db_actual[uid_sel].update({
+                                'sku_base': nuevo_sku, 'nombre': nuevo_nombre,
+                                'cantidad': nueva_cant, 'estado': nuevo_estado,
+                                'peso': nuevo_peso, 'volumen': nuevo_vol
+                            })
+                            guardar_db(db_actual)
+                            st.success("Cambios guardados.")
+                            st.rerun()
+                    with ba2:
+                        if st.button("DAR DE BAJA", use_container_width=True):
+                            db_actual[uid_sel]['estado'] = 'BAJA'
+                            db_actual[uid_sel]['fecha_baja'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+                            guardar_db(db_actual)
+                            st.warning(f"Pallet {uid_sel} dado de baja.")
+                            st.rerun()
+                    with ba3:
+                        if st.button("ELIMINAR PERMANENTE", use_container_width=True):
+                            del db_actual[uid_sel]
+                            guardar_db(db_actual)
+                            st.error("Pallet eliminado permanentemente.")
+                            st.rerun()
+                else:
+                    # Operador: solo consulta, sin edicion
+                    st.markdown(
+                        "<div style='background:#1e2130;border:1px solid #3a3f55;border-radius:8px;"
+                        "padding:12px 16px;margin-top:8px;'>"
+                        "<table style='width:100%;font-size:13px;color:#cdd3ea;border-collapse:collapse;'>"
+                        f"<tr><td style='padding:4px 8px;color:#8892b0;'>SKU</td>"
+                        f"<td style='padding:4px 8px;'>{datos.get('sku_base','N/A')}</td>"
+                        f"<td style='padding:4px 8px;color:#8892b0;'>Rack</td>"
+                        f"<td style='padding:4px 8px;'>{datos.get('rack','')} · Piso {datos.get('piso','')} · Niv {datos.get('fila','')} · Col {datos.get('columna','')}</td></tr>"
+                        f"<tr><td style='padding:4px 8px;color:#8892b0;'>Peso</td>"
+                        f"<td style='padding:4px 8px;'>{datos.get('peso',0)} kg</td>"
+                        f"<td style='padding:4px 8px;color:#8892b0;'>Piezas</td>"
+                        f"<td style='padding:4px 8px;'>{datos.get('cantidad',1)}</td></tr>"
+                        f"<tr><td style='padding:4px 8px;color:#8892b0;'>Estado</td>"
+                        f"<td style='padding:4px 8px;'>{datos.get('estado','ACTIVO')}</td>"
+                        f"<td style='padding:4px 8px;color:#8892b0;'>Embalaje</td>"
+                        f"<td style='padding:4px 8px;'>{datos.get('embalaje','N/A')}</td></tr>"
+                        "</table></div>",
+                        unsafe_allow_html=True
+                    )
+                    st.info("Solo el administrador puede editar, dar de baja o eliminar materiales.")
 
         st.divider()
 
