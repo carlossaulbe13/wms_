@@ -935,7 +935,7 @@ if not tabs_movil:
             with fb1:
                 f_busq = st.text_input("Buscar", "", placeholder="Nombre, SKU o Matricula...").strip().upper()
             with fb2:
-                f_estado = st.selectbox("Estado", ["TODOS", "ACTIVO", "CONGELADO", "BAJA"])
+                f_estado = st.selectbox("Estado", ["TODOS", "ACTIVO", "CONGELADO", "BAJA"], index=0)
 
             df_f = df_full.copy()
             if f_busq:
@@ -952,7 +952,7 @@ if not tabs_movil:
             st.dataframe(
                 df_f,
                 use_container_width=True,
-                height=max(120, min(420, 44 + len(df_f) * 36)),
+                height=44 + len(df_f) * 36,
                 column_config={
                     "MATRICULA (QR)": st.column_config.TextColumn("Matricula QR", width="medium"),
                     "NOMBRE":         st.column_config.TextColumn("Nombre",       width="large"),
