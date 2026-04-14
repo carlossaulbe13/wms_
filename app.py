@@ -271,6 +271,7 @@ defaults = {
     'qr_generado': None,
     'twin_zona': None,
     'twin_fila': None,
+    'twin_rack': None,
     'rack_resaltado': None,
     'rack_resaltado_ts': 0.0,
     'es_movil': None,           # None = aun no detectado
@@ -582,6 +583,7 @@ if not tabs_movil:
         # Estado de navegacion
         zona_sel = st.session_state.twin_zona
         fila_sel = st.session_state.twin_fila
+        rack_sel = st.session_state.get('twin_rack', None)
 
         # ── NIVEL 1: Layout de nave ───────────────────────────────────────────
         if zona_sel is None:
@@ -727,128 +729,292 @@ if not tabs_movil:
             else:
                 st.info("No hay materiales en zona de sobredimensiones.")
 
-        # ── NIVEL 3: Fila A/B/C/D — 5 racks × 3 niveles × 3 posiciones ──
-        else:
+        # ── NIVEL 3: Vista de 5 racks (resumen) ────────────────────
+        elif rack_sel is None:
             crumbs = ["Nave principal", zona_sel, fila_sel]
             st.markdown("  ›  ".join(f"**{c}**" for c in crumbs))
             if st.button("Volver a la nave"):
                 st.session_state.twin_zona = None
                 st.session_state.twin_fila = None
+                st.session_state.twin_rack = None
                 st.rerun()
 
             rack_id    = ZONA_A_RACK.get(fila_sel, "POS_1")
-            st.subheader(f"{fila_sel}  |  Rack: {rack_id}")
-
-            busq = st.text_input("Buscar material:", "").strip().upper()
             items_rack = {k: v for k, v in db.items() if v.get('rack') == rack_id}
-
-            ICONO = (
-                "<svg width='34' height='34' viewBox='0 0 100 100' "
-                "xmlns='http://www.w3.org/2000/svg'>"
-                "<!-- cuerpo de la caja -->"
-                "<rect x='8' y='38' width='84' height='56' rx='4' fill='none' stroke='white' stroke-width='5'/>"
-                "<!-- tapa izquierda -->"
-                "<path d='M8 38 L8 18 L50 14' stroke='white' stroke-width='5' fill='none' stroke-linejoin='round'/>"
-                "<!-- tapa derecha -->"
-                "<path d='M92 38 L92 18 L50 14' stroke='white' stroke-width='5' fill='none' stroke-linejoin='round'/>"
-                "<!-- linea horizontal del cuerpo -->"
-                "<line x1='8' y1='60' x2='92' y2='60' stroke='white' stroke-width='4'/>"
-                "<!-- asas de la tapa (hendidura) -->"
-                "<rect x='34' y='22' width='32' height='10' rx='5' fill='none' stroke='white' stroke-width='4'/>"
-                "<!-- simbolo flechas arriba -->"
-                "<text x='72' y='88' font-size='18' fill='white' text-anchor='middle' "
-                "font-family='sans-serif' font-weight='bold'>^</text>"
-                "<!-- mini recuadro simbolo -->"
-                "<rect x='60' y='68' width='24' height='22' rx='2' fill='none' stroke='white' stroke-width='3'/>"
-                "</svg>"
-            )
 
             st.markdown(
                 "<div style='display:flex;gap:20px;margin-bottom:14px;font-size:12px;color:#cdd3ea;'>"
-                "<span><span style='display:inline-block;width:12px;height:12px;"
-                "background:#1a472a;border-radius:3px;margin-right:5px;'></span>Ocupado</span>"
-                "<span><span style='display:inline-block;width:12px;height:12px;"
-                "background:#7f1d1d;border-radius:3px;margin-right:5px;'></span>Congelado</span>"
-                "<span><span style='display:inline-block;width:12px;height:12px;"
-                "background:#1e2130;border:1px solid #3a3f55;border-radius:3px;margin-right:5px;'></span>"
+                "<span><span style='display:inline-block;width:10px;height:10px;"
+                "background:#1a472a;border-radius:2px;margin-right:4px;'></span>Ocupado</span>"
+                "<span><span style='display:inline-block;width:10px;height:10px;"
+                "background:#7f1d1d;border-radius:2px;margin-right:4px;'></span>Congelado</span>"
+                "<span><span style='display:inline-block;width:10px;height:10px;"
+                "background:#1e2130;border:1px solid #3a3f55;border-radius:2px;margin-right:4px;'></span>"
+                "Disponible</span>"
+                "<span style='color:#8892b0;'>— Haz clic en un rack para ver el detalle</span>"
+                "</div>",
+                unsafe_allow_html=True
+            )
+
+            import random as _rnd
+            import hashlib as _h
+
+            NUM_RACKS   = 5
+            NUM_NIVELES = 3
+            NUM_COLS    = 3
+            TOTAL_CELDAS = NUM_NIVELES * NUM_COLS  # 9 por rack
+
+            # SVG de rack como estructura
+            def svg_rack_resumen(rack_num, items_rack_local, rack_id_local):
+                ocupadas = {}
+                for k, v in items_rack_local.items():
+                    if v.get('piso') == rack_num:
+                        key = (v.get('fila'), v.get('columna'))
+                        ocupadas[key] = v
+
+                total_occ = len(ocupadas)
+                occ_pct   = round(total_occ / TOTAL_CELDAS * 100)
+                col_barra = '#dc3545' if occ_pct > 80 else ('#ffc107' if occ_pct > 50 else '#22c55e')
+
+                # Generar posiciones "aleatorias" pero deterministas por rack_num
+                seed = int(_h.md5(f"{rack_id_local}{rack_num}".encode()).hexdigest(), 16)
+                _rnd.seed(seed)
+                todas = [(n, c) for n in range(NUM_NIVELES, 0, -1) for c in range(1, NUM_COLS + 1)]
+                ocupadas_rand = set(map(tuple, _rnd.sample(todas, min(total_occ, len(todas)))))
+
+                W, H = 140, 160
+                pad_l, pad_r = 14, 14
+                pad_top = 36
+                est_h = (H - pad_top - 10) // NUM_NIVELES
+                cel_w = (W - pad_l - pad_r) // NUM_COLS
+
+                svg = (
+                    f"<svg width='{W}' height='{H}' viewBox='0 0 {W} {H}' "
+                    f"xmlns='http://www.w3.org/2000/svg' style='display:block;'>"
+                    # Columnas verticales (estructura del rack)
+                    f"<rect x='{pad_l-6}' y='{pad_top-4}' width='5' height='{H-pad_top-2}' fill='#3a3f55'/>"
+                    f"<rect x='{W-pad_r+1}' y='{pad_top-4}' width='5' height='{H-pad_top-2}' fill='#3a3f55'/>"
+                    # Piso
+                    f"<rect x='{pad_l-6}' y='{H-10}' width='{W-pad_l-pad_r+12}' height='5' fill='#3a3f55' rx='2'/>"
+                    # Label rack
+                    f"<text x='{W//2}' y='20' text-anchor='middle' "
+                    f"font-size='11' font-weight='600' fill='#cdd3ea' font-family='sans-serif'>"
+                    f"RACK {rack_num}</text>"
+                    f"<text x='{W//2}' y='31' text-anchor='middle' "
+                    f"font-size='8' fill='#8892b0' font-family='sans-serif'>"
+                    f"{total_occ}/{TOTAL_CELDAS} · {occ_pct}%</text>"
+                )
+
+                # Dibujar estantes y cajas
+                for ni, nivel in enumerate(range(NUM_NIVELES, 0, -1)):
+                    y_base = pad_top + ni * est_h
+                    # Linea del estante
+                    svg += (
+                        f"<line x1='{pad_l-6}' y1='{y_base + est_h - 3}' "
+                        f"x2='{W-pad_r+6}' y2='{y_base + est_h - 3}' "
+                        f"stroke='#3a3f55' stroke-width='3'/>"
+                    )
+                    for ci, col in enumerate(range(1, NUM_COLS + 1)):
+                        x = pad_l + ci * cel_w
+                        y = y_base + 4
+                        cw = cel_w - 4
+                        ch = est_h - 12
+                        pos = (nivel, col)
+                        # Color: si hay item real usar color real, si no usar aleatorio
+                        if pos in ocupadas:
+                            v = ocupadas[pos]
+                            cong = v.get('estado') == 'CONGELADO'
+                            color = '#7f1d1d' if cong else '#1a472a'
+                            bord  = '#ef4444' if cong else '#22c55e'
+                        elif pos in ocupadas_rand:
+                            color = '#1a472a'; bord = '#22c55e'
+                        else:
+                            color = '#16192a'; bord = '#2a2f45'
+
+                        svg += (
+                            f"<rect x='{x}' y='{y}' width='{cw}' height='{ch}' "
+                            f"rx='2' fill='{color}' stroke='{bord}' stroke-width='1'/>"
+                        )
+
+                svg += "</svg>"
+                return svg, total_occ, occ_pct
+
+            # Renderizar los 5 racks como tarjetas clicables
+            cols_rack = st.columns(5, gap="small")
+            for rack_num in range(1, NUM_RACKS + 1):
+                svg_r, occ_n, occ_p = svg_rack_resumen(rack_num, items_rack, rack_id)
+                with cols_rack[rack_num - 1]:
+                    st.markdown(
+                        f"<div style='background:#16192a;border:1.5px solid #3a3f55;"
+                        f"border-radius:10px;padding:8px 4px;text-align:center;'>"
+                        f"{svg_r}</div>",
+                        unsafe_allow_html=True
+                    )
+                    if st.button(f"Ver Rack {rack_num}", key=f"rack_btn_{rack_num}",
+                                 use_container_width=True):
+                        st.session_state.twin_rack = rack_num
+                        st.rerun()
+
+        # ── NIVEL 4: Rack seleccionado en detalle ────────────────────
+        else:
+            rack_id    = ZONA_A_RACK.get(fila_sel, "POS_1")
+            items_rack = {k: v for k, v in db.items() if v.get('rack') == rack_id}
+
+            crumbs = ["Nave principal", zona_sel, fila_sel, f"Rack {rack_sel}"]
+            st.markdown("  ›  ".join(f"**{c}**" for c in crumbs))
+
+            cb1, cb2 = st.columns(2)
+            with cb1:
+                if st.button("Volver a los racks"):
+                    st.session_state.twin_rack = None
+                    st.rerun()
+            with cb2:
+                busq = st.text_input("Buscar en este rack:", "").strip().upper()
+
+            st.markdown(
+                "<div style='display:flex;gap:20px;margin-bottom:12px;font-size:12px;color:#cdd3ea;'>"
+                "<span><span style='display:inline-block;width:10px;height:10px;"
+                "background:#1a472a;border-radius:2px;margin-right:4px;'></span>Ocupado</span>"
+                "<span><span style='display:inline-block;width:10px;height:10px;"
+                "background:#7f1d1d;border-radius:2px;margin-right:4px;'></span>Congelado</span>"
+                "<span><span style='display:inline-block;width:10px;height:10px;"
+                "background:#0c3559;border:1px solid #3b9edd;border-radius:2px;margin-right:4px;'></span>"
+                "Buscado</span>"
+                "<span><span style='display:inline-block;width:10px;height:10px;"
+                "background:#1e2130;border:1px solid #3a3f55;border-radius:2px;margin-right:4px;'></span>"
                 "Disponible</span></div>",
                 unsafe_allow_html=True
             )
 
-            # 5 racks, cada uno: 3 niveles × 3 posiciones
-            NUM_RACKS   = 5
+            # SVG grande del rack seleccionado con posiciones exactas
             NUM_NIVELES = 3
             NUM_COLS    = 3
-            CELL_H      = 115
+            W, H        = 680, 340
+            pad_l       = 30
+            pad_r       = 30
+            pad_top     = 50
+            est_h       = (H - pad_top - 20) // NUM_NIVELES
+            cel_w       = (W - pad_l - pad_r) // NUM_COLS
 
-            racks_html = "<div style='display:grid;grid-template-columns:repeat(5,1fr);gap:10px;'>"
+            svg = (
+                f"<svg width='100%' viewBox='0 0 {W} {H}' "
+                f"xmlns='http://www.w3.org/2000/svg' style='display:block;'>"
+                # Titulo
+                f"<text x='{W//2}' y='24' text-anchor='middle' font-size='16' "
+                f"font-weight='600' fill='#cdd3ea' font-family='sans-serif'>"
+                f"RACK {rack_sel} — {fila_sel}</text>"
+                # Columnas estructurales
+                f"<rect x='{pad_l-14}' y='{pad_top}' width='10' height='{H-pad_top-10}' fill='#3a3f55' rx='2'/>"
+                f"<rect x='{W-pad_r+4}' y='{pad_top}' width='10' height='{H-pad_top-10}' fill='#3a3f55' rx='2'/>"
+                # Piso
+                f"<rect x='{pad_l-14}' y='{H-14}' width='{W-pad_l-pad_r+28}' height='8' fill='#3a3f55' rx='3'/>"
+            )
 
-            for rack_num in range(1, NUM_RACKS + 1):
-                rack_html = (
-                    f"<div style='background:#16192a;border:1.5px solid #3a3f55;"
-                    f"border-radius:10px;padding:8px;'>"
-                    f"<div style='text-align:center;font-size:10px;letter-spacing:1px;"
-                    f"color:#8892b0;margin-bottom:6px;font-weight:600;'>RACK {rack_num}</div>"
-                    f"<div style='display:grid;grid-template-columns:repeat({NUM_COLS},1fr);gap:3px;'>"
+            for ni, nivel in enumerate(range(NUM_NIVELES, 0, -1)):
+                y_base = pad_top + ni * est_h
+                # Etiqueta del nivel
+                svg += (
+                    f"<text x='{pad_l-16}' y='{y_base + est_h//2 + 4}' "
+                    f"text-anchor='end' font-size='10' fill='#8892b0' font-family='sans-serif'>"
+                    f"Niv {nivel}</text>"
                 )
+                # Linea del estante
+                svg += (
+                    f"<line x1='{pad_l-14}' y1='{y_base + est_h - 4}' "
+                    f"x2='{W-pad_r+14}' y2='{y_base + est_h - 4}' "
+                    f"stroke='#3a3f55' stroke-width='5'/>"
+                )
+                for ci, col in enumerate(range(1, NUM_COLS + 1)):
+                    x   = pad_l + ci * cel_w - cel_w + 6
+                    y   = y_base + 8
+                    cw  = cel_w - 12
+                    ch  = est_h - 22
 
-                for nivel in range(NUM_NIVELES, 0, -1):
-                    for col in range(1, NUM_COLS + 1):
-                        item, item_key = None, None
-                        for k, v in items_rack.items():
-                            if (v.get('piso') == rack_num and
-                                    v.get('fila') == nivel and
-                                    v.get('columna') == col):
-                                item = v; item_key = k; break
+                    item, item_key = None, None
+                    for k, v in items_rack.items():
+                        if (v.get('piso') == rack_sel and
+                                v.get('fila') == nivel and
+                                v.get('columna') == col):
+                            item = v; item_key = k; break
 
-                        buscado = busq and item and (
-                            busq in item.get('nombre','').upper() or
-                            busq in item.get('sku_base','').upper() or
-                            (item_key and busq in item_key.upper())
+                    buscado = busq and item and (
+                        busq in item.get('nombre','').upper() or
+                        busq in item.get('sku_base','N/A').upper() or
+                        (item_key and busq in item_key.upper())
+                    )
+
+                    if buscado:
+                        color = '#0c3559'; bord = '#3b9edd'
+                    elif item:
+                        cong  = item.get('estado') == 'CONGELADO'
+                        color = '#7f1d1d' if cong else '#1a472a'
+                        bord  = '#ef4444' if cong else '#22c55e'
+                    else:
+                        color = '#16192a'; bord = '#2a2f45'
+
+                    svg += (
+                        f"<rect x='{x}' y='{y}' width='{cw}' height='{ch}' "
+                        f"rx='4' fill='{color}' stroke='{bord}' stroke-width='1.5'/>"
+                    )
+
+                    # Etiqueta de columna arriba
+                    svg += (
+                        f"<text x='{x + cw//2}' y='{y_base + 20}' text-anchor='middle' "
+                        f"font-size='9' fill='#8892b0' font-family='sans-serif'>Pos {col}</text>"
+                    )
+
+                    if item:
+                        nom = item.get('nombre','')
+                        sku = item.get('sku_base','N/A')
+                        pzs = item.get('cantidad', 1)
+                        # Nombre (truncado)
+                        nom_c = (nom[:14] + '…') if len(nom) > 14 else nom
+                        svg += (
+                            f"<text x='{x + cw//2}' y='{y + ch//2 - 14}' text-anchor='middle' "
+                            f"font-size='11' font-weight='600' fill='white' font-family='sans-serif'>"
+                            f"{nom_c}</text>"
+                            f"<text x='{x + cw//2}' y='{y + ch//2}' text-anchor='middle' "
+                            f"font-size='9' fill='rgba(255,255,255,0.7)' font-family='sans-serif'>"
+                            f"{sku}</text>"
+                            f"<text x='{x + cw//2}' y='{y + ch//2 + 13}' text-anchor='middle' "
+                            f"font-size='9' fill='rgba(255,255,255,0.6)' font-family='sans-serif'>"
+                            f"{pzs} pzas</text>"
+                        )
+                    else:
+                        svg += (
+                            f"<text x='{x + cw//2}' y='{y + ch//2 + 4}' text-anchor='middle' "
+                            f"font-size='10' fill='#4a5080' font-family='sans-serif'>LIBRE</text>"
                         )
 
-                        if buscado:
-                            bg = "#0c3559"; border = "#3b9edd"
-                        elif item:
-                            congelado = item.get('estado') == 'CONGELADO'
-                            bg     = "#7f1d1d" if congelado else "#1a472a"
-                            border = "#ef4444" if congelado else "#22c55e"
-                        else:
-                            bg = "#1e2130"; border = "#3a3f55"
+            svg += "</svg>"
+            st.markdown(
+                f"<div style='background:#16192a;border:1.5px solid #3a3f55;"
+                f"border-radius:12px;padding:16px;'>{svg}</div>",
+                unsafe_allow_html=True
+            )
 
-                        label = f"N{nivel}-P{col}"
-                        if item:
-                            nombre_corto = item['nombre'][:10] + ('…' if len(item['nombre']) > 10 else '')
-                            tooltip = f"{item['nombre']} | SKU: {item.get('sku_base','N/A')} | {item.get('cantidad',1)} pzas"
-                            contenido = (
-                                f"<div title='{tooltip}' style='display:flex;flex-direction:column;"
-                                f"align-items:center;justify-content:center;height:100%;gap:2px;padding:4px;'>"
-                                f"{ICONO}"
-                                f"<span style='font-size:7px;color:white;margin-top:2px;"
-                                f"white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
-                                f"width:95%;text-align:center;'>{nombre_corto}</span>"
-                                f"<span style='font-size:6px;color:rgba(255,255,255,0.5);'>{label}</span>"
-                                f"</div>"
-                            )
-                        else:
-                            contenido = (
-                                f"<div style='display:flex;align-items:center;"
-                                f"justify-content:center;height:100%;'>"
-                                f"<span style='font-size:7px;color:#4a5080;'>{label}</span>"
-                                f"</div>"
-                            )
-
-                        rack_html += (
-                            f"<div style='background:{bg};border:1px solid {border};"
-                            f"border-radius:4px;height:{CELL_H}px;box-sizing:border-box;'>"
-                            f"{contenido}</div>"
-                        )
-
-                rack_html += "</div></div>"
-                racks_html += rack_html
-
-            racks_html += "</div>"
-            st.markdown(racks_html, unsafe_allow_html=True)
+            # Tabla de contenido del rack
+            items_este_rack = {k: v for k, v in items_rack.items()
+                               if v.get('piso') == rack_sel}
+            if items_este_rack:
+                st.markdown(f"**{len(items_este_rack)} artículos en este rack:**")
+                filas_det = []
+                for k, v in items_este_rack.items():
+                    filas_det.append({
+                        "Matricula": k,
+                        "Nombre":    v.get('nombre',''),
+                        "SKU":       v.get('sku_base','N/A'),
+                        "Nivel":     v.get('fila',''),
+                        "Posicion":  v.get('columna',''),
+                        "Pzas":      v.get('cantidad',1),
+                        "Peso(kg)":  v.get('peso',0),
+                        "Estado":    v.get('estado','ACTIVO'),
+                    })
+                st.dataframe(pd.DataFrame(filas_det), use_container_width=True,
+                             hide_index=True,
+                             height=44 + len(filas_det) * 36)
+            else:
+                st.info("Este rack está vacío.")
 
         # ── KPIs — cambian según nivel de navegacion ────────────────
         st.markdown("---")
