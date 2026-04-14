@@ -32,7 +32,8 @@ except ImportError:
 # ─────────────────────────────────────────
 # CONFIGURACION FIREBASE
 # ─────────────────────────────────────────
-FIREBASE_URL = get_secret("FIREBASE_URL", "https://umad-wms-default-rtdb.firebaseio.com/maestro_articulos.json")
+FIREBASE_URL     = get_secret("FIREBASE_URL", "https://umad-wms-default-rtdb.firebaseio.com/maestro_articulos.json")
+HISTORIAL_URL    = FIREBASE_URL.replace("maestro_articulos.json", "historial.json")
 
 def cargar_db(forzar=False):
     """
@@ -55,9 +56,28 @@ def cargar_db(forzar=False):
 def guardar_db(db):
     try:
         requests.put(FIREBASE_URL, json=db, timeout=5)
-        st.session_state.db = db  # actualizar cache tras guardar
+        st.session_state.db = db
     except Exception as e:
         st.error(f"ERROR AL GUARDAR EN FIREBASE: {e}")
+
+def registrar_movimiento(accion, uid, detalle='', rol=None):
+    """Guarda un evento en /historial de Firebase. No bloquea si falla."""
+    import datetime as _dt
+    try:
+        res = requests.get(HISTORIAL_URL, timeout=5)
+        historial = res.json() if res.status_code == 200 and res.json() else {}
+        ts  = _dt.datetime.now()
+        key = ts.strftime('%Y%m%d_%H%M%S_') + uid[:8].replace('-','_')
+        historial[key] = {
+            'accion':    accion,
+            'uid':       uid,
+            'detalle':   detalle,
+            'rol':       rol or st.session_state.get('rol', 'operador'),
+            'timestamp': ts.strftime('%Y-%m-%d %H:%M:%S'),
+        }
+        requests.put(HISTORIAL_URL, json=historial, timeout=5)
+    except Exception:
+        pass
 
 # ─────────────────────────────────────────
 # CONFIGURACION MQTT
@@ -248,6 +268,8 @@ def registrar_pallet(uid, sku_base, nombre, peso, cantidad,
     }
     st.session_state.db[uid] = registro
     guardar_db(st.session_state.db)
+    registrar_movimiento('ALTA', uid,
+        f"{nombre} | SKU: {sku_base} | Rack: {r} | Piso {piso} Niv {nivel} Col {col} | {peso}kg")
 
     # Generar QR si se solicita
     if generar_qr:
@@ -1177,8 +1199,12 @@ if not tabs_movil:
 
     with tabs[1]:
         import datetime
-        st.header("GESTION DEL INVENTARIO")
-        db_actual = cargar_db()  # usa cache
+        _es_admin_m = st.session_state.get('rol') == 'admin'
+        _subtabs = (["Inventario", "Historial"] if _es_admin_m else ["Inventario"])
+        _st = st.tabs(_subtabs)
+
+        with _st[0]:  # Inventario
+         db_actual = cargar_db()  # usa cache
 
         # ── Tabla principal con filtros ───────────────────────────
         if db_actual:
@@ -1299,6 +1325,8 @@ if not tabs_movil:
                                 'peso': nuevo_peso, 'volumen': nuevo_vol
                             })
                             guardar_db(db_actual)
+                            registrar_movimiento('EDICION', uid_sel,
+                                f"SKU: {nuevo_sku} | Estado: {nuevo_estado} | Peso: {nuevo_peso}kg")
                             st.success("Cambios guardados.")
                             st.rerun()
                     with ba2:
@@ -1306,10 +1334,16 @@ if not tabs_movil:
                             db_actual[uid_sel]['estado'] = 'BAJA'
                             db_actual[uid_sel]['fecha_baja'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
                             guardar_db(db_actual)
+                            registrar_movimiento('BAJA', uid_sel,
+                                f"{db_actual[uid_sel].get('nombre','')} | {db_actual[uid_sel].get('rack','')}")
                             st.warning(f"Pallet {uid_sel} dado de baja.")
                             st.rerun()
                     with ba3:
                         if st.button("ELIMINAR PERMANENTE", use_container_width=True):
+                            _nom_eli  = db_actual[uid_sel].get('nombre','')
+                            _rack_eli = db_actual[uid_sel].get('rack','')
+                            registrar_movimiento('ELIMINACION', uid_sel,
+                                f"{_nom_eli} | {_rack_eli}")
                             del db_actual[uid_sel]
                             guardar_db(db_actual)
                             st.error("Pallet eliminado permanentemente.")
@@ -1398,6 +1432,51 @@ if not tabs_movil:
                 st.session_state.qr_generado = None
                 st.rerun()
 
+        # ── Historial (solo admin) ────────────────────────────────
+        if _es_admin_m:
+          with _st[1]:
+            st.subheader("Historial de movimientos")
+            try:
+                res_h = requests.get(HISTORIAL_URL, timeout=5)
+                hist  = res_h.json() if res_h.status_code == 200 and res_h.json() else {}
+            except Exception:
+                hist = {}
+
+            if hist:
+                filas_h = []
+                for k, v in sorted(hist.items(), reverse=True):
+                    filas_h.append({
+                        "Fecha/Hora": v.get('timestamp',''),
+                        "Accion":     v.get('accion',''),
+                        "ID Pallet":  v.get('uid',''),
+                        "Detalle":    v.get('detalle',''),
+                        "Rol":        v.get('rol',''),
+                    })
+                df_h = pd.DataFrame(filas_h)
+                # Filtro rapido por accion
+                f_acc = st.selectbox("Filtrar por accion",
+                    ["TODAS","ALTA","EDICION","BAJA","ELIMINACION","ESCANEO"],
+                    index=0, key="filtro_hist")
+                if f_acc != "TODAS":
+                    df_h = df_h[df_h["Accion"] == f_acc]
+                st.caption(f"{len(df_h)} eventos")
+                st.dataframe(df_h, use_container_width=True,
+                             hide_index=True,
+                             height=44 + min(len(df_h), 15) * 36,
+                             column_config={
+                                 "Fecha/Hora": st.column_config.TextColumn(width="medium"),
+                                 "Accion":     st.column_config.TextColumn(width="small"),
+                                 "ID Pallet":  st.column_config.TextColumn(width="medium"),
+                                 "Detalle":    st.column_config.TextColumn(width="large"),
+                                 "Rol":        st.column_config.TextColumn(width="small"),
+                             })
+                if st.button("Limpiar historial", type="secondary"):
+                    requests.put(HISTORIAL_URL, json={}, timeout=5)
+                    st.success("Historial limpiado.")
+                    st.rerun()
+            else:
+                st.info("No hay movimientos registrados todavia.")
+
 else:
     with tabs[0]:
         st.subheader("CAPTURA DE PALLET FISICO")
@@ -1426,6 +1505,8 @@ else:
                                     st.session_state.mqtt_client.publish(
                                         TOPIC_PUB, f"{item['rack']}_ON"
                                     )
+                                registrar_movimiento('ESCANEO', uid_pallet,
+                                    f"{item['nombre']} | Rack: {item['rack']}")
                                 st.session_state.confirmacion_pendiente = item['rack']
                                 st.session_state.ultimo_sku_procesado   = uid_pallet
                                 st.rerun()
