@@ -459,6 +459,10 @@ with st.sidebar:
 # CSS global
 st.markdown("""
 <style>
+/* Centrar el contenedor principal de los racks */
+div[data-testid="stHorizontalBlock"] {
+    justify-content: center !important;
+}
 div[data-testid="stHorizontalBlock"] {
     justify-content: center !important;
 }
