@@ -471,6 +471,16 @@ div[data-testid="column"] > div {
 div[data-testid="stVerticalBlockBorderWrapper"] {
     padding: 0 !important;
 }
+/* Selectbox: solo cursor de puntero, sin seleccion de texto ni caret */
+div[data-testid="stSelectbox"] input {
+    cursor: pointer !important;
+    caret-color: transparent !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    color: transparent !important;
+    text-shadow: 0 0 0 var(--text-color, #fff) !important;
+}
 
 </style>
 """, unsafe_allow_html=True)
