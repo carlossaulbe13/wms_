@@ -459,6 +459,15 @@ with st.sidebar:
 # CSS global
 st.markdown("""
 <style>
+div[data-testid="stHorizontalBlock"] {
+    justify-content: center !important;
+}
+/* -------------------------------- */
+
+/* Elimina el gap horizontal entre columnas en las grillas de racks */
+div[data-testid="column"] > div {
+    padding: 0 !important;
+}
 /* Elimina el gap horizontal entre columnas en las grillas de racks */
 div[data-testid="column"] > div {
     padding: 0 !important;
