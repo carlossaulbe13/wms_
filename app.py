@@ -9,11 +9,15 @@ import qrcode
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 from streamlit_autorefresh import st_autorefresh
 import time
+from dotenv import load_dotenv
+import os
+
+load_dotenv()  # carga variables desde .env
 
 # ─────────────────────────────────────────
 # CONFIGURACION FIREBASE
 # ─────────────────────────────────────────
-FIREBASE_URL = "https://umad-wms-default-rtdb.firebaseio.com/maestro_articulos.json"
+FIREBASE_URL = os.getenv("FIREBASE_URL", "https://umad-wms-default-rtdb.firebaseio.com/maestro_articulos.json")
 
 def cargar_db():
     try:
@@ -33,22 +37,21 @@ def guardar_db(db):
 # ─────────────────────────────────────────
 # CONFIGURACION MQTT
 # ─────────────────────────────────────────
-MQTT_HOST  = "03109e9f1c90423e81ffa63071592873.s1.eu.hivemq.cloud"
-MQTT_PORT  = 8883
-MQTT_USER  = "saul_mqtt"
-MQTT_PASS  = "135700/Saul"
+MQTT_HOST  = os.getenv("MQTT_HOST",  "03109e9f1c90423e81ffa63071592873.s1.eu.hivemq.cloud")
+MQTT_PORT  = int(os.getenv("MQTT_PORT", "8883"))
+MQTT_USER  = os.getenv("MQTT_USER",  "saul_mqtt")
+MQTT_PASS  = os.getenv("MQTT_PASS",  "135700/Saul")
 TOPIC_PUB  = "almacen/escaneo"
 TOPIC_SUB  = "almacen/confirmacion"
-TOPIC_AUTH = "almacen/rfid"        # ESP32 publica el UID leido aqui
+TOPIC_AUTH = "almacen/rfid"
 
 # ─── Seguridad ───────────────────────────────────────────
 # UIDs autorizados: agrega aqui los de tus tarjetas/llaveros
 # Para conocer el UID de una tarjeta nueva, activa modo debug en el .ino
-UIDS_AUTORIZADOS = {
-    "06:7F:04:07",   # Tarjeta
-    "92:D1:10:06",   # Tag / llavero
-}
-PASSWORD_ACCESO = "1234567890"      # Contrasena de prueba — cambiar en produccion
+# UIDs desde .env separados por coma: UID1,UID2
+_uids_raw = os.getenv("UIDS_AUTORIZADOS", "06:7F:04:07,92:D1:10:06")
+UIDS_AUTORIZADOS = set(u.strip().upper() for u in _uids_raw.split(",") if u.strip())
+PASSWORD_ACCESO  = os.getenv("PASSWORD_ACCESO", "1234567890")
 
 if 'msg_mqtt_recibido' not in st.session_state:
     st.session_state.msg_mqtt_recibido = None
@@ -261,7 +264,7 @@ def pantalla_login():
         st.markdown("""
         <div style='max-width:420px;margin:10vh auto;background:#1e1e2e;
              border:1.5px solid #dc3545;border-radius:14px;padding:40px 36px;text-align:center;'>
-          <div style='font-size:36px;margin-bottom:12px;'>&#128274;</div>
+          <div style='font-size:36px;margin-bottom:12px;'></div>
           <h2 style='color:#ef4444;margin-bottom:8px;'>Acceso bloqueado</h2>
           <p style='color:#8892b0;font-size:13px;'>Demasiados intentos fallidos.<br>
           Intenta de nuevo en <b style='color:#cdd3ea;'>{:.0f} segundos</b>.</p>
@@ -283,7 +286,7 @@ def pantalla_login():
         st.markdown("""
         <div style='background:#16192a;border:1.5px solid #3a3f55;border-radius:12px;
              padding:28px 24px;text-align:center;margin-bottom:16px;'>
-          <div style='font-size:40px;margin-bottom:10px;'>&#128268;</div>
+          <div style='font-size:40px;margin-bottom:10px;'></div>
           <p style='color:#cdd3ea;font-size:14px;font-weight:600;margin-bottom:4px;'>
             Acerca tu tarjeta RFID al lector</p>
           <p style='color:#8892b0;font-size:11px;'>El lector esta conectado al ESP32</p>
@@ -612,7 +615,7 @@ if not tabs_movil:
                 "<rect x='34' y='22' width='32' height='10' rx='5' fill='none' stroke='white' stroke-width='4'/>"
                 "<!-- simbolo flechas arriba -->"
                 "<text x='72' y='88' font-size='18' fill='white' text-anchor='middle' "
-                "font-family='sans-serif' font-weight='bold'>&#8679;</text>"
+                "font-family='sans-serif' font-weight='bold'>^</text>"
                 "<!-- mini recuadro simbolo -->"
                 "<rect x='60' y='68' width='24' height='22' rx='2' fill='none' stroke='white' stroke-width='3'/>"
                 "</svg>"
@@ -1124,23 +1127,50 @@ else:
                     st.rerun()
 
                 if submit and nom and sku_base:
-                    vol = (l * a * h) / 1_000_000
+                    import datetime as _dt_sc
+                    alto_sc = h / 100.0
+                    vol     = (l * a * h) / 1_000_000
+                    avisos_sc = []
 
-                    if   peso >= 100:              rack = "POS_4"
-                    elif vol  >  1.5:              rack = "POS_5"
-                    elif peso >= 50 or vol > 1.0:  rack = "POS_3"
-                    elif peso >= 20 or vol > 0.5:  rack = "POS_2"
-                    else:                          rack = "POS_1"
+                    # Discriminante altura
+                    if alto_sc > ALTO_MAX_N3:
+                        avisos_sc.append(f"Alto {h:.0f} cm > 180 cm — SOBREDIMENSIONES.")
+                        rack = "POS_5"
+                    elif alto_sc > ALTO_MAX_N1_N2:
+                        avisos_sc.append(f"Alto {h:.0f} cm > 150 cm — solo nivel 3.")
+                        rack = asignar_rack_por_peso_vol(peso, vol)
+                    else:
+                        rack = asignar_rack_por_peso_vol(peso, vol)
 
-                    piso, fila, col_num = obtener_coordenada_libre(st.session_state.db, rack)
+                    # Discriminante peso
+                    if peso > PESO_SOBRE:
+                        avisos_sc.append(f"Peso {peso:.0f} kg > {PESO_SOBRE:.0f} kg — SOBREDIMENSIONES.")
+                        rack = "POS_5"
+
+                    piso, fila, col_num = obtener_coordenada_libre(
+                        st.session_state.db, rack, peso_nuevo=peso, alto_m=alto_sc)
+
+                    if piso is None and rack != "POS_5":
+                        rack = "POS_5"
+                        avisos_sc.append("Rack lleno — redirigido a SOBREDIMENSIONES.")
+                        piso, fila, col_num = obtener_coordenada_libre(
+                            st.session_state.db, rack, peso_nuevo=peso, alto_m=alto_sc)
 
                     if piso is not None:
+                        fecha_sc = _dt_sc.datetime.now().strftime("%Y-%m-%d %H:%M")
                         st.session_state.db[st.session_state.sku_pendiente] = {
-                            "sku_base": sku_base, "nombre": nom, "peso": peso,
-                            "cantidad": cant, "volumen": vol, "rack": rack,
-                            "piso": piso, "fila": fila, "columna": col_num, "estado": "ACTIVO"
+                            "sku_base": sku_base, "nombre": nom,
+                            "peso": peso, "cantidad": cant,
+                            "volumen": round(vol, 4),
+                            "alto_m": round(alto_sc, 2),
+                            "rack": rack, "piso": piso,
+                            "fila": fila, "columna": col_num,
+                            "estado": "ACTIVO",
+                            "fecha_llegada": fecha_sc,
                         }
                         guardar_db(st.session_state.db)
+                        for av in avisos_sc:
+                            st.warning(av)
                         if st.session_state.mqtt_client:
                             st.session_state.mqtt_client.publish(TOPIC_PUB, f"{rack}_ON")
                         time.sleep(0.1)
@@ -1148,10 +1178,10 @@ else:
                         st.session_state.rack_resaltado    = rack
                         st.session_state.rack_resaltado_ts = time.time()
                         st.session_state.sku_pendiente = None
-                        st.success("PALLET REGISTRADO EN FIREBASE Y RACK ACTIVADO.")
+                        st.success(f"PALLET REGISTRADO — Rack: {rack} | Piso {piso} | Nivel {fila} | Col {col_num}")
                         st.rerun()
                     else:
-                        st.error(f"ERROR OPERATIVO: EL {rack} ESTA COMPLETAMENTE LLENO.")
+                        st.error(f"ERROR: Sin espacio disponible. Reorganiza el almacen.")
 
     with tabs[1]:
         import datetime as _dt
