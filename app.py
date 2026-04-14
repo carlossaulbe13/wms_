@@ -815,7 +815,7 @@ if not tabs_movil:
                         f"stroke='#3a3f55' stroke-width='3'/>"
                     )
                     for ci, col in enumerate(range(1, NUM_COLS + 1)):
-                        x = pad_l + ci * cel_w
+                        x = pad_l + (ci - 1) * cel_w + 2
                         y = y_base + 4
                         cw = cel_w - 4
                         ch = est_h - 12
@@ -839,21 +839,30 @@ if not tabs_movil:
                 svg += "</svg>"
                 return svg, total_occ, occ_pct
 
-            # Renderizar los 5 racks como tarjetas clicables
-            cols_rack = st.columns(5, gap="small")
+            # Renderizar los 5 racks — el SVG completo es el enlace
+            racks_grid = "<div style='display:grid;grid-template-columns:repeat(5,1fr);gap:10px;'>"
             for rack_num in range(1, NUM_RACKS + 1):
                 svg_r, occ_n, occ_p = svg_rack_resumen(rack_num, items_rack, rack_id)
-                with cols_rack[rack_num - 1]:
-                    st.markdown(
-                        f"<div style='background:#16192a;border:1.5px solid #3a3f55;"
-                        f"border-radius:10px;padding:8px 4px;text-align:center;'>"
-                        f"{svg_r}</div>",
-                        unsafe_allow_html=True
-                    )
-                    if st.button(f"Ver Rack {rack_num}", key=f"rack_btn_{rack_num}",
-                                 use_container_width=True):
-                        st.session_state.twin_rack = rack_num
-                        st.rerun()
+                fila_enc = fila_sel.replace(' ', '+')
+                url = f"?zona=ALMACENAJE&fila={fila_enc}&rack={rack_num}&_s={_TOKEN_SECRETO}"
+                racks_grid += (
+                    f"<a href='{url}' target='_self' style='text-decoration:none;cursor:pointer;'>"
+                    f"<div style='background:#16192a;border:1.5px solid #3a3f55;"
+                    f"border-radius:10px;padding:8px 4px;text-align:center;"
+                    f"transition:border-color 0.15s;'"
+                    f"onmouseover=\"this.style.borderColor='#7f8ac0'\""
+                    f"onmouseout=\"this.style.borderColor='#3a3f55'\">"
+                    f"{svg_r}</div></a>"
+                )
+            racks_grid += "</div>"
+            st.markdown(racks_grid, unsafe_allow_html=True)
+
+            # Leer seleccion de rack via query param
+            if 'rack' in st.query_params:
+                st.session_state.twin_rack = int(st.query_params['rack'])
+                st.query_params.clear()
+                st.query_params['_s'] = _TOKEN_SECRETO
+                st.rerun()
 
         # ── NIVEL 4: Rack seleccionado en detalle ────────────────────
         else:
@@ -886,15 +895,16 @@ if not tabs_movil:
                 unsafe_allow_html=True
             )
 
-            # SVG grande del rack seleccionado con posiciones exactas
+            # SVG del rack seleccionado — tamaño moderado
             NUM_NIVELES = 3
             NUM_COLS    = 3
-            W, H        = 680, 340
-            pad_l       = 30
-            pad_r       = 30
-            pad_top     = 50
-            est_h       = (H - pad_top - 20) // NUM_NIVELES
-            cel_w       = (W - pad_l - pad_r) // NUM_COLS
+            W, H        = 580, 280
+            pad_l       = 36
+            pad_r       = 16
+            pad_top     = 46
+            est_h       = (H - pad_top - 18) // NUM_NIVELES
+            area_w      = W - pad_l - pad_r
+            cel_w       = area_w // NUM_COLS
 
             svg = (
                 f"<svg width='100%' viewBox='0 0 {W} {H}' "
@@ -904,31 +914,31 @@ if not tabs_movil:
                 f"font-weight='600' fill='#cdd3ea' font-family='sans-serif'>"
                 f"RACK {rack_sel} — {fila_sel}</text>"
                 # Columnas estructurales
-                f"<rect x='{pad_l-14}' y='{pad_top}' width='10' height='{H-pad_top-10}' fill='#3a3f55' rx='2'/>"
-                f"<rect x='{W-pad_r+4}' y='{pad_top}' width='10' height='{H-pad_top-10}' fill='#3a3f55' rx='2'/>"
+                f"<rect x='{pad_l-12}' y='{pad_top}' width='8' height='{H-pad_top-8}' fill='#3a3f55' rx='2'/>"
+                f"<rect x='{pad_l + area_w + 4}' y='{pad_top}' width='8' height='{H-pad_top-8}' fill='#3a3f55' rx='2'/>"
                 # Piso
-                f"<rect x='{pad_l-14}' y='{H-14}' width='{W-pad_l-pad_r+28}' height='8' fill='#3a3f55' rx='3'/>"
+                f"<rect x='{pad_l-12}' y='{H-12}' width='{area_w+24}' height='6' fill='#3a3f55' rx='3'/>"
             )
 
             for ni, nivel in enumerate(range(NUM_NIVELES, 0, -1)):
                 y_base = pad_top + ni * est_h
                 # Etiqueta del nivel
                 svg += (
-                    f"<text x='{pad_l-16}' y='{y_base + est_h//2 + 4}' "
-                    f"text-anchor='end' font-size='10' fill='#8892b0' font-family='sans-serif'>"
-                    f"Niv {nivel}</text>"
+                    f"<text x='{pad_l-14}' y='{y_base + est_h//2 + 4}' "
+                    f"text-anchor='end' font-size='9' fill='#8892b0' font-family='sans-serif'>"
+                    f"N{nivel}</text>"
                 )
                 # Linea del estante
                 svg += (
-                    f"<line x1='{pad_l-14}' y1='{y_base + est_h - 4}' "
-                    f"x2='{W-pad_r+14}' y2='{y_base + est_h - 4}' "
-                    f"stroke='#3a3f55' stroke-width='5'/>"
+                    f"<line x1='{pad_l-12}' y1='{y_base + est_h - 3}' "
+                    f"x2='{pad_l + area_w + 12}' y2='{y_base + est_h - 3}' "
+                    f"stroke='#3a3f55' stroke-width='4'/>"
                 )
                 for ci, col in enumerate(range(1, NUM_COLS + 1)):
-                    x   = pad_l + ci * cel_w - cel_w + 6
-                    y   = y_base + 8
-                    cw  = cel_w - 12
-                    ch  = est_h - 22
+                    x   = pad_l + (ci - 1) * cel_w + 4
+                    y   = y_base + 6
+                    cw  = cel_w - 8
+                    ch  = est_h - 18
 
                     item, item_key = None, None
                     for k, v in items_rack.items():
@@ -957,10 +967,10 @@ if not tabs_movil:
                         f"rx='4' fill='{color}' stroke='{bord}' stroke-width='1.5'/>"
                     )
 
-                    # Etiqueta de columna arriba
+                    # Etiqueta de posición
                     svg += (
-                        f"<text x='{x + cw//2}' y='{y_base + 20}' text-anchor='middle' "
-                        f"font-size='9' fill='#8892b0' font-family='sans-serif'>Pos {col}</text>"
+                        f"<text x='{x + cw//2}' y='{y_base + 16}' text-anchor='middle' "
+                        f"font-size='8' fill='#8892b0' font-family='sans-serif'>P{col}</text>"
                     )
 
                     if item:
