@@ -935,10 +935,15 @@ if not tabs_movil:
             with fb1:
                 f_busq = st.text_input("Buscar", "", placeholder="Nombre, SKU o Matricula...").strip().upper()
             with fb2:
-                f_estado = st.radio(
-                    "Estado", ["TODOS", "ACTIVO", "CONGELADO", "BAJA"],
-                    horizontal=True, index=0
+                f_estado = st.selectbox(
+                    "Estado",
+                    options=["TODOS", "ACTIVO", "CONGELADO", "BAJA"],
+                    index=0,
+                    key="filtro_estado"
                 )
+            # Sobrescribir valor si alguien escribio algo invalido
+            if f_estado not in ["TODOS", "ACTIVO", "CONGELADO", "BAJA"]:
+                f_estado = "TODOS" 
 
             df_f = df_full.copy()
             if f_busq:
