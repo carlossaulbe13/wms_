@@ -471,17 +471,7 @@ div[data-testid="column"] > div {
 div[data-testid="stVerticalBlockBorderWrapper"] {
     padding: 0 !important;
 }
-/* Selectbox: completamente no editable */
-div[data-testid="stSelectbox"] input {
-    user-select: none !important;
-    -webkit-user-select: none !important;
-    pointer-events: none !important;
-    caret-color: transparent !important;
-    background: transparent !important;
-}
-div[data-testid="stSelectbox"] [data-baseweb="select"] {
-    cursor: pointer !important;
-}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -491,18 +481,6 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# JS: bloquea teclado en todos los selectbox
-st.markdown("""
-<script>
-document.addEventListener('keydown', function(e) {
-    const el = document.activeElement;
-    if (el && el.closest('[data-testid="stSelectbox"]')) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
-}, true);
-</script>
-""", unsafe_allow_html=True)
 
 # Banner de confirmacion pendiente
 if st.session_state.confirmacion_pendiente:
@@ -957,7 +935,10 @@ if not tabs_movil:
             with fb1:
                 f_busq = st.text_input("Buscar", "", placeholder="Nombre, SKU o Matricula...").strip().upper()
             with fb2:
-                f_estado = st.selectbox("Estado", ["TODOS", "ACTIVO", "CONGELADO", "BAJA"], index=0)
+                f_estado = st.radio(
+                    "Estado", ["TODOS", "ACTIVO", "CONGELADO", "BAJA"],
+                    horizontal=True, index=0
+                )
 
             df_f = df_full.copy()
             if f_busq:
