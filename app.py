@@ -561,6 +561,36 @@ st.markdown(
 )
 
 
+# ── Alertas de reorden ─────────────────────────────────
+_db_alertas = st.session_state.get('db') or {}
+_alertas = [
+    (k, v) for k, v in _db_alertas.items()
+    if int(v.get('stock_minimo', 0)) > 0
+    and int(v.get('cantidad', 1)) <= int(v.get('stock_minimo', 0))
+    and v.get('estado') == 'ACTIVO'
+]
+if _alertas:
+    with st.expander(f"ALERTA DE REORDEN — {len(_alertas)} artículo(s) bajo minimo",
+                     expanded=True):
+        for _k, _v in _alertas:
+            st.warning(
+                f"{_v.get('nombre','N/A')} | SKU: {_v.get('sku_base','N/A')} | "
+                f"Stock actual: {_v.get('cantidad',1)} pzas | "
+                f"Minimo: {_v.get('stock_minimo',0)} pzas | "
+                f"Rack: {_v.get('rack','')} Piso {_v.get('piso','')} "
+                f"Niv {_v.get('fila','')} Col {_v.get('columna','')}"
+            )
+
+# ── Alertas en sidebar ───────────────────────────────────
+if _alertas:
+    with st.sidebar:
+        st.markdown(
+            f"<div style='background:#7f1d1d;border-radius:8px;padding:8px 12px;"
+            f"margin-bottom:8px;font-size:12px;color:#fca5a5;'>"
+            f"<b>Reorden:</b> {len(_alertas)} artículo(s)</div>",
+            unsafe_allow_html=True
+        )
+
 # Banner de confirmacion pendiente
 if st.session_state.confirmacion_pendiente:
     st.warning(
@@ -1224,6 +1254,7 @@ if not tabs_movil:
                     "EMBALAJE":       v.get('embalaje', 'N/A'),
                     "ESTADO":         v.get('estado', 'ACTIVO'),
                     "FECHA LLEGADA":  v.get('fecha_llegada', 'N/A'),
+                    "STOCK MIN":      int(v.get('stock_minimo', 0)),
                 })
             df_full = pd.DataFrame(data_tabla)
 
@@ -1310,6 +1341,10 @@ if not tabs_movil:
                         nuevo_vol    = st.number_input("VOLUMEN (M3)", min_value=0.0,
                                                        value=float(datos.get('volumen', 0.0)),
                                                        step=0.1, key="e_vol")
+                        nuevo_stock_min = st.number_input("STOCK MINIMO (pzas)", min_value=0,
+                                                          value=int(datos.get('stock_minimo', 0)),
+                                                          key="e_smin",
+                                                          help="Alerta cuando la cantidad baje de este valor. 0 = sin alerta.")
 
                     rack_actual = datos.get('rack', 'POS_1')
                     rack_ideal  = asignar_rack_por_peso_vol(nuevo_peso, nuevo_vol)
@@ -1322,7 +1357,8 @@ if not tabs_movil:
                             db_actual[uid_sel].update({
                                 'sku_base': nuevo_sku, 'nombre': nuevo_nombre,
                                 'cantidad': nueva_cant, 'estado': nuevo_estado,
-                                'peso': nuevo_peso, 'volumen': nuevo_vol
+                                'peso': nuevo_peso, 'volumen': nuevo_vol,
+                                'stock_minimo': nuevo_stock_min
                             })
                             guardar_db(db_actual)
                             registrar_movimiento('EDICION', uid_sel,
