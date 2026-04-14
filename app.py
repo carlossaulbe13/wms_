@@ -455,7 +455,7 @@ with st.sidebar:
         st.query_params.clear()
         st.rerun()
 
-# CSS global: elimina el gap interno de Streamlit en las columnas marcadas con .rack-grid
+# CSS global
 st.markdown("""
 <style>
 /* Elimina el gap horizontal entre columnas en las grillas de racks */
@@ -465,13 +465,22 @@ div[data-testid="column"] > div {
 .rack-row > div[data-testid="stHorizontalBlock"] {
     gap: 6px !important;
 }
-/* Elimina margen extra entre filas de celdas */
 .rack-row {
     margin-bottom: 6px !important;
 }
-/* Asegura que el contenido del column no tenga padding lateral */
 div[data-testid="stVerticalBlockBorderWrapper"] {
     padding: 0 !important;
+}
+/* Selectbox: deshabilita seleccion y edicion de texto */
+div[data-testid="stSelectbox"] input,
+div[data-testid="stSelectbox"] [data-baseweb="select"] input {
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    pointer-events: none !important;
+    caret-color: transparent !important;
+}
+div[data-testid="stSelectbox"] [data-baseweb="select"] {
+    cursor: pointer !important;
 }
 </style>
 """, unsafe_allow_html=True)
