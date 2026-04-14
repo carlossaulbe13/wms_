@@ -772,91 +772,95 @@ if not tabs_movil:
                 total_occ = len(ocupadas)
                 occ_pct   = round(total_occ / TOTAL_CELDAS * 100)
 
-                W, H    = 140, 165
-                pad_l   = 10
-                pad_r   = 10
-                pad_top = 36
+                W, H    = 150, 170
+                pad_l   = 12
+                pad_r   = 12
+                pad_top = 38
                 area_w  = W - pad_l - pad_r
-                est_h   = (H - pad_top - 10) // NUM_NIVELES
+                est_h   = (H - pad_top - 12) // NUM_NIVELES
                 cel_w   = area_w // NUM_COLS
 
-                # Icono de caja miniatura en SVG (relativo a celda)
-                def caja_mini(cx, cy, s, color_stroke):
-                    # cx,cy = centro, s = tamaño
-                    h2 = s * 0.55  # alto cuerpo
-                    t  = s * 0.18  # alto tapa
-                    x0 = cx - s // 2
-                    x1 = cx + s // 2
-                    y_tapa = cy - h2 // 2 - t
-                    y_cuerpo = cy - h2 // 2
+                def caja_carton(x, y, cw, ch, sc):
+                    """Caja de carton entreabierta con agarradera frontal, centrada en celda."""
+                    # Escalar a ~70% de la celda
+                    bw = int(cw * 0.70)
+                    bh = int(ch * 0.65)
+                    th = int(bh * 0.28)   # alto tapa
+                    # Centrar en celda
+                    bx = x + (cw - bw) // 2
+                    by = y + (ch - bh) // 2 + th // 2
+                    mx = bx + bw // 2     # centro horizontal
+                    ty = by - th          # top de tapa
+
+                    # Agarradera (ovalo frontal centrado)
+                    hx = mx - bw // 6
+                    hw = bw // 3
+                    hh = int(bh * 0.18)
+                    hy = by + int(bh * 0.30)
+
                     return (
-                        # cuerpo
-                        f"<rect x='{x0}' y='{y_cuerpo}' width='{s}' height='{h2}' "
-                        f"rx='1' fill='none' stroke='{color_stroke}' stroke-width='1.2'/>"
-                        # tapa izquierda
-                        f"<line x1='{x0}' y1='{y_cuerpo}' x2='{cx}' y2='{y_tapa}' "
-                        f"stroke='{color_stroke}' stroke-width='1.2'/>"
-                        # tapa derecha
-                        f"<line x1='{x1}' y1='{y_cuerpo}' x2='{cx}' y2='{y_tapa}' "
-                        f"stroke='{color_stroke}' stroke-width='1.2'/>"
-                        # linea horizontal cuerpo
-                        f"<line x1='{x0}' y1='{y_cuerpo + h2//3}' x2='{x1}' y2='{y_cuerpo + h2//3}' "
-                        f"stroke='{color_stroke}' stroke-width='0.8' opacity='0.6'/>"
+                        # Cuerpo
+                        f"<rect x='{bx}' y='{by}' width='{bw}' height='{bh}' "
+                        f"rx='1' fill='none' stroke='{sc}' stroke-width='1.3'/>"
+                        # Tapa izquierda (entreabierta)
+                        f"<line x1='{bx}' y1='{by}' x2='{bx + bw//4}' y2='{ty}' "
+                        f"stroke='{sc}' stroke-width='1.2'/>"
+                        # Tapa derecha (entreabierta)
+                        f"<line x1='{bx+bw}' y1='{by}' x2='{bx + bw - bw//4}' y2='{ty}' "
+                        f"stroke='{sc}' stroke-width='1.2'/>"
+                        # Linea horizontal del cuerpo
+                        f"<line x1='{bx}' y1='{by + bh//3}' x2='{bx+bw}' y2='{by + bh//3}' "
+                        f"stroke='{sc}' stroke-width='0.8' opacity='0.5'/>"
+                        # Agarradera frontal (rect redondeado)
+                        f"<rect x='{hx}' y='{hy}' width='{hw}' height='{hh}' "
+                        f"rx='{hh//2}' fill='none' stroke='{sc}' stroke-width='1.0'/>"
                     )
 
                 svg = (
                     f"<svg width='{W}' height='{H}' viewBox='0 0 {W} {H}' "
                     f"xmlns='http://www.w3.org/2000/svg' style='display:block;'>"
                     # Columnas estructurales
-                    f"<rect x='{pad_l-5}' y='{pad_top-2}' width='4' height='{H-pad_top-8}' fill='#3a3f55'/>"
-                    f"<rect x='{W-pad_r+1}' y='{pad_top-2}' width='4' height='{H-pad_top-8}' fill='#3a3f55'/>"
+                    f"<rect x='{pad_l-6}' y='{pad_top-2}' width='5' height='{H-pad_top-8}' fill='#3a3f55'/>"
+                    f"<rect x='{W-pad_r+1}' y='{pad_top-2}' width='5' height='{H-pad_top-8}' fill='#3a3f55'/>"
                     # Piso
-                    f"<rect x='{pad_l-5}' y='{H-10}' width='{area_w+10}' height='4' fill='#3a3f55' rx='1'/>"
-                    # Label
-                    f"<text x='{W//2}' y='16' text-anchor='middle' "
-                    f"font-size='10' font-weight='600' fill='#cdd3ea' font-family='sans-serif'>"
-                    f"RACK {rack_num}</text>"
-                    f"<text x='{W//2}' y='28' text-anchor='middle' "
-                    f"font-size='7' fill='#8892b0' font-family='sans-serif'>"
-                    f"{total_occ}/{TOTAL_CELDAS} · {occ_pct}%</text>"
+                    f"<rect x='{pad_l-6}' y='{H-12}' width='{area_w+12}' height='5' fill='#3a3f55' rx='1'/>"
+                    # Labels
+                    f"<text x='{W//2}' y='16' text-anchor='middle' font-size='10' "
+                    f"font-weight='600' fill='#cdd3ea' font-family='sans-serif'>RACK {rack_num}</text>"
+                    f"<text x='{W//2}' y='28' text-anchor='middle' font-size='7' "
+                    f"fill='#8892b0' font-family='sans-serif'>{total_occ}/{TOTAL_CELDAS} · {occ_pct}%</text>"
                 )
 
                 for ni, nivel in enumerate(range(NUM_NIVELES, 0, -1)):
                     y_base = pad_top + ni * est_h
                     # Estante
                     svg += (
-                        f"<line x1='{pad_l-5}' y1='{y_base + est_h - 2}' "
-                        f"x2='{W-pad_r+5}' y2='{y_base + est_h - 2}' "
+                        f"<line x1='{pad_l-6}' y1='{y_base + est_h - 3}' "
+                        f"x2='{W-pad_r+6}' y2='{y_base + est_h - 3}' "
                         f"stroke='#3a3f55' stroke-width='2.5'/>"
                     )
                     for ci, col in enumerate(range(1, NUM_COLS + 1)):
-                        x  = pad_l + (ci - 1) * cel_w
-                        y  = y_base + 2
+                        cx = pad_l + (ci - 1) * cel_w
+                        cy = y_base + 2
                         cw = cel_w - 2
                         ch = est_h - 8
-                        cx = x + cw // 2
-                        cy = y + ch // 2
                         pos = (nivel, col)
 
                         if pos in ocupadas:
                             item_v = ocupadas[pos]
                             cong   = item_v.get('estado') == 'CONGELADO'
-                            bg     = '#7f1d1d' if cong else '#1a3a2a'
-                            bord   = '#ef4444' if cong else '#22c55e'
-                            stroke_caja = '#ef4444' if cong else '#4ade80'
+                            bg     = '#1a2a1a' if not cong else '#2a1010'
+                            bord   = '#22c55e' if not cong else '#ef4444'
+                            sc     = '#4ade80' if not cong else '#f87171'
                         else:
-                            bg = '#16192a'; bord = '#2a2f45'
-                            stroke_caja = None
+                            bg = '#16192a'; bord = '#2a2f45'; sc = None
 
-                        # Fondo de celda
                         svg += (
-                            f"<rect x='{x}' y='{y}' width='{cw}' height='{ch}' "
+                            f"<rect x='{cx}' y='{cy}' width='{cw}' height='{ch}' "
                             f"rx='2' fill='{bg}' stroke='{bord}' stroke-width='0.8'/>"
                         )
-                        # Icono de caja si está ocupado
-                        if stroke_caja:
-                            s = min(cw, ch) - 6
-                            svg += caja_mini(cx, cy, s, stroke_caja)
+                        if sc:
+                            svg += caja_carton(cx, cy, cw, ch, sc)
 
                 svg += "</svg>"
                 return svg, total_occ, occ_pct
@@ -880,8 +884,14 @@ if not tabs_movil:
             st.markdown(racks_grid, unsafe_allow_html=True)
 
             # Leer seleccion de rack via query param
-            if 'rack' in st.query_params:
-                st.session_state.twin_rack = int(st.query_params['rack'])
+            _qp_now = dict(st.query_params)
+            if 'rack' in _qp_now:
+                st.session_state.twin_rack = int(_qp_now['rack'])
+                # Preservar zona y fila en session_state antes de limpiar
+                if 'zona' in _qp_now:
+                    st.session_state.twin_zona = _qp_now['zona']
+                if 'fila' in _qp_now:
+                    st.session_state.twin_fila = _qp_now['fila'].replace('+', ' ')
                 st.query_params.clear()
                 st.query_params['_s'] = _TOKEN_SECRETO
                 st.rerun()
