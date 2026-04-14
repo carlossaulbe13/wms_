@@ -471,13 +471,13 @@ div[data-testid="column"] > div {
 div[data-testid="stVerticalBlockBorderWrapper"] {
     padding: 0 !important;
 }
-/* Selectbox: deshabilita seleccion y edicion de texto */
-div[data-testid="stSelectbox"] input,
-div[data-testid="stSelectbox"] [data-baseweb="select"] input {
+/* Selectbox: completamente no editable */
+div[data-testid="stSelectbox"] input {
     user-select: none !important;
     -webkit-user-select: none !important;
     pointer-events: none !important;
     caret-color: transparent !important;
+    background: transparent !important;
 }
 div[data-testid="stSelectbox"] [data-baseweb="select"] {
     cursor: pointer !important;
@@ -490,6 +490,19 @@ st.markdown(
     "UMAD Warehouse Management System</h1>",
     unsafe_allow_html=True
 )
+
+# JS: bloquea teclado en todos los selectbox
+st.markdown("""
+<script>
+document.addEventListener('keydown', function(e) {
+    const el = document.activeElement;
+    if (el && el.closest('[data-testid="stSelectbox"]')) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+}, true);
+</script>
+""", unsafe_allow_html=True)
 
 # Banner de confirmacion pendiente
 if st.session_state.confirmacion_pendiente:
