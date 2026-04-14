@@ -756,9 +756,6 @@ if not tabs_movil:
                 unsafe_allow_html=True
             )
 
-            import random as _rnd
-            import hashlib as _h
-
             NUM_RACKS   = 5
             NUM_NIVELES = 3
             NUM_COLS    = 3
@@ -774,67 +771,92 @@ if not tabs_movil:
 
                 total_occ = len(ocupadas)
                 occ_pct   = round(total_occ / TOTAL_CELDAS * 100)
-                col_barra = '#dc3545' if occ_pct > 80 else ('#ffc107' if occ_pct > 50 else '#22c55e')
 
-                # Generar posiciones "aleatorias" pero deterministas por rack_num
-                seed = int(_h.md5(f"{rack_id_local}{rack_num}".encode()).hexdigest(), 16)
-                _rnd.seed(seed)
-                todas = [(n, c) for n in range(NUM_NIVELES, 0, -1) for c in range(1, NUM_COLS + 1)]
-                ocupadas_rand = set(map(tuple, _rnd.sample(todas, min(total_occ, len(todas)))))
-
-                W, H = 140, 160
-                pad_l, pad_r = 14, 14
+                W, H    = 140, 165
+                pad_l   = 10
+                pad_r   = 10
                 pad_top = 36
-                est_h = (H - pad_top - 10) // NUM_NIVELES
-                cel_w = (W - pad_l - pad_r) // NUM_COLS
+                area_w  = W - pad_l - pad_r
+                est_h   = (H - pad_top - 10) // NUM_NIVELES
+                cel_w   = area_w // NUM_COLS
+
+                # Icono de caja miniatura en SVG (relativo a celda)
+                def caja_mini(cx, cy, s, color_stroke):
+                    # cx,cy = centro, s = tamaño
+                    h2 = s * 0.55  # alto cuerpo
+                    t  = s * 0.18  # alto tapa
+                    x0 = cx - s // 2
+                    x1 = cx + s // 2
+                    y_tapa = cy - h2 // 2 - t
+                    y_cuerpo = cy - h2 // 2
+                    return (
+                        # cuerpo
+                        f"<rect x='{x0}' y='{y_cuerpo}' width='{s}' height='{h2}' "
+                        f"rx='1' fill='none' stroke='{color_stroke}' stroke-width='1.2'/>"
+                        # tapa izquierda
+                        f"<line x1='{x0}' y1='{y_cuerpo}' x2='{cx}' y2='{y_tapa}' "
+                        f"stroke='{color_stroke}' stroke-width='1.2'/>"
+                        # tapa derecha
+                        f"<line x1='{x1}' y1='{y_cuerpo}' x2='{cx}' y2='{y_tapa}' "
+                        f"stroke='{color_stroke}' stroke-width='1.2'/>"
+                        # linea horizontal cuerpo
+                        f"<line x1='{x0}' y1='{y_cuerpo + h2//3}' x2='{x1}' y2='{y_cuerpo + h2//3}' "
+                        f"stroke='{color_stroke}' stroke-width='0.8' opacity='0.6'/>"
+                    )
 
                 svg = (
                     f"<svg width='{W}' height='{H}' viewBox='0 0 {W} {H}' "
                     f"xmlns='http://www.w3.org/2000/svg' style='display:block;'>"
-                    # Columnas verticales (estructura del rack)
-                    f"<rect x='{pad_l-6}' y='{pad_top-4}' width='5' height='{H-pad_top-2}' fill='#3a3f55'/>"
-                    f"<rect x='{W-pad_r+1}' y='{pad_top-4}' width='5' height='{H-pad_top-2}' fill='#3a3f55'/>"
+                    # Columnas estructurales
+                    f"<rect x='{pad_l-5}' y='{pad_top-2}' width='4' height='{H-pad_top-8}' fill='#3a3f55'/>"
+                    f"<rect x='{W-pad_r+1}' y='{pad_top-2}' width='4' height='{H-pad_top-8}' fill='#3a3f55'/>"
                     # Piso
-                    f"<rect x='{pad_l-6}' y='{H-10}' width='{W-pad_l-pad_r+12}' height='5' fill='#3a3f55' rx='2'/>"
-                    # Label rack
-                    f"<text x='{W//2}' y='20' text-anchor='middle' "
-                    f"font-size='11' font-weight='600' fill='#cdd3ea' font-family='sans-serif'>"
+                    f"<rect x='{pad_l-5}' y='{H-10}' width='{area_w+10}' height='4' fill='#3a3f55' rx='1'/>"
+                    # Label
+                    f"<text x='{W//2}' y='16' text-anchor='middle' "
+                    f"font-size='10' font-weight='600' fill='#cdd3ea' font-family='sans-serif'>"
                     f"RACK {rack_num}</text>"
-                    f"<text x='{W//2}' y='31' text-anchor='middle' "
-                    f"font-size='8' fill='#8892b0' font-family='sans-serif'>"
+                    f"<text x='{W//2}' y='28' text-anchor='middle' "
+                    f"font-size='7' fill='#8892b0' font-family='sans-serif'>"
                     f"{total_occ}/{TOTAL_CELDAS} · {occ_pct}%</text>"
                 )
 
-                # Dibujar estantes y cajas
                 for ni, nivel in enumerate(range(NUM_NIVELES, 0, -1)):
                     y_base = pad_top + ni * est_h
-                    # Linea del estante
+                    # Estante
                     svg += (
-                        f"<line x1='{pad_l-6}' y1='{y_base + est_h - 3}' "
-                        f"x2='{W-pad_r+6}' y2='{y_base + est_h - 3}' "
-                        f"stroke='#3a3f55' stroke-width='3'/>"
+                        f"<line x1='{pad_l-5}' y1='{y_base + est_h - 2}' "
+                        f"x2='{W-pad_r+5}' y2='{y_base + est_h - 2}' "
+                        f"stroke='#3a3f55' stroke-width='2.5'/>"
                     )
                     for ci, col in enumerate(range(1, NUM_COLS + 1)):
-                        x = pad_l + (ci - 1) * cel_w + 2
-                        y = y_base + 4
-                        cw = cel_w - 4
-                        ch = est_h - 12
+                        x  = pad_l + (ci - 1) * cel_w
+                        y  = y_base + 2
+                        cw = cel_w - 2
+                        ch = est_h - 8
+                        cx = x + cw // 2
+                        cy = y + ch // 2
                         pos = (nivel, col)
-                        # Color: si hay item real usar color real, si no usar aleatorio
-                        if pos in ocupadas:
-                            v = ocupadas[pos]
-                            cong = v.get('estado') == 'CONGELADO'
-                            color = '#7f1d1d' if cong else '#1a472a'
-                            bord  = '#ef4444' if cong else '#22c55e'
-                        elif pos in ocupadas_rand:
-                            color = '#1a472a'; bord = '#22c55e'
-                        else:
-                            color = '#16192a'; bord = '#2a2f45'
 
+                        if pos in ocupadas:
+                            item_v = ocupadas[pos]
+                            cong   = item_v.get('estado') == 'CONGELADO'
+                            bg     = '#7f1d1d' if cong else '#1a3a2a'
+                            bord   = '#ef4444' if cong else '#22c55e'
+                            stroke_caja = '#ef4444' if cong else '#4ade80'
+                        else:
+                            bg = '#16192a'; bord = '#2a2f45'
+                            stroke_caja = None
+
+                        # Fondo de celda
                         svg += (
                             f"<rect x='{x}' y='{y}' width='{cw}' height='{ch}' "
-                            f"rx='2' fill='{color}' stroke='{bord}' stroke-width='1'/>"
+                            f"rx='2' fill='{bg}' stroke='{bord}' stroke-width='0.8'/>"
                         )
+                        # Icono de caja si está ocupado
+                        if stroke_caja:
+                            s = min(cw, ch) - 6
+                            svg += caja_mini(cx, cy, s, stroke_caja)
 
                 svg += "</svg>"
                 return svg, total_occ, occ_pct
