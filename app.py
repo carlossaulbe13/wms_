@@ -372,34 +372,38 @@ if st.session_state.confirmacion_pendiente:
     st.divider()
 
 # ── Deteccion automatica de dispositivo ──────────────────
-# JS lee el user agent y redirige con ?movil=1 si es telefono
-st.markdown("""
-<script>
-(function() {
-  const ua = navigator.userAgent || '';
-  const esMov = /Android|iPhone|iPad|iPod|Mobile|BlackBerry|IEMobile/i.test(ua);
-  const params = new URLSearchParams(window.location.search);
-  if (esMov && params.get('movil') !== '1') {
-    params.set('movil', '1');
-    window.location.search = params.toString();
-  } else if (!esMov && params.get('movil') === '1') {
-    params.delete('movil');
-    window.location.search = params.toString();
-  }
-})();
-</script>
-""", unsafe_allow_html=True)
+# Usa st.components para leer ancho de pantalla y escribir query param
+import streamlit.components.v1 as _components
 
-# Leer el query param que puso el JS
+# Solo ejecutar deteccion si aun no tenemos el param
+if 'movil' not in st.query_params:
+    _components.html("""
+    <script>
+    // Detecta por ancho de pantalla (< 768px = movil)
+    // y por user agent como respaldo
+    const esMov = window.screen.width < 768 ||
+                  /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+
+    // Comunicar al padre de Streamlit via URL
+    const url = new URL(window.parent.location.href);
+    if (esMov && url.searchParams.get('movil') !== '1') {
+        url.searchParams.set('movil', '1');
+        window.parent.location.href = url.toString();
+    } else if (!esMov && url.searchParams.get('movil') !== '0') {
+        url.searchParams.set('movil', '0');
+        window.parent.location.href = url.toString();
+    }
+    </script>
+    """, height=0)
+
+# Leer query param (default: escritorio)
 qp_device = st.query_params.get('movil', '0')
 es_movil   = qp_device == '1'
 st.session_state.es_movil = es_movil
 
-# Indicador de modo en sidebar
+# Indicador y toggle manual en sidebar
 with st.sidebar:
-    modo_txt = 'Vista movil' if es_movil else 'Vista escritorio'
-    st.caption(f'Modo: {modo_txt}')
-    # Boton manual por si la deteccion falla
+    st.caption(f"Modo: {'Movil' if es_movil else 'Escritorio'}")
     if es_movil:
         if st.button('Cambiar a escritorio', use_container_width=True):
             st.query_params['movil'] = '0'
@@ -411,11 +415,9 @@ with st.sidebar:
 
 # ── Pestanas segun dispositivo ────────────────────────────
 if es_movil:
-    # Telefono: solo escaner y alta de material
     tabs = st.tabs(['ESCANER DE CAMPO', 'ALTA DE MATERIAL'])
     tabs_movil = True
 else:
-    # Escritorio: gemelo digital y maestro (sin camara)
     tabs = st.tabs(['GEMELO DIGITAL', 'MAESTRO DE ARTICULOS'])
     tabs_movil = False
 
