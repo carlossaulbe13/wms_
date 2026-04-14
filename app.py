@@ -930,46 +930,20 @@ if not tabs_movil:
                 })
             df_full = pd.DataFrame(data_tabla)
 
-            # Filtros — fila 1
-            st.markdown("#### Filtros")
-            fc1, fc2, fc3, fc4 = st.columns(4)
-            with fc1:
-                f_nombre = st.text_input("Nombre", "").strip().upper()
-            with fc2:
-                f_sku = st.text_input("Codigo / Matricula", "").strip().upper()
-            with fc3:
-                f_peso_max = st.number_input(
-                    "Peso max (KG)", min_value=0.0,
-                    value=float(df_full["PESO (KG)"].max()) if len(df_full) else 9999.0,
-                    step=10.0
-                )
-            with fc4:
+            # Busqueda rapida + filtro de estado
+            fb1, fb2 = st.columns([3, 1])
+            with fb1:
+                f_busq = st.text_input("Buscar", "", placeholder="Nombre, SKU o Matricula...").strip().upper()
+            with fb2:
                 f_estado = st.selectbox("Estado", ["TODOS", "ACTIVO", "CONGELADO", "BAJA"])
 
-            # Filtros — fila 2 (altura)
-            fa1, fa2, _ = st.columns(3)
-            with fa1:
-                f_alto_min = st.number_input(
-                    "Alto min (M)", min_value=0.0,
-                    value=0.0, step=0.1, format="%.2f"
-                )
-            with fa2:
-                f_alto_max = st.number_input(
-                    "Alto max (M)", min_value=0.0,
-                    value=float(df_full["ALTO (M)"].max()) if len(df_full) else 9.99,
-                    step=0.1, format="%.2f"
-                )
-
             df_f = df_full.copy()
-            if f_nombre:
-                df_f = df_f[df_f["NOMBRE"].str.upper().str.contains(f_nombre, na=False)]
-            if f_sku:
+            if f_busq:
                 df_f = df_f[
-                    df_f["SKU"].str.upper().str.contains(f_sku, na=False) |
-                    df_f["MATRICULA (QR)"].str.upper().str.contains(f_sku, na=False)
+                    df_f["NOMBRE"].str.upper().str.contains(f_busq, na=False) |
+                    df_f["SKU"].str.upper().str.contains(f_busq, na=False) |
+                    df_f["MATRICULA (QR)"].str.upper().str.contains(f_busq, na=False)
                 ]
-            df_f = df_f[df_f["PESO (KG)"] <= f_peso_max]
-            df_f = df_f[(df_f["ALTO (M)"] >= f_alto_min) & (df_f["ALTO (M)"] <= f_alto_max)]
             if f_estado != "TODOS":
                 df_f = df_f[df_f["ESTADO"] == f_estado]
 
