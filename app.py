@@ -169,6 +169,98 @@ def obtener_coordenada_libre(db, rack_objetivo, peso_nuevo=0, alto_m=0):
     return None, None, None
 
 # ─────────────────────────────────────────
+# FUNCION UNIFICADA DE REGISTRO
+# ─────────────────────────────────────────
+def registrar_pallet(uid, sku_base, nombre, peso, cantidad,
+                     alto_cm=0.0, embalaje="", embalaje_obs="",
+                     generar_qr=False):
+    """
+    Registra un pallet en Firebase aplicando todos los discriminantes.
+    Retorna (exito:bool, mensaje:str, avisos:list)
+    """
+    import datetime as _dt
+
+    if not uid or not nombre or not sku_base:
+        return False, "Completa ID, SKU y descripcion.", []
+
+    db = st.session_state.db or {}
+    if uid in db:
+        return False, f"El ID {uid} ya existe en el sistema.", []
+
+    alto_m  = alto_cm / 100.0
+    avisos  = []
+
+    # Discriminante de altura
+    if alto_m > ALTO_MAX_N3:
+        avisos.append(f"Alto {alto_cm:.0f} cm > 180 cm — asignado a SOBREDIMENSIONES.")
+        r = "POS_5"
+    elif alto_m > ALTO_MAX_N1_N2:
+        avisos.append(f"Alto {alto_cm:.0f} cm > 150 cm — solo nivel 3.")
+        r = asignar_rack_por_peso_vol(peso, 0.0)
+    else:
+        r = asignar_rack_por_peso_vol(peso, 0.0)
+
+    # Discriminante de peso
+    if peso > PESO_SOBRE:
+        avisos.append(f"Peso {peso:.0f} kg > {PESO_SOBRE:.0f} kg — asignado a SOBREDIMENSIONES.")
+        r = "POS_5"
+
+    # Buscar coordenada libre
+    piso, nivel, col = obtener_coordenada_libre(db, r, peso_nuevo=peso, alto_m=alto_m)
+
+    # Fallback a sobredimensiones si el rack está lleno
+    if piso is None and r != "POS_5":
+        r = "POS_5"
+        avisos.append("Rack asignado lleno — redirigido a SOBREDIMENSIONES.")
+        piso, nivel, col = obtener_coordenada_libre(db, r, peso_nuevo=peso, alto_m=alto_m)
+
+    if piso is None:
+        return False, "Sin espacio disponible en ningun rack. Reorganiza el almacen.", avisos
+
+    # Guardar en Firebase
+    fecha = _dt.datetime.now().strftime("%Y-%m-%d %H:%M")
+    registro = {
+        "sku_base":      sku_base,
+        "nombre":        nombre,
+        "peso":          peso,
+        "cantidad":      cantidad,
+        "volumen":       0.0,
+        "alto_m":        round(alto_m, 2),
+        "rack":          r,
+        "piso":          piso,
+        "fila":          nivel,
+        "columna":       col,
+        "estado":        "ACTIVO",
+        "embalaje":      embalaje,
+        "embalaje_obs":  embalaje_obs,
+        "fecha_llegada": fecha,
+    }
+    st.session_state.db[uid] = registro
+    guardar_db(st.session_state.db)
+
+    # Generar QR si se solicita
+    if generar_qr:
+        qr_img = qrcode.make(uid)
+        nombre_archivo = f"label_{uid}.png"
+        qr_img.save(nombre_archivo)
+        st.session_state.qr_generado = nombre_archivo
+
+    # Activar LED del rack
+    if st.session_state.get('mqtt_client'):
+        st.session_state.mqtt_client.publish(TOPIC_PUB, f"{r}_ON")
+    time.sleep(0.1)
+
+    # Actualizar estado de resaltado y navegacion
+    st.session_state.confirmacion_pendiente = r
+    st.session_state.rack_resaltado         = r
+    st.session_state.rack_resaltado_ts      = time.time()
+    st.session_state.twin_zona              = None
+    st.session_state.twin_fila              = None
+
+    msg = f"Pallet registrado — Rack: {r} | Piso {piso} | Nivel {nivel} | Col {col}"
+    return True, msg, avisos
+
+# ─────────────────────────────────────────
 # INICIALIZACION DE ESTADOS
 # ─────────────────────────────────────────
 defaults = {
@@ -1007,86 +1099,19 @@ if not tabs_movil:
                 submitted = st.form_submit_button("REGISTRAR MATERIAL", use_container_width=True)
 
                 if submitted:
-                    if not new_uid or not new_name or not new_sku_base:
-                        st.error("Completa ID, SKU y Descripcion.")
-                    elif new_uid in st.session_state.db:
-                        st.error(f"El ID {new_uid} ya existe en el sistema.")
+                    ok, msg, avisos = registrar_pallet(
+                        uid=new_uid, sku_base=new_sku_base, nombre=new_name,
+                        peso=p, cantidad=cant_manual, alto_cm=h_cm,
+                        embalaje=tipo_embalaje, embalaje_obs=embalaje_obs,
+                        generar_qr=generar_qr_fisico
+                    )
+                    for av in avisos:
+                        st.warning(av)
+                    if ok:
+                        st.success(msg)
+                        st.rerun()
                     else:
-                        alto_m = h_cm / 100.0
-                        vol    = 0.0  # largo y ancho definidos por tipo de embalaje
-                        avisos = []
-
-                        # Discriminante de altura → puede forzar sobredimensiones
-                        forzar_sobre = alto_m > ALTO_MAX_N3
-                        if forzar_sobre:
-                            avisos.append(f"Alto {h_cm:.0f} cm > 180 cm → SOBREDIMENSIONES.")
-                            r = "POS_5"
-                        elif alto_m > ALTO_MAX_N1_N2:
-                            avisos.append(f"Alto {h_cm:.0f} cm > 150 cm → solo nivel 3.")
-                            r = asignar_rack_por_peso_vol(p, vol)
-                        else:
-                            r = asignar_rack_por_peso_vol(p, vol)
-
-                        # Discriminante de peso
-                        if p > PESO_SOBRE:
-                            avisos.append(f"Peso {p:.0f} kg > {PESO_SOBRE:.0f} kg → SOBREDIMENSIONES.")
-                            r = "POS_5"
-
-                        piso, nivel, columna = obtener_coordenada_libre(
-                            st.session_state.db, r, peso_nuevo=p, alto_m=alto_m
-                        )
-
-                        if piso is None and r != "POS_5":
-                            r = "POS_5"
-                            avisos.append("Rack asignado lleno — redirigido a SOBREDIMENSIONES.")
-                            piso, nivel, columna = obtener_coordenada_libre(
-                                st.session_state.db, r, peso_nuevo=p, alto_m=alto_m
-                            )
-
-                        if piso is None:
-                            st.error("Sin espacio disponible en ningun rack. Reorganiza el almacen.")
-                        else:
-                            fecha_hoy = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-                            st.session_state.db[new_uid] = {
-                                "sku_base":      new_sku_base,
-                                "nombre":        new_name,
-                                "peso":          p,
-                                "cantidad":      cant_manual,
-                                "volumen":       round(vol, 4),
-                                "alto_m":        round(alto_m, 2),
-                                "rack":          r,
-                                "piso":          piso,
-                                "fila":          nivel,
-                                "columna":       columna,
-                                "estado":        "ACTIVO",
-                                "embalaje":      tipo_embalaje,
-                                "embalaje_obs":  embalaje_obs,
-                                "fecha_llegada": fecha_hoy,
-                            }
-                            guardar_db(st.session_state.db)
-
-                            if generar_qr_fisico:
-                                qr_img = qrcode.make(new_uid)
-                                nombre_archivo = f"label_{new_uid}.png"
-                                qr_img.save(nombre_archivo)
-                                st.session_state.qr_generado = nombre_archivo
-
-                            if st.session_state.mqtt_client:
-                                st.session_state.mqtt_client.publish(TOPIC_PUB, f"{r}_ON")
-                            time.sleep(0.1)
-                            st.session_state.confirmacion_pendiente = r
-                            st.session_state.rack_resaltado    = r
-                            st.session_state.rack_resaltado_ts = time.time()
-                            # Volver al layout general para ver la animacion
-                            st.session_state.twin_zona = None
-                            st.session_state.twin_fila = None
-                            for av in avisos:
-                                st.warning(av)
-                            st.success(
-                                f"Pallet registrado — Rack: {r} | Piso {piso} | Nivel {nivel} | Col {columna} | "
-                                f"Embalaje: {tipo_embalaje}"
-                            )
-                            st.rerun()
+                        st.error(msg)
 
         if st.session_state.qr_generado:
             st.success("MATERIAL REGISTRADO. ESPERANDO CONFIRMACION FISICA EN EL RACK.")
@@ -1160,61 +1185,19 @@ else:
                     st.rerun()
 
                 if submit and nom and sku_base:
-                    import datetime as _dt_sc
-                    alto_sc = h / 100.0
-                    vol     = (l * a * h) / 1_000_000
-                    avisos_sc = []
-
-                    # Discriminante altura
-                    if alto_sc > ALTO_MAX_N3:
-                        avisos_sc.append(f"Alto {h:.0f} cm > 180 cm — SOBREDIMENSIONES.")
-                        rack = "POS_5"
-                    elif alto_sc > ALTO_MAX_N1_N2:
-                        avisos_sc.append(f"Alto {h:.0f} cm > 150 cm — solo nivel 3.")
-                        rack = asignar_rack_por_peso_vol(peso, vol)
-                    else:
-                        rack = asignar_rack_por_peso_vol(peso, vol)
-
-                    # Discriminante peso
-                    if peso > PESO_SOBRE:
-                        avisos_sc.append(f"Peso {peso:.0f} kg > {PESO_SOBRE:.0f} kg — SOBREDIMENSIONES.")
-                        rack = "POS_5"
-
-                    piso, fila, col_num = obtener_coordenada_libre(
-                        st.session_state.db, rack, peso_nuevo=peso, alto_m=alto_sc)
-
-                    if piso is None and rack != "POS_5":
-                        rack = "POS_5"
-                        avisos_sc.append("Rack lleno — redirigido a SOBREDIMENSIONES.")
-                        piso, fila, col_num = obtener_coordenada_libre(
-                            st.session_state.db, rack, peso_nuevo=peso, alto_m=alto_sc)
-
-                    if piso is not None:
-                        fecha_sc = _dt_sc.datetime.now().strftime("%Y-%m-%d %H:%M")
-                        st.session_state.db[st.session_state.sku_pendiente] = {
-                            "sku_base": sku_base, "nombre": nom,
-                            "peso": peso, "cantidad": cant,
-                            "volumen": round(vol, 4),
-                            "alto_m": round(alto_sc, 2),
-                            "rack": rack, "piso": piso,
-                            "fila": fila, "columna": col_num,
-                            "estado": "ACTIVO",
-                            "fecha_llegada": fecha_sc,
-                        }
-                        guardar_db(st.session_state.db)
-                        for av in avisos_sc:
-                            st.warning(av)
-                        if st.session_state.mqtt_client:
-                            st.session_state.mqtt_client.publish(TOPIC_PUB, f"{rack}_ON")
-                        time.sleep(0.1)
-                        st.session_state.confirmacion_pendiente = rack
-                        st.session_state.rack_resaltado    = rack
-                        st.session_state.rack_resaltado_ts = time.time()
+                    ok, msg, avisos_sc = registrar_pallet(
+                        uid=st.session_state.sku_pendiente,
+                        sku_base=sku_base, nombre=nom,
+                        peso=peso, cantidad=cant, alto_cm=h,
+                    )
+                    for av in avisos_sc:
+                        st.warning(av)
+                    if ok:
                         st.session_state.sku_pendiente = None
-                        st.success(f"PALLET REGISTRADO — Rack: {rack} | Piso {piso} | Nivel {fila} | Col {col_num}")
+                        st.success(msg)
                         st.rerun()
                     else:
-                        st.error(f"ERROR: Sin espacio disponible. Reorganiza el almacen.")
+                        st.error(msg)
 
     with tabs[1]:
         import datetime as _dt
@@ -1231,47 +1214,18 @@ else:
             alto_cm = st.number_input("Alto (CM)", min_value=0.0, step=1.0)
             gen_qr  = st.checkbox("Generar QR", value=True)
             if st.form_submit_button("REGISTRAR", use_container_width=True):
-                if not uid_m or not nom_m or not sku_m:
-                    st.error("Completa ID, SKU y descripcion.")
-                elif uid_m in db_movil:
-                    st.error(f"El ID {uid_m} ya existe.")
+                ok, msg, avisos_m = registrar_pallet(
+                    uid=uid_m, sku_base=sku_m, nombre=nom_m,
+                    peso=peso_m, cantidad=cant_m, alto_cm=alto_cm,
+                    embalaje=emb_m, generar_qr=gen_qr,
+                )
+                for av in avisos_m:
+                    st.warning(av)
+                if ok:
+                    st.success(msg)
+                    st.rerun()
                 else:
-                    alto_v = alto_cm / 100.0
-                    r_m    = asignar_rack_por_peso_vol(peso_m, 0.0)
-                    if alto_v > ALTO_MAX_N3 or peso_m > PESO_SOBRE:
-                        r_m = "POS_5"
-                    piso_m, niv_m, col_m = obtener_coordenada_libre(
-                        db_movil, r_m, peso_nuevo=peso_m, alto_m=alto_v)
-                    if piso_m is None:
-                        r_m = "POS_5"
-                        piso_m, niv_m, col_m = obtener_coordenada_libre(
-                            db_movil, r_m, peso_nuevo=peso_m, alto_m=alto_v)
-                    if piso_m is None:
-                        st.error("Sin espacio disponible. Reorganiza el almacen.")
-                    else:
-                        db_movil[uid_m] = {
-                            "sku_base": sku_m, "nombre": nom_m,
-                            "peso": peso_m, "cantidad": cant_m,
-                            "volumen": 0.0, "alto_m": round(alto_v, 2),
-                            "rack": r_m, "piso": piso_m,
-                            "fila": niv_m, "columna": col_m,
-                            "estado": "ACTIVO", "embalaje": emb_m,
-                            "fecha_llegada": _dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
-                        }
-                        guardar_db(db_movil)
-                        st.session_state.db = db_movil
-                        if st.session_state.mqtt_client:
-                            st.session_state.mqtt_client.publish(TOPIC_PUB, f"{r_m}_ON")
-                        st.session_state.rack_resaltado    = r_m
-                        st.session_state.rack_resaltado_ts = time.time()
-                        st.session_state.confirmacion_pendiente = r_m
-                        if gen_qr:
-                            qr_img = qrcode.make(uid_m)
-                            qr_img.save(f"label_{uid_m}.png")
-                            st.session_state.qr_generado = f"label_{uid_m}.png"
-                        st.success(
-                            f"Registrado en {r_m} — Piso {piso_m}, Nivel {niv_m}, Col {col_m}")
-                        st.rerun()
+                    st.error(msg)
         if st.session_state.qr_generado:
             st.image(st.session_state.qr_generado, width=220, caption="QR listo")
             if st.button("Limpiar QR"):
