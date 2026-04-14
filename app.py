@@ -591,8 +591,13 @@ if not tabs_movil:
             qp = st.query_params
             if 'zona' in qp:
                 st.session_state.twin_zona = qp['zona']
-                st.session_state.twin_fila = qp.get('fila', None)
+                fila_raw = qp.get('fila', None)
+                st.session_state.twin_fila = fila_raw.replace('+', ' ') if fila_raw else None
+                # Si viene rack en la URL, guardarlo también
+                if 'rack' in qp:
+                    st.session_state.twin_rack = int(qp['rack'])
                 st.query_params.clear()
+                st.query_params['_s'] = _TOKEN_SECRETO
                 st.rerun()
 
             t5, c5 = rack_stats(db, 'POS_5')
@@ -841,7 +846,7 @@ if not tabs_movil:
                         f"stroke='#3a3f55' stroke-width='2.5'/>"
                     )
                     for ci, col in enumerate(range(1, NUM_COLS + 1)):
-                        cx = pad_l + (ci - 1) * cel_w
+                        cx = pad_l + ci * cel_w
                         cy = y_base + 2
                         cw = cel_w - 2
                         ch = est_h - 8
@@ -970,7 +975,7 @@ if not tabs_movil:
                     f"stroke='#3a3f55' stroke-width='4'/>"
                 )
                 for ci, col in enumerate(range(1, NUM_COLS + 1)):
-                    x   = pad_l + (ci - 1) * cel_w + 3
+                    x   = pad_l + ci * cel_w + 3
                     y   = y_base + 5
                     cw  = cel_w - 6
                     ch  = est_h - 14
