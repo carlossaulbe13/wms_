@@ -39,6 +39,16 @@ MQTT_USER  = "saul_mqtt"
 MQTT_PASS  = "135700/Saul"
 TOPIC_PUB  = "almacen/escaneo"
 TOPIC_SUB  = "almacen/confirmacion"
+TOPIC_AUTH = "almacen/rfid"        # ESP32 publica el UID leido aqui
+
+# ─── Seguridad ───────────────────────────────────────────
+# UIDs autorizados: agrega aqui los de tus tarjetas/llaveros
+# Para conocer el UID de una tarjeta nueva, activa modo debug en el .ino
+UIDS_AUTORIZADOS = {
+    "06:7F:04:07",   # Tarjeta
+    "92:D1:10:06",   # Tag / llavero
+}
+PASSWORD_ACCESO = "1234567890"      # Contrasena de prueba — cambiar en produccion
 
 if 'msg_mqtt_recibido' not in st.session_state:
     st.session_state.msg_mqtt_recibido = None
@@ -47,6 +57,9 @@ def on_message(client, userdata, msg):
     payload = msg.payload.decode('utf-8')
     if payload.endswith("_OFF"):
         st.session_state.msg_mqtt_recibido = payload.replace("_OFF", "")
+    elif msg.topic == TOPIC_AUTH:
+        # El ESP32 publica el UID leido, lo guardamos para procesarlo en el render
+        st.session_state.uid_rfid_recibido = payload.strip().upper()
 
 # ─────────────────────────────────────────────────────────────
 # CONSTANTES ESTRUCTURALES DEL ALMACEN
@@ -150,6 +163,11 @@ defaults = {
     'twin_fila': None,
     'rack_resaltado': None,
     'rack_resaltado_ts': 0.0,
+    # Autenticacion
+    'autenticado': False,       # True cuando el acceso fue concedido
+    'uid_rfid_recibido': None,  # UID que llega por MQTT desde el ESP32
+    'intentos_password': 0,     # Contador de intentos fallidos
+    'bloqueado_hasta': 0.0,     # Timestamp hasta el que está bloqueado
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -169,6 +187,7 @@ if 'mqtt_client' not in st.session_state:
     try:
         client.connect(MQTT_HOST, MQTT_PORT)
         client.subscribe(TOPIC_SUB)
+        client.subscribe(TOPIC_AUTH)
         client.loop_start()
         st.session_state.mqtt_client = client
     except Exception:
@@ -216,6 +235,96 @@ CELDA_STYLE = (
 # PAGINA
 # ─────────────────────────────────────────
 st.set_page_config(page_title="UMAD WMS Cloud", layout="wide")
+
+# ─────────────────────────────────────────────────────────────
+# AUTENTICACION — RFID o contraseña
+# ─────────────────────────────────────────────────────────────
+def pantalla_login():
+    """Muestra la pantalla de login. Retorna True si se concede acceso."""
+
+    # Procesar UID recibido por MQTT (tarjeta acercada al lector)
+    uid_entrante = st.session_state.get('uid_rfid_recibido')
+    if uid_entrante:
+        st.session_state.uid_rfid_recibido = None  # consumir
+        if uid_entrante in UIDS_AUTORIZADOS:
+            st.session_state.autenticado    = True
+            st.session_state.intentos_password = 0
+            st.rerun()
+        else:
+            st.session_state.intentos_password += 1
+
+    # Bloqueo por intentos fallidos (3 intentos → 30 segundos)
+    bloqueado_hasta = st.session_state.get('bloqueado_hasta', 0.0)
+    segundos_restantes = bloqueado_hasta - time.time()
+    if segundos_restantes > 0:
+        st.markdown("""
+        <div style='max-width:420px;margin:10vh auto;background:#1e1e2e;
+             border:1.5px solid #dc3545;border-radius:14px;padding:40px 36px;text-align:center;'>
+          <div style='font-size:36px;margin-bottom:12px;'>&#128274;</div>
+          <h2 style='color:#ef4444;margin-bottom:8px;'>Acceso bloqueado</h2>
+          <p style='color:#8892b0;font-size:13px;'>Demasiados intentos fallidos.<br>
+          Intenta de nuevo en <b style='color:#cdd3ea;'>{:.0f} segundos</b>.</p>
+        </div>""".format(segundos_restantes), unsafe_allow_html=True)
+        st_autorefresh(interval=1000, key='bloqueo_refresh')
+        return False
+
+    # UI de login
+    st.markdown("""
+    <div style='max-width:420px;margin:8vh auto 0;text-align:center;'>
+      <h1 style='color:#FF4B4B;font-size:26px;margin-bottom:4px;'>UMAD WMS</h1>
+      <p style='color:#8892b0;font-size:13px;margin-bottom:32px;'>Warehouse Management System</p>
+    </div>""", unsafe_allow_html=True)
+
+    col_l, col_c, col_r = st.columns([1, 2, 1])
+    with col_c:
+        # Panel RFID
+        rfid_activo = uid_entrante and uid_entrante not in UIDS_AUTORIZADOS
+        st.markdown("""
+        <div style='background:#16192a;border:1.5px solid #3a3f55;border-radius:12px;
+             padding:28px 24px;text-align:center;margin-bottom:16px;'>
+          <div style='font-size:40px;margin-bottom:10px;'>&#128268;</div>
+          <p style='color:#cdd3ea;font-size:14px;font-weight:600;margin-bottom:4px;'>
+            Acerca tu tarjeta RFID al lector</p>
+          <p style='color:#8892b0;font-size:11px;'>El lector esta conectado al ESP32</p>
+        </div>""", unsafe_allow_html=True)
+
+        if rfid_activo:
+            st.error(f"UID no autorizado: {uid_entrante}")
+
+        st.markdown("<p style='text-align:center;color:#8892b0;font-size:12px;margin:8px 0;'>"
+                    "— o ingresa tu contrasena —</p>", unsafe_allow_html=True)
+
+        with st.form("login_form"):
+            pwd = st.text_input("Contrasena", type="password",
+                               placeholder="Ingresa la contrasena de acceso")
+            submitted = st.form_submit_button("Entrar", use_container_width=True)
+            if submitted:
+                if pwd == PASSWORD_ACCESO:
+                    st.session_state.autenticado       = True
+                    st.session_state.intentos_password = 0
+                    st.rerun()
+                else:
+                    st.session_state.intentos_password += 1
+                    intentos = st.session_state.intentos_password
+                    if intentos >= 3:
+                        st.session_state.bloqueado_hasta = time.time() + 30
+                        st.rerun()
+                    else:
+                        st.error(f"Contrasena incorrecta. Intento {intentos}/3.")
+    return False
+
+# ── Control de acceso global ──────────────────────────────
+if not st.session_state.get('autenticado', False):
+    pantalla_login()
+    st.stop()   # Detiene el render del resto de la app
+
+# Botón de cerrar sesión (esquina superior derecha)
+with st.sidebar:
+    st.markdown("### UMAD WMS")
+    st.markdown("---")
+    if st.button("Cerrar sesion", use_container_width=True):
+        st.session_state.autenticado = False
+        st.rerun()
 
 # CSS global: elimina el gap interno de Streamlit en las columnas marcadas con .rack-grid
 st.markdown("""
