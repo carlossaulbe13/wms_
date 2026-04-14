@@ -376,7 +376,7 @@ def pantalla_login():
             st.session_state.rol               = 'admin'
             st.session_state.intentos_password = 0
             st.session_state.session_token     = _TOKEN_SECRETO + '_admin'
-            st.query_params['_s'] = _TOKEN_SECRETO + '_admin'
+            st.query_params['_s'] = _TOK_ACTIVO + '_admin'
             st.rerun()
         else:
             st.session_state.intentos_password += 1
@@ -439,7 +439,7 @@ def pantalla_login():
                     st.session_state.rol               = 'operador'
                     st.session_state.intentos_password = 0
                     st.session_state.session_token     = _TOKEN_SECRETO + '_operador'
-                    st.query_params['_s'] = _TOKEN_SECRETO + '_operador'
+                    st.query_params['_s'] = _TOK_ACTIVO + '_operador'
                     st.rerun()
                 else:
                     st.session_state.intentos_password += 1
@@ -472,6 +472,9 @@ if not st.session_state.get('autenticado'):
 if not st.session_state.get('autenticado', False):
     pantalla_login()
     st.stop()
+
+# Token activo del usuario actual (incluye sufijo de rol)
+_TOK_ACTIVO = st.session_state.get('session_token') or (_TOKEN_SECRETO + '_operador')
 
 # Botón de cerrar sesión (esquina superior derecha)
 with st.sidebar:
@@ -632,7 +635,7 @@ if not tabs_movil:
                 if 'rack' in qp:
                     st.session_state.twin_rack = int(qp['rack'])
                 st.query_params.clear()
-                st.query_params['_s'] = _TOKEN_SECRETO
+                st.query_params['_s'] = _TOK_ACTIVO
                 st.rerun()
 
             t5, c5 = rack_stats(db, 'POS_5')
@@ -680,7 +683,7 @@ if not tabs_movil:
                 clase    = 'fila-res' if es_res else ''
                 borde    = '#facc15' if es_res else '#4a5080'
                 filas_html += (
-                    f"<a href='?zona=ALMACENAJE&fila={fenc}&_s={_TOKEN_SECRETO}' target='_self' "
+                    f"<a href='?zona=ALMACENAJE&fila={fenc}&_s={_TOK_ACTIVO}' target='_self' "
                     f"style='text-decoration:none;display:block;margin-bottom:8px;'>"
                     f"<div style='display:flex;align-items:center;gap:10px;'>"
                     f"<div class='{clase}' style='flex:0 0 150px;background:#2e3550;"
@@ -709,7 +712,7 @@ if not tabs_movil:
                 '</div>'
 
                 f'<div style="display:flex;flex-direction:column;gap:6px;">'
-                f'<a href="?zona=SOBREDIMENSIONES&_s={_TOKEN_SECRETO}" target="_self" style="text-decoration:none;flex:1;display:flex;">'
+                f'<a href="?zona=SOBREDIMENSIONES&_s={_TOK_ACTIVO}" target="_self" style="text-decoration:none;flex:1;display:flex;">'
                 f'<div class="{clase_sobre}" '
                 f'style="flex:1;background:#2e3550;border:1.5px solid {borde_sobre};'
                 'border-radius:10px;padding:14px 10px;text-align:center;color:#cdd3ea;cursor:pointer;'
@@ -911,7 +914,7 @@ if not tabs_movil:
             for rack_num in range(1, NUM_RACKS + 1):
                 svg_r, occ_n, occ_p = svg_rack_resumen(rack_num, items_rack, rack_id)
                 fila_enc = fila_sel.replace(' ', '+')
-                url = f"?zona=ALMACENAJE&fila={fila_enc}&rack={rack_num}&_s={_TOKEN_SECRETO}"
+                url = f"?zona=ALMACENAJE&fila={fila_enc}&rack={rack_num}&_s={_TOK_ACTIVO}"
                 racks_grid += (
                     f"<a href='{url}' target='_self' style='text-decoration:none;cursor:pointer;'>"
                     f"<div style='background:#16192a;border:1.5px solid #3a3f55;"
@@ -934,7 +937,7 @@ if not tabs_movil:
                 if 'fila' in _qp_now:
                     st.session_state.twin_fila = _qp_now['fila'].replace('+', ' ')
                 st.query_params.clear()
-                st.query_params['_s'] = _TOKEN_SECRETO
+                st.query_params['_s'] = _TOK_ACTIVO
                 st.rerun()
 
         # ── NIVEL 4: Rack seleccionado en detalle ────────────────────
