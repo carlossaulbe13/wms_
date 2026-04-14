@@ -66,7 +66,8 @@ TOPIC_AUTH = "almacen/rfid"
 # UIDs desde .env separados por coma: UID1,UID2
 _uids_raw = get_secret("UIDS_AUTORIZADOS", "06:7F:04:07,92:D1:10:06")
 UIDS_AUTORIZADOS = set(u.strip().upper() for u in _uids_raw.split(",") if u.strip())
-PASSWORD_ACCESO  = get_secret("PASSWORD_ACCESO", "1234567890")
+PASSWORD_ACCESO  = get_secret("PASSWORD_ACCESO", "1234567890")  # Operador
+PASSWORD_ADMIN   = get_secret("PASSWORD_ADMIN",  "1020304050")  # Administrador
 
 if 'msg_mqtt_recibido' not in st.session_state:
     st.session_state.msg_mqtt_recibido = None
@@ -416,7 +417,14 @@ def pantalla_login():
                                placeholder="Ingresa la contrasena de acceso")
             submitted = st.form_submit_button("Entrar", use_container_width=True)
             if submitted:
-                if pwd == PASSWORD_ACCESO:
+                if pwd == PASSWORD_ADMIN:
+                    st.session_state.autenticado       = True
+                    st.session_state.rol               = 'admin'
+                    st.session_state.intentos_password = 0
+                    st.session_state.session_token     = _TOKEN_ADMIN_PWD + '_admin'
+                    st.query_params['_s'] = _TOKEN_ADMIN_PWD + '_admin'
+                    st.rerun()
+                elif pwd == PASSWORD_ACCESO:
                     st.session_state.autenticado       = True
                     st.session_state.rol               = 'operador'
                     st.session_state.intentos_password = 0
@@ -435,16 +443,17 @@ def pantalla_login():
 
 # ── Control de acceso global ──────────────────────────────
 import hashlib as _hashlib
-_TOKEN_SECRETO = _hashlib.sha256(PASSWORD_ACCESO.encode()).hexdigest()[:16]
+_TOKEN_SECRETO       = _hashlib.sha256(PASSWORD_ACCESO.encode()).hexdigest()[:16]
+_TOKEN_ADMIN_PWD     = _hashlib.sha256(PASSWORD_ADMIN.encode()).hexdigest()[:16]
 
 # Si el session_state se reseteo (reload por query param),
 # restaurar la sesion verificando el token en la URL
 if not st.session_state.get('autenticado'):
     _token_url = st.query_params.get('_s', '')
-    if _token_url == _TOKEN_SECRETO + '_admin':
+    if _token_url in (_TOKEN_SECRETO + '_admin', _TOKEN_ADMIN_PWD + '_admin'):
         st.session_state.autenticado   = True
         st.session_state.rol           = 'admin'
-        st.session_state.session_token = _TOKEN_SECRETO + '_admin'
+        st.session_state.session_token = _token_url
     elif _token_url == _TOKEN_SECRETO + '_operador':
         st.session_state.autenticado   = True
         st.session_state.rol           = 'operador'
