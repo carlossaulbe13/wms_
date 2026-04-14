@@ -1,0 +1,16 @@
+# Credenciales — NUNCA subir a Git
+.env
+
+# QR generados
+label_*.png
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Streamlit
+.streamlit/
+
+# VS Code
+.vscode/
