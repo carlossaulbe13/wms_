@@ -9,15 +9,30 @@ import qrcode
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 from streamlit_autorefresh import st_autorefresh
 import time
-from dotenv import load_dotenv
 import os
 
-load_dotenv()  # carga variables desde .env
+# ─────────────────────────────────────────
+# CONFIGURACION — lee de st.secrets (Streamlit Cloud)
+# o de variables de entorno locales (.env)
+# ─────────────────────────────────────────
+def get_secret(key, default=""):
+    """Lee primero de st.secrets (Cloud), luego de env, luego default."""
+    try:
+        return st.secrets[key]
+    except Exception:
+        return os.environ.get(key, default)
+
+# Cargar .env solo si existe (desarrollo local)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 # ─────────────────────────────────────────
 # CONFIGURACION FIREBASE
 # ─────────────────────────────────────────
-FIREBASE_URL = os.getenv("FIREBASE_URL", "https://umad-wms-default-rtdb.firebaseio.com/maestro_articulos.json")
+FIREBASE_URL = get_secret("FIREBASE_URL", "https://umad-wms-default-rtdb.firebaseio.com/maestro_articulos.json")
 
 def cargar_db():
     try:
@@ -37,10 +52,10 @@ def guardar_db(db):
 # ─────────────────────────────────────────
 # CONFIGURACION MQTT
 # ─────────────────────────────────────────
-MQTT_HOST  = os.getenv("MQTT_HOST",  "03109e9f1c90423e81ffa63071592873.s1.eu.hivemq.cloud")
-MQTT_PORT  = int(os.getenv("MQTT_PORT", "8883"))
-MQTT_USER  = os.getenv("MQTT_USER",  "saul_mqtt")
-MQTT_PASS  = os.getenv("MQTT_PASS",  "135700/Saul")
+MQTT_HOST  = get_secret("MQTT_HOST",  "03109e9f1c90423e81ffa63071592873.s1.eu.hivemq.cloud")
+MQTT_PORT  = int(get_secret("MQTT_PORT", "8883"))
+MQTT_USER  = get_secret("MQTT_USER",  "saul_mqtt")
+MQTT_PASS  = get_secret("MQTT_PASS",  "135700/Saul")
 TOPIC_PUB  = "almacen/escaneo"
 TOPIC_SUB  = "almacen/confirmacion"
 TOPIC_AUTH = "almacen/rfid"
@@ -49,9 +64,9 @@ TOPIC_AUTH = "almacen/rfid"
 # UIDs autorizados: agrega aqui los de tus tarjetas/llaveros
 # Para conocer el UID de una tarjeta nueva, activa modo debug en el .ino
 # UIDs desde .env separados por coma: UID1,UID2
-_uids_raw = os.getenv("UIDS_AUTORIZADOS", "06:7F:04:07,92:D1:10:06")
+_uids_raw = get_secret("UIDS_AUTORIZADOS", "06:7F:04:07,92:D1:10:06")
 UIDS_AUTORIZADOS = set(u.strip().upper() for u in _uids_raw.split(",") if u.strip())
-PASSWORD_ACCESO  = os.getenv("PASSWORD_ACCESO", "1234567890")
+PASSWORD_ACCESO  = get_secret("PASSWORD_ACCESO", "1234567890")
 
 if 'msg_mqtt_recibido' not in st.session_state:
     st.session_state.msg_mqtt_recibido = None
