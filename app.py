@@ -472,7 +472,10 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
     padding: 0 !important;
 }
 /* Selectbox: solo cursor de puntero, sin seleccion de texto ni caret */
-div[data-testid="stSelectbox"] input {
+div[data-testid="stSelectbox"] input,
+div[data-testid="stSelectbox"] input:hover,
+div[data-testid="stSelectbox"] input:focus,
+div[data-testid="stSelectbox"] input:active {
     cursor: pointer !important;
     caret-color: transparent !important;
     user-select: none !important;
@@ -480,6 +483,10 @@ div[data-testid="stSelectbox"] input {
     -moz-user-select: none !important;
     color: transparent !important;
     text-shadow: 0 0 0 var(--text-color, #fff) !important;
+}
+div[data-testid="stSelectbox"] [data-baseweb="select"],
+div[data-testid="stSelectbox"] [data-baseweb="select"] * {
+    cursor: pointer !important;
 }
 
 </style>
