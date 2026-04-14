@@ -34,18 +34,28 @@ except ImportError:
 # ─────────────────────────────────────────
 FIREBASE_URL = get_secret("FIREBASE_URL", "https://umad-wms-default-rtdb.firebaseio.com/maestro_articulos.json")
 
-def cargar_db():
+def cargar_db(forzar=False):
+    """
+    Lee la DB de Firebase solo si:
+    - Es la primera carga (session_state.db es None)
+    - Se pide explicitamente con forzar=True
+    En cualquier otro caso devuelve el cache de session_state.
+    """
+    if not forzar and st.session_state.get('db') is not None:
+        return st.session_state.db
     try:
         res = requests.get(FIREBASE_URL, timeout=5)
         if res.status_code == 200 and res.json() is not None:
-            return res.json()
+            st.session_state.db = res.json()
+            return st.session_state.db
     except Exception as e:
         st.error(f"ERROR DE CONEXION CON FIREBASE: {e}")
-    return {}
+    return st.session_state.get('db') or {}
 
 def guardar_db(db):
     try:
         requests.put(FIREBASE_URL, json=db, timeout=5)
+        st.session_state.db = db  # actualizar cache tras guardar
     except Exception as e:
         st.error(f"ERROR AL GUARDAR EN FIREBASE: {e}")
 
@@ -289,7 +299,7 @@ for k, v in defaults.items():
         st.session_state[k] = v
 
 if st.session_state.db is None:
-    st.session_state.db = cargar_db()
+    cargar_db(forzar=True)  # carga inicial desde Firebase
 
 # ─────────────────────────────────────────
 # CONEXION MQTT
@@ -597,8 +607,7 @@ else:
 if not tabs_movil:
     with tabs[0]:
         st_autorefresh(interval=4000, key="twin_refresh")
-        db = cargar_db()
-        st.session_state.db = db
+        db = cargar_db(forzar=True)  # refrescar desde Firebase en cada tick
 
         # Calculos (necesarios para el layout y los KPIs)
         total_items      = len(db)
@@ -1166,7 +1175,7 @@ if not tabs_movil:
     with tabs[1]:
         import datetime
         st.header("GESTION DEL INVENTARIO")
-        db_actual = cargar_db()
+        db_actual = cargar_db()  # usa cache
 
         # ── Tabla principal con filtros ───────────────────────────
         if db_actual:
@@ -1468,7 +1477,7 @@ else:
     with tabs[1]:
         import datetime as _dt
         st.subheader("ALTA RAPIDA DE MATERIAL")
-        db_movil = cargar_db()
+        db_movil = cargar_db()  # usa cache
         with st.form("alta_movil"):
             uid_m = st.text_input("ID del pallet (ej. PALLET-020)").upper()
             sku_m = st.text_input("SKU / No. de parte")
