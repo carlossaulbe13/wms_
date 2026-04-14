@@ -183,10 +183,11 @@ defaults = {
     'rack_resaltado_ts': 0.0,
     'es_movil': None,           # None = aun no detectado
     # Autenticacion
-    'autenticado': False,       # True cuando el acceso fue concedido
-    'uid_rfid_recibido': None,  # UID que llega por MQTT desde el ESP32
-    'intentos_password': 0,     # Contador de intentos fallidos
-    'bloqueado_hasta': 0.0,     # Timestamp hasta el que está bloqueado
+    'autenticado': False,
+    'uid_rfid_recibido': None,
+    'intentos_password': 0,
+    'bloqueado_hasta': 0.0,
+    'session_token': None,
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -266,8 +267,10 @@ def pantalla_login():
     if uid_entrante:
         st.session_state.uid_rfid_recibido = None  # consumir
         if uid_entrante in UIDS_AUTORIZADOS:
-            st.session_state.autenticado    = True
+            st.session_state.autenticado       = True
             st.session_state.intentos_password = 0
+            st.session_state.session_token     = _TOKEN_SECRETO
+            st.query_params['_s'] = _TOKEN_SECRETO
             st.rerun()
         else:
             st.session_state.intentos_password += 1
@@ -321,6 +324,8 @@ def pantalla_login():
                 if pwd == PASSWORD_ACCESO:
                     st.session_state.autenticado       = True
                     st.session_state.intentos_password = 0
+                    st.session_state.session_token     = _TOKEN_SECRETO
+                    st.query_params['_s'] = _TOKEN_SECRETO
                     st.rerun()
                 else:
                     st.session_state.intentos_password += 1
@@ -333,16 +338,29 @@ def pantalla_login():
     return False
 
 # ── Control de acceso global ──────────────────────────────
+import hashlib as _hashlib
+_TOKEN_SECRETO = _hashlib.sha256(PASSWORD_ACCESO.encode()).hexdigest()[:16]
+
+# Si el session_state se reseteo (reload por query param),
+# restaurar la sesion verificando el token en la URL
+if not st.session_state.get('autenticado'):
+    _token_url = st.query_params.get('_s', '')
+    if _token_url == _TOKEN_SECRETO:
+        st.session_state.autenticado   = True
+        st.session_state.session_token = _TOKEN_SECRETO
+
 if not st.session_state.get('autenticado', False):
     pantalla_login()
-    st.stop()   # Detiene el render del resto de la app
+    st.stop()
 
 # Botón de cerrar sesión (esquina superior derecha)
 with st.sidebar:
     st.markdown("### UMAD WMS")
     st.markdown("---")
     if st.button("Cerrar sesion", use_container_width=True):
-        st.session_state.autenticado = False
+        st.session_state.autenticado   = False
+        st.session_state.session_token = None
+        st.query_params.clear()
         st.rerun()
 
 # CSS global: elimina el gap interno de Streamlit en las columnas marcadas con .rack-grid
@@ -511,7 +529,7 @@ if not tabs_movil:
                 clase    = 'fila-res' if es_res else ''
                 borde    = '#facc15' if es_res else '#4a5080'
                 filas_html += (
-                    f"<a href='?zona=ALMACENAJE&fila={fenc}' target='_self' "
+                    f"<a href='?zona=ALMACENAJE&fila={fenc}&_s={_TOKEN_SECRETO}' target='_self' "
                     f"style='text-decoration:none;display:block;margin-bottom:8px;'>"
                     f"<div style='display:flex;align-items:center;gap:10px;'>"
                     f"<div class='{clase}' style='flex:0 0 150px;background:#2e3550;"
@@ -540,7 +558,7 @@ if not tabs_movil:
                 '</div>'
 
                 f'<div style="display:flex;flex-direction:column;gap:6px;">'
-                f'<a href="?zona=SOBREDIMENSIONES" target="_self" style="text-decoration:none;flex:1;display:flex;">'
+                f'<a href="?zona=SOBREDIMENSIONES&_s={_TOKEN_SECRETO}" target="_self" style="text-decoration:none;flex:1;display:flex;">'
                 f'<div class="{clase_sobre}" '
                 f'style="flex:1;background:#2e3550;border:1.5px solid {borde_sobre};'
                 'border-radius:10px;padding:14px 10px;text-align:center;color:#cdd3ea;cursor:pointer;'
