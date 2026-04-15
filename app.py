@@ -82,7 +82,7 @@ def registrar_movimiento(accion, uid, detalle='', rol=None):
 # ─────────────────────────────────────────
 # CONFIGURACION MQTT
 # ─────────────────────────────────────────
-MQTT_HOST  = get_secret("MQTT_HOST",  "03109e9f1c90423e81ffa63071592873.s1.eu.hivemq.cloud")
+MQTT_HOST  = get_secret("MQTT_HOST",  "c59a1236477049b7b1b18936e8a242ea.s1.eu.hivemq.cloud")
 MQTT_PORT  = int(get_secret("MQTT_PORT", "8883"))
 MQTT_USER  = get_secret("MQTT_USER",  "logistica123")
 MQTT_PASS  = get_secret("MQTT_PASS",  "Logistica1")
