@@ -84,8 +84,8 @@ def registrar_movimiento(accion, uid, detalle='', rol=None):
 # ─────────────────────────────────────────
 MQTT_HOST  = get_secret("MQTT_HOST",  "03109e9f1c90423e81ffa63071592873.s1.eu.hivemq.cloud")
 MQTT_PORT  = int(get_secret("MQTT_PORT", "8883"))
-MQTT_USER  = get_secret("MQTT_USER",  "saul_1357")
-MQTT_PASS  = get_secret("MQTT_PASS",  "135700_Saul")
+MQTT_USER  = get_secret("MQTT_USER",  "saul_mqtt")
+MQTT_PASS  = get_secret("MQTT_PASS",  "135700/Saul")
 TOPIC_PUB  = "almacen/escaneo"
 TOPIC_SUB  = "almacen/confirmacion"
 TOPIC_AUTH = "almacen/rfid"
@@ -1023,22 +1023,22 @@ if not tabs_movil:
                 unsafe_allow_html=True
             )
 
-            # SVG del rack seleccionado — tamaño moderado
+            # SVG del rack — proporciones reales de rack fisico (alto > ancho)
             NUM_NIVELES = 3
             NUM_COLS    = 3
-            W, H        = 500, 240
-            col_w_d     = 8
-            pad_l       = 30
+            W, H        = 340, 320
+            col_w_d     = 10
+            pad_l       = 32
             pad_r       = 12
-            pad_top     = 40
-            est_h       = (H - pad_top - 12) // NUM_NIVELES
+            pad_top     = 38
+            est_h       = (H - pad_top - 14) // NUM_NIVELES
             area_w      = W - pad_l - pad_r
             cel_w       = area_w // NUM_COLS
 
             svg = (
                 f"<svg width='100%' viewBox='0 0 {W} {H}' "
                 f"xmlns='http://www.w3.org/2000/svg' "
-                f"style='display:block;max-width:500px;margin:0 auto;'>"
+                f"style='display:block;max-width:340px;margin:0 auto;'>"
                 # Titulo
                 f"<text x='{W//2}' y='24' text-anchor='middle' font-size='16' "
                 f"font-weight='600' fill='#cdd3ea' font-family='sans-serif'>"
