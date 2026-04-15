@@ -82,10 +82,10 @@ def registrar_movimiento(accion, uid, detalle='', rol=None):
 # ─────────────────────────────────────────
 # CONFIGURACION MQTT
 # ─────────────────────────────────────────
-MQTT_HOST  = get_secret("MQTT_HOST",  "c59a1236477049b7b1b18936e8a242ea.s1.eu.hivemq.cloud")
+MQTT_HOST  = get_secret("MQTT_HOST",  "03109e9f1c90423e81ffa63071592873.s1.eu.hivemq.cloud")
 MQTT_PORT  = int(get_secret("MQTT_PORT", "8883"))
-MQTT_USER  = get_secret("MQTT_USER",  "logistica123")
-MQTT_PASS  = get_secret("MQTT_PASS",  "Logistica1")
+MQTT_USER  = get_secret("MQTT_USER",  "saul_mqtt")
+MQTT_PASS  = get_secret("MQTT_PASS",  "135700/Saul")
 TOPIC_PUB  = "almacen/escaneo"
 TOPIC_SUB  = "almacen/confirmacion"
 TOPIC_AUTH = "almacen/rfid"
@@ -323,23 +323,6 @@ for k, v in defaults.items():
 if st.session_state.db is None:
     cargar_db(forzar=True)  # carga inicial desde Firebase
 
-# ─────────────────────────────────────────
-# CONEXION MQTT
-# ─────────────────────────────────────────
-if 'mqtt_client' not in st.session_state:
-    client = mqtt.Client()
-    client.username_pw_set(MQTT_USER, MQTT_PASS)
-    client.tls_set()
-    client.on_message = on_message
-    try:
-        client.connect(MQTT_HOST, MQTT_PORT)
-        client.subscribe(TOPIC_SUB)
-        client.subscribe(TOPIC_AUTH)
-        client.loop_start()
-        st.session_state.mqtt_client = client
-    except Exception:
-        st.session_state.mqtt_client = None
-
 if st.session_state.msg_mqtt_recibido:
     if st.session_state.confirmacion_pendiente == st.session_state.msg_mqtt_recibido:
         st.session_state.confirmacion_pendiente = None
@@ -383,6 +366,28 @@ CELDA_STYLE = (
 # ─────────────────────────────────────────
 st.set_page_config(page_title="UMAD WMS Cloud", layout="wide")
 
+# ─────────────────────────────────────────
+# CONEXION MQTT
+# ─────────────────────────────────────────
+if 'mqtt_client' not in st.session_state:
+    import ssl as _ssl
+    try:
+        try:
+            _mc = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
+        except AttributeError:
+            _mc = mqtt.Client()
+        _mc.username_pw_set(MQTT_USER, MQTT_PASS)
+        _mc.tls_set(cert_reqs=_ssl.CERT_NONE)
+        _mc.tls_insecure_set(True)
+        _mc.on_message = on_message
+        _mc.connect(MQTT_HOST, MQTT_PORT, keepalive=60)
+        _mc.subscribe(TOPIC_SUB)
+        _mc.subscribe(TOPIC_AUTH)
+        _mc.loop_start()
+        st.session_state.mqtt_client = _mc
+    except Exception as _e:
+        st.session_state.mqtt_client = None
+
 # ─────────────────────────────────────────────────────────────
 # AUTENTICACION — RFID o contraseña
 # ─────────────────────────────────────────────────────────────
@@ -398,7 +403,7 @@ def pantalla_login():
             st.session_state.rol               = 'admin'
             st.session_state.intentos_password = 0
             st.session_state.session_token     = _TOKEN_SECRETO + '_admin'
-            st.query_params['_s'] = _TOK_ACTIVO + '_admin'
+            st.query_params['_s'] = _TOKEN_SECRETO + '_admin'
             st.rerun()
         else:
             st.session_state.intentos_password += 1
@@ -424,6 +429,9 @@ def pantalla_login():
       <h1 style='color:#FF4B4B;font-size:26px;margin-bottom:4px;'>UMAD WMS</h1>
       <p style='color:#8892b0;font-size:13px;margin-bottom:32px;'>Warehouse Management System</p>
     </div>""", unsafe_allow_html=True)
+
+    # Autorefresh en login para detectar tarjeta RFID cada 2 segundos
+    st_autorefresh(interval=2000, key='login_rfid_refresh')
 
     col_l, col_c, col_r = st.columns([1, 2, 1])
     with col_c:
@@ -497,6 +505,12 @@ if not st.session_state.get('autenticado', False):
 
 # Token activo del usuario actual (incluye sufijo de rol)
 _TOK_ACTIVO = st.session_state.get('session_token') or (_TOKEN_SECRETO + '_operador')
+
+# Procesar UID RFID recibido por MQTT mientras la sesion esta activa
+# (el login ya lo procesa si no esta autenticado, aqui lo ignoramos)
+_uid_mqtt = st.session_state.get('uid_rfid_recibido')
+if _uid_mqtt:
+    st.session_state.uid_rfid_recibido = None  # consumir siempre
 
 # Botón de cerrar sesión (esquina superior derecha)
 with st.sidebar:
@@ -1518,9 +1532,69 @@ else:
         st.subheader("CAPTURA DE PALLET FISICO")
 
         if st.session_state.sku_pendiente is None:
-            foto = st.camera_input("ESCANEA EL CODIGO QR DEL PALLET:")
+            # CSS para que la camara se vea cuadrada como lector QR de telefono
+            st.markdown("""
+            <style>
+            /* Contenedor de la camara: cuadrado centrado */
+            [data-testid="stCameraInput"] > div {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+            /* Video cuadrado con guias de escaneo */
+            [data-testid="stCameraInput"] video,
+            [data-testid="stCameraInput"] img {
+                width: 300px !important;
+                height: 300px !important;
+                object-fit: cover !important;
+                border-radius: 16px !important;
+                border: 2px solid #3a3f55 !important;
+            }
+            /* Boton de captura centrado */
+            [data-testid="stCameraInput"] button {
+                margin: 12px auto 0 !important;
+                display: block !important;
+                width: 300px !important;
+                border-radius: 12px !important;
+                font-size: 15px !important;
+                padding: 10px !important;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+
+            # Marco guia de escaneo encima de la camara
+            st.markdown("""
+            <div style='width:300px;margin:0 auto 8px;position:relative;'>
+              <div style='position:relative;width:300px;height:300px;
+                          border-radius:16px;overflow:hidden;
+                          background:#0d0f1a;'>
+                <!-- Guias de esquina estilo lector QR -->
+                <div style='position:absolute;top:16px;left:16px;width:40px;height:40px;
+                  border-top:3px solid #22c55e;border-left:3px solid #22c55e;
+                  border-radius:4px 0 0 0;'></div>
+                <div style='position:absolute;top:16px;right:16px;width:40px;height:40px;
+                  border-top:3px solid #22c55e;border-right:3px solid #22c55e;
+                  border-radius:0 4px 0 0;'></div>
+                <div style='position:absolute;bottom:16px;left:16px;width:40px;height:40px;
+                  border-bottom:3px solid #22c55e;border-left:3px solid #22c55e;
+                  border-radius:0 0 0 4px;'></div>
+                <div style='position:absolute;bottom:16px;right:16px;width:40px;height:40px;
+                  border-bottom:3px solid #22c55e;border-right:3px solid #22c55e;
+                  border-radius:0 0 4px 0;'></div>
+                <div style='position:absolute;top:50%;left:10%;right:10%;
+                  height:1px;background:rgba(34,197,94,0.3);'></div>
+              </div>
+              <p style='text-align:center;color:#8892b0;font-size:12px;
+                margin-top:8px;'>Centra el codigo QR en el recuadro</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+            foto = st.camera_input("", label_visibility="collapsed")
             if foto:
                 img = cv2.imdecode(np.asarray(bytearray(foto.read()), dtype=np.uint8), 1)
+                # Rotar si viene en orientacion incorrecta
+                if img.shape[1] > img.shape[0]:  # si es mas ancha que alta, rotar
+                    img = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
                 qrs = decode(img)
                 if qrs:
                     uid_pallet = qrs[0].data.decode('utf-8').strip().upper()
