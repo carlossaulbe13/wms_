@@ -21,7 +21,7 @@ def get_secret(key, default=""):
 
 # ── Firebase ─────────────────────────────────────────────────
 FIREBASE_URL  = get_secret("FIREBASE_URL",
-    "https://umad-wms-default-rtdb.firebaseio.com/maestro_articulos.json")
+    "https://console.firebase.google.com/u/1/project/umad-wms/database/umad-wms-default-rtdb/data/~2F?hl=es-419&fb_gclid=Cj0KCQjw9-PNBhDfARIsABHN6-0RKIp6Sopeyw7WsQvb0-PpVWA4zkvMAoOFhay-yH9F7RXljUDhaHYaAkR-EALw_wcB&fb_utm_campaign=Cloud-SS-DR-Firebase-FY26-global-gsem-1713590&fb_utm_content=text-ad&fb_utm_medium=cpc&fb_utm_source=google&fb_utm_term=KW_https%20console%20firebase%20google%20com")
 HISTORIAL_URL = FIREBASE_URL.replace("maestro_articulos.json", "historial.json")
 RFID_URL      = FIREBASE_URL.replace("maestro_articulos.json", "rfid_pendiente.json")
 
