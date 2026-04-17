@@ -2,7 +2,6 @@
 ui/gemelo.py — Gemelo Digital: vista de nave, racks y drill-down.
 """
 import time
-import request
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 import pandas as pd
