@@ -10,7 +10,7 @@ from firebase import cargar_db, leer_rfid_pendiente
 from logica import rack_stats
 import hashlib as _hashlib
 
-def render(tok_activo):
+def render(_TOK_ACTIVO):
     """Renderiza el gemelo digital completo."""
     st_autorefresh(interval=4000, key="twin_refresh")
     db = cargar_db(forzar=True)  # refrescar desde Firebase en cada tick
