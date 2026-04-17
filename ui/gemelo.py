@@ -568,27 +568,30 @@ def render(_TOK_ACTIVO):
         pct_act  = round(activos_fila    / total_fila * 100) if total_fila else 0
         pct_cong = round(congelados_fila / total_fila * 100) if total_fila else 0
 
-        fk1, fk2, fk3, fk4, fk5 = st.columns(5)
-        fk1.metric("Pallets en fila",  total_fila)
-        fk2.metric("Activos",          activos_fila)
-        fk3.metric("Congelados",       congelados_fila)
-        fk4.metric("Ocupacion",        f"{ocupacion_fila}%")
-        fk5.metric("Peso total (kg)",  peso_total_fila)
+        izq, centro, der = st.columns([0.1, 0.8, 0.1])
+        with centro:
 
-        # Barra activos / congelados de la fila
-        st.markdown(
-            f"<div style='margin-top:6px;'>"
-            f"<div style='display:flex;justify-content:space-between;font-size:11px;"
-            f"color:#8892b0;margin-bottom:4px;'>"
-            f"<span>Activos {pct_act}%</span>"
-            f"<span>Congelados {pct_cong}%</span>"
-            f"</div>"
-            f"<div style='display:flex;height:10px;border-radius:6px;overflow:hidden;"
-            f"background:#2a2f45;'>"
-            f"<div style='width:{pct_act}%;background:#22c55e;transition:width 0.4s;'></div>"
-            f"<div style='width:{pct_cong}%;background:#ef4444;transition:width 0.4s;'></div>"
-            f"</div></div>",
-            unsafe_allow_html=True
-        )
-        if bajas_fila:
-            st.caption(f"{bajas_fila} pallet(s) dados de baja en esta fila.")
+            fk1, fk2, fk3, fk4, fk5 = st.columns(5)
+            fk1.metric("Pallets en fila",  total_fila)
+            fk2.metric("Activos",          activos_fila)
+            fk3.metric("Congelados",       congelados_fila)
+            fk4.metric("Ocupacion",        f"{ocupacion_fila}%")
+            fk5.metric("Peso total (kg)",  peso_total_fila)
+    
+            # Barra activos / congelados de la fila
+            st.markdown(
+                f"<div style='margin-top:6px;'>"
+                f"<div style='display:flex;justify-content:space-between;font-size:11px;"
+                f"color:#8892b0;margin-bottom:4px;'>"
+                f"<span>Activos {pct_act}%</span>"
+                f"<span>Congelados {pct_cong}%</span>"
+                f"</div>"
+                f"<div style='display:flex;height:10px;border-radius:6px;overflow:hidden;"
+                f"background:#2a2f45;'>"
+                f"<div style='width:{pct_act}%;background:#22c55e;transition:width 0.4s;'></div>"
+                f"<div style='width:{pct_cong}%;background:#ef4444;transition:width 0.4s;'></div>"
+                f"</div></div>",
+                unsafe_allow_html=True
+            )
+            if bajas_fila:
+                st.caption(f"{bajas_fila} pallet(s) dados de baja en esta fila.")
