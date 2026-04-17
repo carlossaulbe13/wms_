@@ -233,10 +233,10 @@ def render(_TOK_ACTIVO):
             total_occ = len(ocupadas)
             occ_pct   = round(total_occ / TOTAL_CELDAS * 100)
 
-            W, H    = 162, 172
+            W, H    = 166, 172
             col_w   = 5
-            pad_l   = 20
-            pad_r   = 14
+            pad_l   = 18  # margen izq desde columna estructural
+            pad_r   = 14  # margen der
             pad_top = 38
             area_w  = W - pad_l - pad_r
             est_h   = (H - pad_top - 14) // NUM_NIVELES
@@ -592,4 +592,3 @@ def render(_TOK_ACTIVO):
         )
         if bajas_fila:
             st.caption(f"{bajas_fila} pallet(s) dados de baja en esta fila.")
-
