@@ -14,6 +14,7 @@ def render(_TOK_ACTIVO):
     """Renderiza el gemelo digital completo."""
     st_autorefresh(interval=4000, key="twin_refresh")
     db = cargar_db(forzar=True)  # refrescar desde Firebase en cada tick
+    st.write(db)
 
     # Leer UID pendiente de Firebase (publicado por ESP32 via HTTP)
     try:
