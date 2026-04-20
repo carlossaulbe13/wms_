@@ -233,27 +233,27 @@ def render():
             ]
             emb1, emb2 = st.columns(2)
             with emb1:
-                tipo_embalaje = st.selectbox("Tipo de embalaje", tipos_embalaje_filtrados)
+                tipo_embalaje = st.selectbox("Tipo de embalaje", tipos_embalaje_filtrados, key="tipo_emb_select")
             with emb2:
-                embalaje_obs = st.text_input("Observaciones de embalaje (opcional)", "")
+                embalaje_obs = st.text_input("Observaciones de embalaje (opcional)", "", key="emb_obs_input")
             
             # Mostrar dimensiones editables SOLO si selecciona Personalizado
             if tipo_embalaje == "Personalizado":
                 st.markdown("**Dimensiones personalizadas**")
                 dim1, dim2, dim3 = st.columns(3)
                 with dim1:
-                    largo_cm = st.number_input("LARGO (CM)", min_value=0.0, step=1.0, value=100.0)
+                    largo_cm = st.number_input("LARGO (CM)", min_value=0.0, step=1.0, value=100.0, key="largo_pers")
                 with dim2:
-                    ancho_cm = st.number_input("ANCHO (CM)", min_value=0.0, step=1.0, value=80.0)
+                    ancho_cm = st.number_input("ANCHO (CM)", min_value=0.0, step=1.0, value=80.0, key="ancho_pers")
                 with dim3:
                     alto_cm = st.number_input("ALTO (CM)", min_value=0.0, step=1.0, 
-                                             help="Determina en qué nivel del rack se almacenará")
+                                             help="Determina en qué nivel del rack se almacenará", key="alto_pers")
             else:
                 # Para pallets estándar, usar solo el alto
                 largo_cm = 0.0
                 ancho_cm = 0.0
                 alto_cm = st.number_input("ALTO DEL MATERIAL (CM)", min_value=0.0, step=1.0,
-                                         help="Determina en qué nivel del rack se almacenará")
+                                         help="Determina en qué nivel del rack se almacenará", key="alto_std")
 
             # — Peso y cantidad —
             st.markdown("**Peso y cantidad**")
