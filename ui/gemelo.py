@@ -30,11 +30,12 @@ def render(_TOK_ACTIVO):
     except Exception:
         pass
 
-    # Calculos (necesarios para el layout y los KPIs)
-    total_items      = len(db)
-    congelados_total = sum(1 for v in db.values() if v.get('estado') == 'CONGELADO')
+    # Calculos (necesarios para el layout y los KPIs) - Excluir artículos de BAJA
+    db_activos = {k: v for k, v in db.items() if v.get('estado') != 'BAJA'}
+    total_items      = len(db_activos)
+    congelados_total = sum(1 for v in db_activos.values() if v.get('estado') == 'CONGELADO')
     activos_total    = total_items - congelados_total
-    racks_activos    = len(set(v.get('rack') for v in db.values() if v.get('rack')))
+    racks_activos    = len(set(v.get('rack') for v in db_activos.values() if v.get('rack')))
 
     # Estado de navegacion
     zona_sel = st.session_state.twin_zona
@@ -201,7 +202,9 @@ def render(_TOK_ACTIVO):
             st.rerun()
 
         rack_id    = ZONA_A_RACK.get(fila_sel, "POS_1")
-        items_rack = {k: v for k, v in db.items() if v.get('rack') == rack_id}
+        # Filtrar artículos de BAJA - solo mostrar ACTIVO y CONGELADO
+        items_rack = {k: v for k, v in db.items() 
+                      if v.get('rack') == rack_id and v.get('estado') != 'BAJA'}
 
         st.markdown(
             "<div style='display:flex;gap:20px;margin-bottom:14px;font-size:12px;color:#cdd3ea;'>"
@@ -361,7 +364,9 @@ def render(_TOK_ACTIVO):
     # ── NIVEL 4: Rack seleccionado en detalle ────────────────────
     else:
         rack_id    = ZONA_A_RACK.get(fila_sel, "POS_1")
-        items_rack = {k: v for k, v in db.items() if v.get('rack') == rack_id}
+        # Filtrar artículos de BAJA - solo mostrar ACTIVO y CONGELADO
+        items_rack = {k: v for k, v in db.items() 
+                      if v.get('rack') == rack_id and v.get('estado') != 'BAJA'}
 
         crumbs = ["Nave principal", zona_sel, fila_sel, f"Rack {rack_sel}"]
         st.markdown("  ›  ".join(f"**{c}**" for c in crumbs))
@@ -553,14 +558,13 @@ def render(_TOK_ACTIVO):
         )
 
     else:
-        # Vista de fila: KPIs específicos de esa fila
+        # Vista de fila: KPIs específicos de esa fila - Excluir artículos de BAJA
         rack_id_kpi = ZONA_A_RACK.get(fila_sel or zona_sel, "POS_1")
-        items_fila_kpi = [v for v in db.values() if v.get('rack') == rack_id_kpi]
+        items_fila_kpi = [v for v in db.values() if v.get('rack') == rack_id_kpi and v.get('estado') != 'BAJA']
 
         total_fila      = len(items_fila_kpi)
         activos_fila    = sum(1 for v in items_fila_kpi if v.get('estado') == 'ACTIVO')
         congelados_fila = sum(1 for v in items_fila_kpi if v.get('estado') == 'CONGELADO')
-        bajas_fila      = sum(1 for v in items_fila_kpi if v.get('estado') == 'BAJA')
         cap_total       = NUM_PISOS * NUM_NIVELES * NUM_COLS   # 5×3×3 = 45
         ocupacion_fila  = round(total_fila / cap_total * 100) if cap_total else 0
         peso_total_fila = round(sum(v.get('peso', 0) for v in items_fila_kpi), 1)
@@ -593,5 +597,3 @@ def render(_TOK_ACTIVO):
                 f"</div></div>",
                 unsafe_allow_html=True
             )
-            if bajas_fila:
-                st.caption(f"{bajas_fila} pallet(s) dados de baja en esta fila.")
