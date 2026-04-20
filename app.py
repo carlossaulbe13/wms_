@@ -90,11 +90,14 @@ _TOK_ACTIVO = st.session_state.get('session_token') or (_TOKEN_BASE + '_operador
 
 # ── Sidebar ───────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("### UMAD WMS")
+    # Título más grande
+    st.markdown("<h2 style='margin:0;padding:0;'>UMAD WMS</h2>", unsafe_allow_html=True)
+    
     _rol = st.session_state.get('rol', 'operador')
     _color = '#22c55e' if _rol == 'admin' else '#8892b0'
+    # Texto de rol más grande
     st.markdown(
-        f"<div style='font-size:11px;color:{_color};margin-bottom:4px;'>"
+        f"<div style='font-size:16px;color:{_color};margin-bottom:8px;margin-top:4px;'>"
         f"Rol: <b>{'Administrador' if _rol == 'admin' else 'Operador'}</b></div>",
         unsafe_allow_html=True
     )
