@@ -13,19 +13,30 @@ def leer_rfid_local():
     """Lee el UID desde archivo local generado por serial_rfid_bridge.py"""
     try:
         if os.path.exists('rfid_uid.json'):
+            print("[DEBUG] rfid_uid.json encontrado")
             with open('rfid_uid.json', 'r') as f:
                 data = json.load(f)
             
             uid = data.get('uid', '').strip().upper()
             ts = data.get('timestamp', 0)
+            edad = time.time() - ts
+            
+            print(f"[DEBUG] UID leído: {uid}")
+            print(f"[DEBUG] Edad del UID: {edad:.1f} segundos")
             
             # Verificar que no sea muy viejo (máximo 10 segundos)
-            if uid and (time.time() - ts) < 10:
+            if uid and edad < 10:
+                print(f"[DEBUG] UID válido, eliminando archivo")
                 # Limpiar el archivo para no reprocesar
                 os.remove('rfid_uid.json')
                 return uid
+            else:
+                print(f"[DEBUG] UID muy viejo o vacío, ignorando")
+        else:
+            # No imprimir nada si no existe el archivo (evitar spam)
+            pass
     except Exception as e:
-        pass
+        print(f"[DEBUG] Error leyendo RFID: {e}")
     return None
 
 def pantalla_login(token_secreto, token_admin_pwd):
@@ -41,11 +52,17 @@ def pantalla_login(token_secreto, token_admin_pwd):
 
     uid_entrante = st.session_state.get('uid_rfid_recibido')
     if uid_entrante:
+        print(f"[DEBUG] UID entrante detectado: {uid_entrante}")
         st.session_state.uid_rfid_recibido = None
+        
+        print(f"[DEBUG] UIDs autorizados: {UIDS_AUTORIZADOS}")
+        
         if uid_entrante in UIDS_AUTORIZADOS:
+            print(f"[DEBUG] UID AUTORIZADO - Iniciando sesión")
             _conceder_acceso('admin', token_secreto + '_admin')
             return
         else:
+            print(f"[DEBUG] UID NO AUTORIZADO")
             st.session_state.intentos_password += 1
 
     # Bloqueo
