@@ -9,12 +9,23 @@ import json
 import time
 import os
 
+# Detectar si estamos en Streamlit Cloud o local
+ES_CLOUD = not os.path.exists('serial_rfid_bridge.py')
+
+if not ES_CLOUD:
+    # Modo LOCAL: usa archivo JSON del bridge serial
+    SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    RFID_JSON_PATH = os.path.join(SCRIPT_DIR, 'rfid_uid.json')
+else:
+    # Modo CLOUD: usa Firebase
+    from firebase import leer_rfid_pendiente
+
 def leer_rfid_local():
     """Lee el UID desde archivo local generado por serial_rfid_bridge.py"""
     try:
-        if os.path.exists('rfid_uid.json'):
-            print("[DEBUG] rfid_uid.json encontrado")
-            with open('rfid_uid.json', 'r') as f:
+        if os.path.exists(RFID_JSON_PATH):
+            print(f"[DEBUG] rfid_uid.json encontrado en: {RFID_JSON_PATH}")
+            with open(RFID_JSON_PATH, 'r') as f:
                 data = json.load(f)
             
             uid = data.get('uid', '').strip().upper()
@@ -27,14 +38,10 @@ def leer_rfid_local():
             # Verificar que no sea muy viejo (máximo 10 segundos)
             if uid and edad < 10:
                 print(f"[DEBUG] UID válido, eliminando archivo")
-                # Limpiar el archivo para no reprocesar
-                os.remove('rfid_uid.json')
+                os.remove(RFID_JSON_PATH)
                 return uid
             else:
                 print(f"[DEBUG] UID muy viejo o vacío, ignorando")
-        else:
-            # No imprimir nada si no existe el archivo (evitar spam)
-            pass
     except Exception as e:
         print(f"[DEBUG] Error leyendo RFID: {e}")
     return None
@@ -45,10 +52,16 @@ def pantalla_login(token_secreto, token_admin_pwd):
     # Autorefresh para detectar tarjeta RFID cada 2 segundos
     st_autorefresh(interval=2000, key='login_rfid_refresh')
 
-    # Leer UID desde archivo local (en lugar de Firebase)
-    uid_local = leer_rfid_local()
-    if uid_local:
-        st.session_state.uid_rfid_recibido = uid_local
+    # Leer UID según el modo (local o cloud)
+    if ES_CLOUD:
+        print("[DEBUG] Modo CLOUD - Leyendo desde Firebase")
+        uid_recibido = leer_rfid_pendiente()
+    else:
+        print("[DEBUG] Modo LOCAL - Leyendo desde archivo")
+        uid_recibido = leer_rfid_local()
+    
+    if uid_recibido:
+        st.session_state.uid_rfid_recibido = uid_recibido
 
     uid_entrante = st.session_state.get('uid_rfid_recibido')
     if uid_entrante:
