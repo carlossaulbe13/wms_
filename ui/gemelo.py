@@ -431,7 +431,7 @@ def render(_TOK_ACTIVO):
                 f"stroke='#3a3f55' stroke-width='4'/>"
             )
             for ci, col in enumerate(range(1, NUM_COLS + 1)):
-                x   = pad_l + ci * cel_w + 3
+                x   = pad_l + (ci) * cel_w
                 y   = y_base + 5
                 cw  = cel_w - 6
                 ch  = est_h - 14
