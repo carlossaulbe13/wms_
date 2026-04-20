@@ -199,6 +199,28 @@ def render():
             st.session_state.qr_proveedor_detectado = False
         if 'generar_qr_fisico' not in st.session_state:
             st.session_state.generar_qr_fisico = True
+        
+        # Primero seleccionar tipo de embalaje FUERA del formulario para que el condicional funcione
+        st.markdown("**Tipo de embalaje**")
+        tipos_embalaje_filtrados = [
+            "Pallet americano (1219x1016 mm)",
+            "Pallet europeo / EUR (1200x800 mm)",
+            "Pallet industrial (1200x1000 mm)",
+            "Pallet semilla (1200x1200 mm)",
+            "Personalizado",
+        ]
+        emb1, emb2 = st.columns(2)
+        with emb1:
+            tipo_embalaje_sel = st.selectbox("Selecciona el tipo", tipos_embalaje_filtrados, key="tipo_emb_pre")
+        with emb2:
+            embalaje_obs_pre = st.text_input("Observaciones (opcional)", "", key="emb_obs_pre")
+        
+        # Mostrar preview de dimensiones según selección
+        es_personalizado = tipo_embalaje_sel == "Personalizado"
+        if es_personalizado:
+            st.info("💡 Has seleccionado embalaje personalizado. Podrás editar las dimensiones (largo, ancho, alto) en el formulario.")
+        else:
+            st.info(f"✓ Embalaje estándar seleccionado: {tipo_embalaje_sel}")
             
         with st.form("new_part_manual"):
 
@@ -222,24 +244,11 @@ def render():
             if st.session_state.qr_proveedor_detectado:
                 st.info("📦 Código QR del proveedor detectado. Solo completa los datos faltantes.")
 
-            # — Tipo de embalaje (sin caja de cartón ni granel) —
-            st.markdown("**Tipo de embalaje**")
-            tipos_embalaje_filtrados = [
-                "Pallet americano (1219x1016 mm)",
-                "Pallet europeo / EUR (1200x800 mm)",
-                "Pallet industrial (1200x1000 mm)",
-                "Pallet semilla (1200x1200 mm)",
-                "Personalizado",
-            ]
-            emb1, emb2 = st.columns(2)
-            with emb1:
-                tipo_embalaje = st.selectbox("Tipo de embalaje", tipos_embalaje_filtrados, key="tipo_emb_select")
-            with emb2:
-                embalaje_obs = st.text_input("Observaciones de embalaje (opcional)", "", key="emb_obs_input")
+            # — Dimensiones según tipo de embalaje —
+            st.markdown("**Dimensiones del material**")
             
-            # Mostrar dimensiones editables SOLO si selecciona Personalizado
-            if tipo_embalaje == "Personalizado":
-                st.markdown("**Dimensiones personalizadas**")
+            # Mostrar dimensiones editables SOLO si seleccionó Personalizado
+            if es_personalizado:
                 dim1, dim2, dim3 = st.columns(3)
                 with dim1:
                     largo_cm = st.number_input("LARGO (CM)", min_value=0.0, step=1.0, value=100.0, key="largo_pers")
@@ -261,11 +270,8 @@ def render():
             with c_p: p           = st.number_input("PESO TOTAL PALLET (KG)", min_value=0.0, step=1.0)
             with c_c: cant_manual = st.number_input("CANTIDAD DE PIEZAS",     min_value=1, value=1)
 
-            # — Reglas de altura —
-            st.caption(
-                "Reglas de altura: < 100 cm libre en cualquier nivel | "
-                "100–150 cm: niveles 1 y 2 | 150–180 cm: solo nivel 3 | > 180 cm: sobredimensiones"
-            )
+            # — Reglas de altura con icono de ayuda —
+            st.markdown("")  # espacio
 
             # Checkbox para generar QR (deshabilitado si se detectó QR del proveedor)
             if st.session_state.qr_proveedor_detectado:
@@ -282,19 +288,19 @@ def render():
 
             if submitted:
                 # Calcular volumen (m³) a partir de dimensiones solo si es personalizado
-                if tipo_embalaje == "Personalizado":
+                if es_personalizado:
                     volumen_m3 = (largo_cm * ancho_cm * alto_cm) / 1000000  # convertir cm³ a m³
                     obs_final = f"L:{largo_cm}cm x A:{ancho_cm}cm x H:{alto_cm}cm"
-                    if embalaje_obs:
-                        obs_final = f"{obs_final} | {embalaje_obs}"
+                    if embalaje_obs_pre:
+                        obs_final = f"{obs_final} | {embalaje_obs_pre}"
                 else:
                     volumen_m3 = 0.0
-                    obs_final = embalaje_obs
+                    obs_final = embalaje_obs_pre
                 
                 ok, msg, avisos = registrar_pallet(
                     uid=new_uid, sku_base=new_sku_base, nombre=new_name,
                     peso=p, cantidad=cant_manual, alto_cm=alto_cm,
-                    embalaje=tipo_embalaje, 
+                    embalaje=tipo_embalaje_sel, 
                     embalaje_obs=obs_final,
                     generar_qr=generar_qr_fisico
                 )
