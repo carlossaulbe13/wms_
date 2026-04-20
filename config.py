@@ -55,8 +55,6 @@ TIPOS_EMBALAJE = [
     "Pallet europeo / EUR (1200x800 mm)",
     "Pallet industrial (1200x1000 mm)",
     "Pallet semilla (1200x1200 mm)",
-    "Caja de carton",
-    "Granel / sin embalaje",
     "Personalizado",
 ]
 
