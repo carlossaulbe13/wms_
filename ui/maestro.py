@@ -222,18 +222,37 @@ def render():
             if st.session_state.qr_proveedor_detectado:
                 st.info("📦 Código QR del proveedor detectado. Solo completa los datos faltantes.")
 
-            # — Tipo de embalaje: SOLO PERSONALIZADO —
+            # — Tipo de embalaje (sin caja de cartón ni granel) —
             st.markdown("**Tipo de embalaje**")
-            st.caption("Embalaje: Personalizado")
+            tipos_embalaje_filtrados = [
+                "Pallet americano (1219x1016 mm)",
+                "Pallet europeo / EUR (1200x800 mm)",
+                "Pallet industrial (1200x1000 mm)",
+                "Pallet semilla (1200x1200 mm)",
+                "Personalizado",
+            ]
+            emb1, emb2 = st.columns(2)
+            with emb1:
+                tipo_embalaje = st.selectbox("Tipo de embalaje", tipos_embalaje_filtrados)
+            with emb2:
+                embalaje_obs = st.text_input("Observaciones de embalaje (opcional)", "")
             
-            # Dimensiones editables (largo, ancho, alto en cm)
-            dim1, dim2, dim3 = st.columns(3)
-            with dim1:
-                largo_cm = st.number_input("LARGO (CM)", min_value=0.0, step=1.0, value=100.0)
-            with dim2:
-                ancho_cm = st.number_input("ANCHO (CM)", min_value=0.0, step=1.0, value=80.0)
-            with dim3:
-                alto_cm = st.number_input("ALTO (CM)", min_value=0.0, step=1.0, 
+            # Mostrar dimensiones editables SOLO si selecciona Personalizado
+            if tipo_embalaje == "Personalizado":
+                st.markdown("**Dimensiones personalizadas**")
+                dim1, dim2, dim3 = st.columns(3)
+                with dim1:
+                    largo_cm = st.number_input("LARGO (CM)", min_value=0.0, step=1.0, value=100.0)
+                with dim2:
+                    ancho_cm = st.number_input("ANCHO (CM)", min_value=0.0, step=1.0, value=80.0)
+                with dim3:
+                    alto_cm = st.number_input("ALTO (CM)", min_value=0.0, step=1.0, 
+                                             help="Determina en qué nivel del rack se almacenará")
+            else:
+                # Para pallets estándar, usar solo el alto
+                largo_cm = 0.0
+                ancho_cm = 0.0
+                alto_cm = st.number_input("ALTO DEL MATERIAL (CM)", min_value=0.0, step=1.0,
                                          help="Determina en qué nivel del rack se almacenará")
 
             # — Peso y cantidad —
@@ -262,14 +281,21 @@ def render():
             submitted = st.form_submit_button("REGISTRAR MATERIAL", use_container_width=True)
 
             if submitted:
-                # Calcular volumen (m³) a partir de dimensiones
-                volumen_m3 = (largo_cm * ancho_cm * alto_cm) / 1000000  # convertir cm³ a m³
+                # Calcular volumen (m³) a partir de dimensiones solo si es personalizado
+                if tipo_embalaje == "Personalizado":
+                    volumen_m3 = (largo_cm * ancho_cm * alto_cm) / 1000000  # convertir cm³ a m³
+                    obs_final = f"L:{largo_cm}cm x A:{ancho_cm}cm x H:{alto_cm}cm"
+                    if embalaje_obs:
+                        obs_final = f"{obs_final} | {embalaje_obs}"
+                else:
+                    volumen_m3 = 0.0
+                    obs_final = embalaje_obs
                 
                 ok, msg, avisos = registrar_pallet(
                     uid=new_uid, sku_base=new_sku_base, nombre=new_name,
                     peso=p, cantidad=cant_manual, alto_cm=alto_cm,
-                    embalaje="Personalizado", 
-                    embalaje_obs=f"L:{largo_cm}cm x A:{ancho_cm}cm x H:{alto_cm}cm",
+                    embalaje=tipo_embalaje, 
+                    embalaje_obs=obs_final,
                     generar_qr=generar_qr_fisico
                 )
                 for av in avisos:
