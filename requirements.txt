@@ -10,3 +10,4 @@ numpy
 requests
 streamlit-autorefresh
 python-dotenv
+pyserial
