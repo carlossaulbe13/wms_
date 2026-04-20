@@ -17,19 +17,20 @@ from firebase import guardar_db, registrar_movimiento
 # ── Helpers de racks ──────────────────────────────────────────
 
 def rack_stats(db, rack):
-    """Retorna (total_items, congelados) para un rack."""
-    items = [v for v in db.values() if v.get('rack') == rack]
+    """Retorna (total_items, congelados) para un rack. Excluye artículos de BAJA."""
+    items = [v for v in db.values() if v.get('rack') == rack and v.get('estado') != 'BAJA']
     congelados = sum(1 for v in items if v.get('estado') == 'CONGELADO')
     return len(items), congelados
 
 def peso_en_nivel(db, rack, piso, nivel):
-    """Suma del peso de todos los items en un nivel específico."""
+    """Suma del peso de todos los items en un nivel específico. Excluye artículos de BAJA."""
     return sum(
         v.get('peso', 0)
         for v in db.values()
         if v.get('rack') == rack
         and v.get('piso') == piso
         and v.get('fila') == nivel
+        and v.get('estado') != 'BAJA'
     )
 
 def nivel_acepta_altura(nivel, alto_m):
@@ -62,12 +63,13 @@ def obtener_coordenada_libre(db, rack_objetivo, peso_nuevo=0, alto_m=0):
     - Carga maxima por nivel
     - Restriccion de altura por nivel
     No aplica restricciones en POS_5 (sobredimensiones).
+    Excluye posiciones de artículos de BAJA.
     """
     es_sobre = rack_objetivo == "POS_5"
     ocupadas = {
         (v.get('piso'), v.get('fila'), v.get('columna'))
         for v in db.values()
-        if v.get('rack') == rack_objetivo
+        if v.get('rack') == rack_objetivo and v.get('estado') != 'BAJA'
     }
     for p in range(1, NUM_PISOS + 1):
         for niv in range(1, NUM_NIVELES + 1):
