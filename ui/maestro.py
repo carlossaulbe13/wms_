@@ -194,22 +194,47 @@ def render():
 
     # ── Alta de materiales ────────────────────────────────────
     with st.expander("ALTA DE MATERIALES Y ASIGNACION MANUAL", expanded=False):
+        # Inicializar session_state para QR del proveedor
+        if 'qr_proveedor_detectado' not in st.session_state:
+            st.session_state.qr_proveedor_detectado = False
+        if 'generar_qr_fisico' not in st.session_state:
+            st.session_state.generar_qr_fisico = True
+            
         with st.form("new_part_manual"):
 
             # — Identificacion —
             st.markdown("**Identificacion**")
             c_id, c_sk, c_nm = st.columns(3)
-            with c_id: new_uid      = st.text_input("ID UNICO (EJ. PALLET-010)").upper()
+            with c_id: 
+                new_uid = st.text_input("ID UNICO (EJ. PALLET-010)").upper()
+                # Detectar si es un QR del proveedor (ejemplo: si empieza con ciertos prefijos)
+                if new_uid and (len(new_uid) > 8 or '-' not in new_uid):
+                    st.session_state.qr_proveedor_detectado = True
+                    st.session_state.generar_qr_fisico = False
+                else:
+                    st.session_state.qr_proveedor_detectado = False
+                    st.session_state.generar_qr_fisico = True
+                    
             with c_sk: new_sku_base = st.text_input("SKU / NUMERO DE PARTE")
             with c_nm: new_name     = st.text_input("DESCRIPCION DEL MATERIAL")
 
-            # — Embalaje —
+            # Mostrar mensaje si se detectó QR del proveedor
+            if st.session_state.qr_proveedor_detectado:
+                st.info("📦 Código QR del proveedor detectado. Solo completa los datos faltantes.")
+
+            # — Tipo de embalaje: SOLO PERSONALIZADO —
             st.markdown("**Tipo de embalaje**")
-            emb1, emb2 = st.columns(2)
-            with emb1:
-                tipo_embalaje = st.selectbox("Tipo de embalaje", TIPOS_EMBALAJE)
-            with emb2:
-                embalaje_obs = st.text_input("Observaciones de embalaje (opcional)", "")
+            st.caption("Embalaje: Personalizado")
+            
+            # Dimensiones editables (largo, ancho, alto en cm)
+            dim1, dim2, dim3 = st.columns(3)
+            with dim1:
+                largo_cm = st.number_input("LARGO (CM)", min_value=0.0, step=1.0, value=100.0)
+            with dim2:
+                ancho_cm = st.number_input("ANCHO (CM)", min_value=0.0, step=1.0, value=80.0)
+            with dim3:
+                alto_cm = st.number_input("ALTO (CM)", min_value=0.0, step=1.0, 
+                                         help="Determina en qué nivel del rack se almacenará")
 
             # — Peso y cantidad —
             st.markdown("**Peso y cantidad**")
@@ -217,23 +242,34 @@ def render():
             with c_p: p           = st.number_input("PESO TOTAL PALLET (KG)", min_value=0.0, step=1.0)
             with c_c: cant_manual = st.number_input("CANTIDAD DE PIEZAS",     min_value=1, value=1)
 
-            # — Dimensiones (largo, ancho, alto en cm) —
-            st.markdown("**Dimensiones del material**")
+            # — Reglas de altura —
             st.caption(
                 "Reglas de altura: < 100 cm libre en cualquier nivel | "
                 "100–150 cm: niveles 1 y 2 | 150–180 cm: solo nivel 3 | > 180 cm: sobredimensiones"
             )
-            h_cm = st.number_input("ALTO DEL MATERIAL (CM)", min_value=0.0, step=1.0,
-                                   help="Determina en qué nivel del rack se almacenará")
 
-            generar_qr_fisico = st.checkbox("GENERAR CODIGO QR FISICO", value=True)
+            # Checkbox para generar QR (deshabilitado si se detectó QR del proveedor)
+            if st.session_state.qr_proveedor_detectado:
+                generar_qr_fisico = st.checkbox(
+                    "GENERAR CODIGO QR FISICO", 
+                    value=False,
+                    disabled=True,
+                    help="Deshabilitado: ya tienes un código QR del proveedor"
+                )
+            else:
+                generar_qr_fisico = st.checkbox("GENERAR CODIGO QR FISICO", value=True)
+            
             submitted = st.form_submit_button("REGISTRAR MATERIAL", use_container_width=True)
 
             if submitted:
+                # Calcular volumen (m³) a partir de dimensiones
+                volumen_m3 = (largo_cm * ancho_cm * alto_cm) / 1000000  # convertir cm³ a m³
+                
                 ok, msg, avisos = registrar_pallet(
                     uid=new_uid, sku_base=new_sku_base, nombre=new_name,
-                    peso=p, cantidad=cant_manual, alto_cm=h_cm,
-                    embalaje=tipo_embalaje, embalaje_obs=embalaje_obs,
+                    peso=p, cantidad=cant_manual, alto_cm=alto_cm,
+                    embalaje="Personalizado", 
+                    embalaje_obs=f"L:{largo_cm}cm x A:{ancho_cm}cm x H:{alto_cm}cm",
                     generar_qr=generar_qr_fisico
                 )
                 for av in avisos:
@@ -295,4 +331,3 @@ def render():
                 st.rerun()
         else:
             st.info("No hay movimientos registrados todavia.")
-
