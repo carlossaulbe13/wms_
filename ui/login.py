@@ -90,113 +90,68 @@ def pantalla_login(token_secreto, token_admin_pwd):
 
     # Detectar si hay escaneo activo
     hay_escaneo = uid_entrante is not None
-    
-    # CSS para animaciones
-    st.markdown("""
-    <style>
-    @keyframes wakeUp {
-        0% { 
-            filter: grayscale(100%) brightness(0.3);
-            transform: scale(0.95);
-        }
-        50% {
-            filter: grayscale(50%) brightness(0.6);
-            transform: scale(1.05);
-        }
-        100% { 
-            filter: grayscale(0%) brightness(1);
-            transform: scale(1);
-        }
-    }
-    
-    @keyframes pulse {
-        0%, 100% { 
-            transform: scale(1);
-            box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
-        }
-        50% { 
-            transform: scale(1.05);
-            box-shadow: 0 0 0 10px rgba(34, 197, 94, 0);
-        }
-    }
-    
-    @keyframes slideDown {
-        0% { 
-            transform: translateY(-30px);
-            opacity: 0;
-        }
-        100% { 
-            transform: translateY(0);
-            opacity: 1;
-        }
-    }
-    
-    .card-sleeping {
-        filter: grayscale(100%) brightness(0.3);
-        opacity: 0.5;
-        transition: all 0.3s ease;
-    }
-    
-    .card-awake {
-        animation: wakeUp 1s ease-out forwards;
-    }
-    
-    .success-text {
-        animation: slideDown 0.8s ease-out;
-    }
-    
-    .led-active {
-        animation: pulse 1.5s ease-in-out infinite;
-    }
-    </style>
-    """, unsafe_allow_html=True)
 
-    # Título
-    st.markdown("<h1 style='text-align:center;color:#FF4B4B;font-size:42px;margin:40px 0 8px 0;letter-spacing:2px;'>UMAD WMS</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align:center;color:#8892b0;font-size:15px;margin-bottom:40px;'>Warehouse Management System</p>", unsafe_allow_html=True)
-
+    # Título principal
+    st.title("🏭 UMAD WMS")
+    st.caption("Warehouse Management System")
+    st.divider()
+    
     # Contenedor de la tarjeta RFID
     _, col_center, _ = st.columns([1, 2, 1])
     with col_center:
-        # Determinar clase CSS según estado
-        card_class = "card-awake" if hay_escaneo else "card-sleeping"
         
-        st.markdown(f"""
-        <div style='background:#1a1f35;border:2px solid #3a3f55;border-radius:20px;
-                    padding:40px;text-align:center;margin-bottom:30px;' class='{card_class}'>
-            
-            <div style='font-size:80px;margin-bottom:20px;'>💳</div>
-            
-            <div style='background:#2d3548;border-radius:10px;padding:20px;margin-bottom:20px;'>
-                <div style='color:#8892b0;font-size:12px;text-transform:uppercase;margin-bottom:8px;'>
-                    {'✅ TARJETA DETECTADA' if hay_escaneo else '⏸️ ESPERANDO TARJETA'}
-                </div>
-                <div style='color:#cdd3ea;font-family:monospace;font-size:20px;letter-spacing:4px;'>
-                    {'•••• •••• •••• ••••' if hay_escaneo else '.... .... .... ....'}
-                </div>
-            </div>
-            
-            <div style='display:flex;justify-content:center;align-items:center;gap:10px;'>
-                <div style='width:12px;height:12px;background:{'#22c55e' if hay_escaneo else '#4a5568'};
-                            border-radius:50%;' class='{'led-active' if hay_escaneo else ''}'></div>
-                <span style='color:#8892b0;font-size:14px;'>
-                    {'Lector Activo' if hay_escaneo else 'Lector en Espera'}
-                </span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Mostrar mensaje de éxito o error
+        # Tarjeta RFID visual
         if hay_escaneo:
+            # Estado ACTIVO - tarjeta detectada
+            st.success("✅ **TARJETA DETECTADA**")
+            
+            # Simulación visual de tarjeta RFID
+            st.markdown("### 💳")
+            st.code("•••• •••• •••• ••••", language=None)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.caption("**Autorizado**")
+                st.caption("RFID CARD")
+            with col2:
+                st.caption("**Sistema**")
+                st.caption("WMS")
+            
+            # LED activo
+            st.markdown("🟢 **Lector Activo**")
+            
+            st.divider()
+            
+            # Verificar autorización
             if uid_entrante in UIDS_AUTORIZADOS:
-                st.markdown("<div class='success-text'>", unsafe_allow_html=True)
-                st.success("🎉 **¡Acceso Autorizado!**\n\nIniciando sesión...")
-                st.markdown("</div>", unsafe_allow_html=True)
-                time.sleep(1.5)
+                with st.spinner("Iniciando sesión..."):
+                    time.sleep(1)
+                st.success("🎉 ¡Acceso autorizado!")
+                time.sleep(0.5)
                 st.rerun()
             else:
-                st.error(f"⚠️ **Acceso Denegado**\n\nUID no autorizado: `{uid_entrante}`")
+                st.error(f"⚠️ **Acceso Denegado**\n\nUID: `{uid_entrante}`")
+        
         else:
+            # Estado INACTIVO - esperando tarjeta
+            st.info("⏸️ **ESPERANDO TARJETA**")
+            
+            # Tarjeta apagada
+            st.markdown("### 💳")
+            st.code(".... .... .... ....", language=None)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.caption("Autorizado")
+                st.caption("RFID Card")
+            with col2:
+                st.caption("Sistema")
+                st.caption("WMS")
+            
+            # LED inactivo
+            st.markdown("⚫ Lector en Espera")
+            
+            st.divider()
             st.info("📡 **Acerca tu tarjeta RFID al lector**\n\nEl lector está conectado al ESP32")
         
         st.divider()
@@ -204,9 +159,13 @@ def pantalla_login(token_secreto, token_admin_pwd):
         
         # Formulario de contraseña
         with st.form("login_form"):
-            pwd = st.text_input("Contraseña", type="password", 
-                              placeholder="Ingresa la contraseña de acceso",
-                              label_visibility="collapsed")
+            pwd = st.text_input(
+                "Contraseña", 
+                type="password", 
+                placeholder="Ingresa la contraseña de acceso",
+                label_visibility="collapsed"
+            )
+            
             if st.form_submit_button("🔐 Iniciar Sesión", use_container_width=True, type="primary"):
                 if pwd == PASSWORD_ADMIN:
                     _conceder_acceso('admin', token_admin_pwd + '_admin')
@@ -219,7 +178,7 @@ def pantalla_login(token_secreto, token_admin_pwd):
                         st.session_state.bloqueado_hasta = time.time() + 30
                         st.rerun()
                     else:
-                        st.error(f"Contraseña incorrecta. Intento {intentos}/3.")
+                        st.error(f"❌ Contraseña incorrecta. Intento {intentos}/3.")
 
 def _conceder_acceso(rol, token):
     st.session_state.autenticado       = True
