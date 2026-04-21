@@ -156,10 +156,15 @@ def registrar_pallet(uid, sku_base, nombre, peso, cantidad,
         qr_img.save(fname)
         st.session_state.qr_generado = fname
 
-    # Activar LED pick-to-light
-    from mqtt_client import publicar
-    publicar(r, "ON")
-    time.sleep(0.1)
+    # Activar LED pick-to-light (solo si mqtt_client existe)
+    try:
+        from mqtt_client import publicar
+        publicar(r, "ON")
+        time.sleep(0.1)
+    except (ImportError, ModuleNotFoundError):
+        # MQTT no disponible (Cloud o no configurado)
+        print(f"[LOGICA] MQTT no disponible - LED no encendido")
+        pass
 
     # Actualizar estado
     st.session_state.confirmacion_pendiente = r
