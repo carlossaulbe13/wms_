@@ -20,7 +20,7 @@ from firebase import cargar_db
 from mqtt_client import init_mqtt
 
 # ── Configuracion de pagina ───────────────────────────────────
-st.set_page_config(page_title="UMAD WMS Cloud", layout="wide")
+st.set_page_config(page_title="WMS Cloud", layout="wide")
 
 # ── Inicializar MQTT una sola vez (cache_resource) ────────────
 _mqtt = init_mqtt()
@@ -89,7 +89,7 @@ _TOK_ACTIVO = st.session_state.get('session_token') or (_TOKEN_BASE + '_operador
 # ── Sidebar ───────────────────────────────────────────────────
 with st.sidebar:
     # Título más grande
-    st.markdown("<h2 style='margin:0;padding:0;'>UMAD WMS</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='margin:0;padding:0;'>WMS</h2>", unsafe_allow_html=True)
     
     _rol = st.session_state.get('rol', 'operador')
     _color = '#22c55e' if _rol == 'admin' else '#8892b0'
@@ -160,7 +160,7 @@ div[data-testid="stSelectbox"] [data-baseweb="select"] * { cursor: pointer !impo
 # ── Titulo ────────────────────────────────────────────────────
 st.markdown(
     "<h1 style='text-align:center;color:#FF4B4B;margin-bottom:4px;'>"
-    "UMAD Warehouse Management System</h1>",
+    "Warehouse Management System</h1>",
     unsafe_allow_html=True
 )
 
