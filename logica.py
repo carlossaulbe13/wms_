@@ -151,10 +151,19 @@ def registrar_pallet(uid, sku_base, nombre, peso, cantidad,
 
     # Generar QR
     if generar_qr:
+        import os
+        import tempfile
+        
+        # Crear QR
         qr_img = qrcode.make(uid)
-        fname  = f"label_{uid}.png"
+        
+        # Guardar en directorio temporal
+        temp_dir = tempfile.gettempdir()
+        fname = os.path.join(temp_dir, f"label_{uid}.png")
         qr_img.save(fname)
+        
         st.session_state.qr_generado = fname
+        print(f"[QR] Generado: {fname}")
 
     # Activar LED pick-to-light (solo si mqtt_client existe)
     try:
