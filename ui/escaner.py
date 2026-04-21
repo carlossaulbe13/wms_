@@ -4,12 +4,40 @@ ui/escaner.py — Interfaz móvil para escaneo QR y registro de material.
 import streamlit as st
 import json
 import time
+import sys
+import os
+
+# Asegurar que podemos importar módulos del proyecto
+if '/mount/src/wms_' not in sys.path:
+    sys.path.insert(0, '/mount/src/wms_')
+if os.path.dirname(os.path.dirname(__file__)) not in sys.path:
+    sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 def render_escaner():
     """Renderiza la interfaz de escáner móvil con QR."""
     
     st.title("📱 Escáner Móvil")
     st.caption("Escanea códigos QR o busca pallets manualmente")
+    
+    # Banner de confirmación pendiente (igual que en desktop)
+    if st.session_state.get('confirmacion_pendiente'):
+        rack_pendiente = st.session_state.confirmacion_pendiente
+        st.warning(f"⚠️ **ACCIÓN REQUERIDA:** LED del Rack {rack_pendiente} ENCENDIDO")
+        
+        if st.button(f"✅ CONFIRMAR — APAGAR LED DE {rack_pendiente}", 
+                     use_container_width=True, type="primary", key="confirmar_led_mobile"):
+            try:
+                from mqtt_client import publicar
+                publicar(rack_pendiente, "OFF")
+            except:
+                print(f"[ESCANER] MQTT no disponible")
+            
+            st.session_state.confirmacion_pendiente = None
+            st.success("✓ Confirmación registrada")
+            time.sleep(1)
+            st.rerun()
+        
+        st.divider()
     
     # CSS para ajustar el tamaño del escáner QR
     st.markdown("""
