@@ -1,16 +1,20 @@
-# Credenciales — NUNCA subir a Git
+# Archivos locales (no subir a GitHub)
+serial_rfid_bridge.py
+mqtt_client.py
+rfid_uid.json
+*.pyc
+__pycache__/
 .env
+.vscode/
+.idea/
+
+# Archivos de testing
+test_*.py
+crear_*.py
+insertar_*.py
 
 # QR generados
 label_*.png
 
-# Python
-__pycache__/
-*.pyc
-*.pyo
-
-# Streamlit
-.streamlit/
-
-# VS Code
-.vscode/
+# Logs
+*.log
