@@ -218,7 +218,7 @@ def render():
         # Mostrar preview de dimensiones según selección
         es_personalizado = tipo_embalaje_sel == "Personalizado"
         if es_personalizado:
-            st.info("💡 Has seleccionado embalaje personalizado. Podrás editar las dimensiones (largo, ancho, alto) en el formulario.")
+            st.info(" Has seleccionado embalaje personalizado. Podrás editar las dimensiones (largo, ancho, alto) en el formulario.")
         else:
             st.info(f"✓ Embalaje estándar seleccionado: {tipo_embalaje_sel}")
             
@@ -242,7 +242,7 @@ def render():
 
             # Mostrar mensaje si se detectó QR del proveedor
             if st.session_state.qr_proveedor_detectado:
-                st.info("📦 Código QR del proveedor detectado. Solo completa los datos faltantes.")
+                st.info(" Código QR del proveedor detectado. Solo completa los datos faltantes.")
 
             # — Dimensiones según tipo de embalaje —
             st.markdown("**Dimensiones del material**")
@@ -313,7 +313,7 @@ def render():
                     st.error(msg)
 
     if st.session_state.qr_generado:
-        st.success("✅ MATERIAL REGISTRADO. ESPERANDO CONFIRMACIÓN FÍSICA EN EL RACK.")
+        st.success(" MATERIAL REGISTRADO. ESPERANDO CONFIRMACIÓN FÍSICA EN EL RACK.")
         
         col_qr1, col_qr2 = st.columns([1, 2])
         
@@ -321,7 +321,7 @@ def render():
             st.image(st.session_state.qr_generado, width=200, caption="CÓDIGO QR LISTO PARA IMPRESIÓN")
         
         with col_qr2:
-            st.markdown("### 📄 Descargar QR")
+            st.markdown("###  Descargar QR")
             st.caption("Haz clic para descargar la etiqueta QR")
             
             # Leer archivo QR y crear botón de descarga
@@ -330,7 +330,7 @@ def render():
                     qr_bytes = file.read()
                     
                 st.download_button(
-                    label="⬇️ DESCARGAR QR",
+                    label=" DESCARGAR QR",
                     data=qr_bytes,
                     file_name=st.session_state.qr_generado,
                     mime="image/png",
@@ -342,7 +342,7 @@ def render():
             
             st.markdown("")  # Espacio
             
-            if st.button("🗑️ LIMPIAR PANTALLA", use_container_width=True):
+            if st.button(" LIMPIAR PANTALLA", use_container_width=True):
                 # Eliminar archivo temporal
                 import os
                 try:
