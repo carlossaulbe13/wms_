@@ -65,53 +65,71 @@ def on_message(client, userdata, msg):
     except Exception as e:
         print(f"[MQTT] Error en callback: {e}")
 
-@st.cache_resource(show_spinner=False)
+# Cliente MQTT global (singleton manual)
+_mqtt_client_instance = None
+_mqtt_init_lock = threading.Lock()
+
 def init_mqtt():
     """
-    Inicializa el cliente MQTT UNA sola vez por sesión.
-    Incluye reconexión automática.
+    Inicializa el cliente MQTT UNA sola vez (singleton manual).
+    Funciona en todas las versiones de Streamlit.
     """
-    try:
+    global _mqtt_client_instance
+    
+    # Si ya existe, retornarlo
+    if _mqtt_client_instance is not None:
+        return _mqtt_client_instance
+    
+    # Lock para evitar múltiples inicializaciones
+    with _mqtt_init_lock:
+        # Double-check después del lock
+        if _mqtt_client_instance is not None:
+            return _mqtt_client_instance
+        
         try:
-            client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
-        except AttributeError:
-            client = mqtt.Client()
-
-        # Configurar callbacks
-        client.on_connect = on_connect
-        client.on_disconnect = on_disconnect
-        client.on_message = on_message
-        
-        # Autenticación
-        client.username_pw_set(MQTT_USER, MQTT_PASS)
-        client.tls_set(cert_reqs=ssl.CERT_NONE)
-        client.tls_insecure_set(True)
-        
-        # Conectar con retry
-        max_retries = 3
-        for intento in range(max_retries):
             try:
-                client.connect(MQTT_HOST, MQTT_PORT, keepalive=60)
-                break
-            except Exception as e:
-                print(f"[MQTT] Intento {intento + 1}/{max_retries} falló: {e}")
-                if intento == max_retries - 1:
-                    raise
-                time.sleep(2)
-        
-        # Suscribirse a topics
-        client.subscribe(TOPIC_SUB)
-        client.subscribe(TOPIC_AUTH)
-        
-        # Iniciar loop
-        client.loop_start()
-        
-        print("[MQTT] Cliente inicializado correctamente")
-        return client
-        
-    except Exception as e:
-        print(f"[MQTT] ✗ Error fatal al inicializar: {e}")
-        return None
+                client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
+            except AttributeError:
+                client = mqtt.Client()
+
+            # Configurar callbacks
+            client.on_connect = on_connect
+            client.on_disconnect = on_disconnect
+            client.on_message = on_message
+            
+            # Autenticación
+            client.username_pw_set(MQTT_USER, MQTT_PASS)
+            client.tls_set(cert_reqs=ssl.CERT_NONE)
+            client.tls_insecure_set(True)
+            
+            # Conectar con retry
+            max_retries = 3
+            for intento in range(max_retries):
+                try:
+                    client.connect(MQTT_HOST, MQTT_PORT, keepalive=60)
+                    break
+                except Exception as e:
+                    print(f"[MQTT] Intento {intento + 1}/{max_retries} falló: {e}")
+                    if intento == max_retries - 1:
+                        raise
+                    time.sleep(2)
+            
+            # Suscribirse a topics
+            client.subscribe(TOPIC_SUB)
+            client.subscribe(TOPIC_AUTH)
+            
+            # Iniciar loop
+            client.loop_start()
+            
+            print("[MQTT] Cliente inicializado correctamente")
+            
+            # Guardar instancia global
+            _mqtt_client_instance = client
+            return client
+            
+        except Exception as e:
+            print(f"[MQTT] ✗ Error fatal al inicializar: {e}")
+            return None
 
 def obtener_uid_pendiente():
     """
