@@ -1,102 +1,109 @@
 """
-diagnostico_mqtt.py - Script para diagnosticar conexión MQTT y RFID
+mqtt_client.py — Conexion MQTT con HiveMQ Cloud.
+Usa st.cache_resource para inicializar UNA sola vez por sesion.
+Versión mejorada sin warnings de ScriptRunContext.
 """
-import paho.mqtt.client as mqtt
 import ssl
-import time
+import streamlit as st
+import paho.mqtt.client as mqtt
+from config import MQTT_HOST, MQTT_PORT, MQTT_USER, MQTT_PASS, TOPIC_SUB, TOPIC_AUTH
+import threading
 
-# Configuración MQTT
-MQTT_HOST = "0915b3e64d01444da73c24d109538a81.s1.eu.hivemq.cloud"
-MQTT_PORT = 8883
-MQTT_USER = "logistica123"
-MQTT_PASS = "Logistica1"
-TOPIC_RFID = "almacen/rfid"
-
-print("╔════════════════════════════════════╗")
-print("║   DIAGNÓSTICO MQTT + RFID          ║")
-print("╚════════════════════════════════════╝\n")
-
-def on_connect(client, userdata, flags, rc):
-    """Callback cuando se conecta al broker"""
-    if rc == 0:
-        print("✅ [MQTT] CONECTADO al broker HiveMQ")
-        print(f"   Host: {MQTT_HOST}")
-        print(f"   Port: {MQTT_PORT}\n")
-        
-        # Suscribirse al topic RFID
-        client.subscribe(TOPIC_RFID)
-        print(f"✅ [MQTT] Suscrito al topic: {TOPIC_RFID}\n")
-        print("📡 Esperando mensajes RFID...")
-        print("   (Pasa tu tarjeta RFID ahora)\n")
-    else:
-        print(f"❌ [MQTT] ERROR al conectar. Código: {rc}")
-        print(f"   0 = Success")
-        print(f"   1 = Protocol version error")
-        print(f"   2 = Client ID error")
-        print(f"   3 = Server unavailable")
-        print(f"   4 = Bad username/password")
-        print(f"   5 = Not authorized\n")
+# Lock para evitar race conditions
+_mqtt_lock = threading.Lock()
 
 def on_message(client, userdata, msg):
-    """Callback cuando llega un mensaje"""
-    payload = msg.payload.decode('utf-8')
-    print(f"\n╔══════════════════════════════════╗")
-    print(f"║  MENSAJE RECIBIDO                ║")
-    print(f"╚══════════════════════════════════╝")
-    print(f"Topic:   {msg.topic}")
-    print(f"Payload: {payload}")
-    print(f"Hora:    {time.strftime('%H:%M:%S')}")
-    print(f"════════════════════════════════════\n")
-
-def on_disconnect(client, userdata, rc):
-    """Callback cuando se desconecta"""
-    if rc != 0:
-        print(f"\n⚠️ [MQTT] Desconexión inesperada. Código: {rc}")
-        print("   Intentando reconectar...\n")
-
-# Crear cliente MQTT
-try:
-    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1, client_id="diagnostico_umad")
-except:
-    client = mqtt.Client(client_id="diagnostico_umad")
-
-# Configurar callbacks
-client.on_connect = on_connect
-client.on_message = on_message
-client.on_disconnect = on_disconnect
-
-# Configurar TLS
-client.username_pw_set(MQTT_USER, MQTT_PASS)
-client.tls_set(cert_reqs=ssl.CERT_NONE)
-client.tls_insecure_set(True)
-
-# Conectar
-print("🔌 Conectando al broker MQTT...")
-print(f"   Host: {MQTT_HOST}")
-print(f"   Port: {MQTT_PORT}")
-print(f"   User: {MQTT_USER}\n")
-
-try:
-    client.connect(MQTT_HOST, MQTT_PORT, keepalive=60)
-    client.loop_start()
-    
-    # Mantener el script corriendo
-    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    print("Presiona Ctrl+C para salir")
-    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
-    
-    while True:
-        time.sleep(1)
+    """Callback: procesa mensajes entrantes del broker."""
+    try:
+        payload = msg.payload.decode('utf-8')
         
-except KeyboardInterrupt:
-    print("\n\n✅ Diagnóstico finalizado")
-    client.loop_stop()
-    client.disconnect()
+        # Usar lock para acceso seguro a session_state
+        with _mqtt_lock:
+            if payload.endswith("_OFF"):
+                # Guardar en una variable temporal que el main loop revisará
+                if not hasattr(st, '_mqtt_messages'):
+                    st._mqtt_messages = []
+                st._mqtt_messages.append(('confirmacion', payload.replace("_OFF", "")))
+                
+            elif msg.topic == TOPIC_AUTH:
+                # Guardar UID RFID
+                if not hasattr(st, '_mqtt_messages'):
+                    st._mqtt_messages = []
+                st._mqtt_messages.append(('rfid', payload.strip().upper()))
+    except Exception as e:
+        print(f"[MQTT] Error en callback: {e}")
+
+@st.cache_resource(show_spinner=False)
+def init_mqtt():
+    """
+    Inicializa el cliente MQTT UNA sola vez por sesion de Streamlit.
+    st.cache_resource garantiza que no se reconecta en cada render.
+    """
+    try:
+        try:
+            client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
+        except AttributeError:
+            client = mqtt.Client()
+
+        client.username_pw_set(MQTT_USER, MQTT_PASS)
+        client.tls_set(cert_reqs=ssl.CERT_NONE)
+        client.tls_insecure_set(True)
+        client.on_message = on_message
+        client.connect(MQTT_HOST, MQTT_PORT, keepalive=60)
+        client.subscribe(TOPIC_SUB)
+        client.subscribe(TOPIC_AUTH)
+        client.loop_start()
+        
+        print("[MQTT] Cliente inicializado y conectado")
+        return client
+    except Exception as e:
+        print(f"[MQTT] Error al inicializar: {e}")
+        return None
+
+def publicar(rack_id, accion="ON"):
+    """Publica un mensaje pick-to-light al ESP32."""
+    client = st.session_state.get('mqtt_client')
+    if client:
+        from config import TOPIC_PUB
+        try:
+            client.publish(TOPIC_PUB, f"{rack_id}_{accion}")
+            print(f"[MQTT] Publicado: {rack_id}_{accion}")
+        except Exception as e:
+            print(f"[MQTT] Error al publicar: {e}")
+
+def procesar_mensajes_mqtt():
+    """
+    Procesa mensajes MQTT acumulados.
+    Llamar esto desde el main loop de Streamlit.
+    """
+    if not hasattr(st, '_mqtt_messages'):
+        return
     
-except Exception as e:
-    print(f"\n❌ ERROR: {e}")
-    print("\nPosibles causas:")
-    print("  1. Credenciales incorrectas")
-    print("  2. Host MQTT incorrecto")
-    print("  3. Puerto bloqueado (firewall)")
-    print("  4. Sin conexión a internet")
+    with _mqtt_lock:
+        mensajes = st._mqtt_messages.copy()
+        st._mqtt_messages = []
+    
+    for tipo, payload in mensajes:
+        if tipo == 'confirmacion':
+            if st.session_state.get('confirmacion_pendiente') == payload:
+                st.session_state.confirmacion_pendiente = None
+                print(f"[MQTT] Confirmación procesada: {payload}")
+                
+        elif tipo == 'rfid':
+            # IMPORTANTE: Guardar el UID para que login.py lo procese
+            st.session_state.uid_rfid_recibido = payload
+            print(f"[MQTT] ✓ UID RFID recibido por MQTT: {payload}")
+            
+            # También guardarlo en archivo local (para compatibilidad)
+            try:
+                import time
+                data = {
+                    "uid": payload,
+                    "timestamp": time.time()
+                }
+                with open('rfid_uid.json', 'w') as f:
+                    import json
+                    json.dump(data, f)
+                print(f"[MQTT] ✓ UID también guardado en archivo local")
+            except Exception as e:
+                print(f"[MQTT] Advertencia: No se pudo guardar en archivo: {e}")
