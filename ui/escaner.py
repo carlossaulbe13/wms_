@@ -191,8 +191,23 @@ def render_escaner():
             st.caption(f"🕒 {timestamp} - {scan['matricula']} ({scan.get('usuario', 'N/A')})")
 
 def mostrar_detalle_pallet(data, mostrar_boton_registro=True):
-    """Muestra los detalles de un pallet"""
-    matricula = data.get('matricula', 'N/A')
+    """Muestra los detalles de un pallet - Compatible con múltiples formatos de QR"""
+    
+    # Normalizar campos - soportar múltiples formatos
+    matricula = data.get('matricula') or data.get('id_unico', 'N/A')
+    sku = data.get('sku') or data.get('sku_base', 'N/A')
+    nombre = data.get('nombre') or data.get('descripcion', 'N/A')
+    pzas = data.get('pzas') or data.get('cantidad') or data.get('cantidad_piezas', 1)
+    peso = data.get('peso') or data.get('peso_kg', 0)
+    rack = data.get('rack', 'N/A')
+    estado = data.get('estado', 'ACTIVO')
+    embalaje = data.get('embalaje') or data.get('tipo_pallet', 'N/A')
+    alto_cm = data.get('alto_cm', 0)
+    
+    # Obtener ubicación
+    ubicacion = data.get('ubicacion', {})
+    if not ubicacion or not isinstance(ubicacion, dict):
+        ubicacion = {}
     
     st.success(f"✅ Pallet: **{matricula}**")
     
@@ -200,16 +215,20 @@ def mostrar_detalle_pallet(data, mostrar_boton_registro=True):
     col1, col2 = st.columns(2)
     
     with col1:
-        st.metric("SKU", data.get('sku', 'N/A'))
-        st.metric("Piezas", data.get('pzas', 'N/A'))
-        st.metric("Rack", data.get('rack', 'N/A'))
+        st.metric("SKU", sku)
+        st.metric("Piezas", pzas)
+        st.metric("Rack", rack)
+        st.metric("Embalaje", embalaje)
     
     with col2:
-        st.metric("Peso (kg)", data.get('peso', 'N/A'))
-        st.metric("Estado", data.get('estado', 'N/A'))
-        ubicacion = data.get('ubicacion', {})
-        pos = f"P{ubicacion.get('piso','-')}N{ubicacion.get('nivel','-')}C{ubicacion.get('columna','-')}"
-        st.metric("Ubicación", pos)
+        st.metric("Nombre", nombre if len(str(nombre)) < 20 else str(nombre)[:17] + "...")
+        st.metric("Peso (kg)", peso)
+        st.metric("Estado", estado)
+        st.metric("Alto (cm)", alto_cm)
+        
+    # Ubicación
+    pos = f"P{ubicacion.get('piso','-')}N{ubicacion.get('nivel','-')}C{ubicacion.get('columna','-')}"
+    st.caption(f"📍 Ubicación: {pos}")
     
     # Detalles completos
     with st.expander("📋 Ver JSON completo"):
@@ -219,7 +238,20 @@ def mostrar_detalle_pallet(data, mostrar_boton_registro=True):
     if mostrar_boton_registro:
         st.divider()
         if st.button("✅ REGISTRAR ESCANEO", use_container_width=True, type="primary", key=f"btn_reg_{matricula}"):
-            registrar_escaneo(data)
+            # Normalizar datos antes de registrar
+            datos_normalizados = {
+                'matricula': matricula,
+                'sku': sku,
+                'nombre': nombre,
+                'pzas': int(pzas),
+                'peso': float(peso),
+                'rack': rack,
+                'estado': estado,
+                'embalaje': embalaje,
+                'alto_cm': float(alto_cm),
+                'ubicacion': ubicacion
+            }
+            registrar_escaneo(datos_normalizados)
             st.success("🎉 Escaneo registrado!")
             st.balloons()
             time.sleep(1)
@@ -247,9 +279,28 @@ def registrar_escaneo(data):
     # Obtener DB
     db = cargar_db()
     
-    if matricula and matricula in db:
-        # Actualizar timestamp de último escaneo
-        db[matricula]['ultimo_escaneo'] = time.time()
+    if matricula:
+        # Si el pallet ya existe, actualizar timestamp
+        if matricula in db:
+            db[matricula]['ultimo_escaneo'] = time.time()
+        else:
+            # Si no existe, crear entrada nueva con los datos del QR
+            db[matricula] = {
+                'sku_base': data.get('sku', 'N/A'),
+                'nombre': data.get('nombre', 'N/A'),
+                'peso': data.get('peso', 0),
+                'cantidad': data.get('pzas', 1),
+                'rack': data.get('rack', 'POS_1'),
+                'estado': data.get('estado', 'ACTIVO'),
+                'embalaje': data.get('embalaje', 'N/A'),
+                'alto_m': data.get('alto_cm', 0) / 100.0,
+                'volumen': 0.0,
+                'piso': data.get('ubicacion', {}).get('piso'),
+                'fila': data.get('ubicacion', {}).get('nivel'),
+                'columna': data.get('ubicacion', {}).get('columna'),
+                'fecha_llegada': time.strftime('%Y-%m-%d %H:%M'),
+                'ultimo_escaneo': time.time()
+            }
         
         # Guardar en Firebase
         guardar_db(db)
