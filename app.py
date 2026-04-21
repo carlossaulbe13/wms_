@@ -57,11 +57,9 @@ for k, v in _defaults.items():
 if st.session_state.db is None:
     cargar_db(forzar=True)
 
-# Procesar confirmacion MQTT pendiente
-if st.session_state.msg_mqtt_recibido:
-    if st.session_state.confirmacion_pendiente == st.session_state.msg_mqtt_recibido:
-        st.session_state.confirmacion_pendiente = None
-    st.session_state.msg_mqtt_recibido = None
+# Procesar mensajes MQTT acumulados
+from mqtt_client import procesar_mensajes_mqtt
+procesar_mensajes_mqtt()
 
 # ── Tokens de sesion ─────────────────────────────────────────
 _TOKEN_BASE  = hashlib.sha256(PASSWORD_ACCESO.encode()).hexdigest()[:16]
