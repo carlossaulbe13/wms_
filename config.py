@@ -15,9 +15,13 @@ except ImportError:
 def get_secret(key, default=""):
     """Lee de st.secrets primero, luego env, luego default."""
     try:
-        return st.secrets[key]
-    except Exception:
-        return os.environ.get(key, default)
+        # Intenta acceder a st.secrets
+        if hasattr(st, 'secrets') and key in st.secrets:
+            return st.secrets[key]
+    except:
+        pass
+    # Si falla, intenta variables de entorno
+    return os.environ.get(key, default)
 
 # ── Firebase ─────────────────────────────────────────────────
 FIREBASE_URL  = get_secret("FIREBASE_URL",
