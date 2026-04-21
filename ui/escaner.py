@@ -251,10 +251,26 @@ def mostrar_detalle_pallet(data, mostrar_boton_registro=True):
                 'alto_cm': float(alto_cm),
                 'ubicacion': ubicacion
             }
-            registrar_escaneo(datos_normalizados)
-            st.success("🎉 Escaneo registrado!")
+            
+            with st.spinner("Registrando y asignando ubicación..."):
+                registrar_escaneo(datos_normalizados)
+            
+            st.success("🎉 Pallet registrado y ubicación asignada!")
+            
+            # Recargar datos para mostrar la ubicación asignada
+            from firebase import cargar_db
+            db = cargar_db(forzar=True)
+            if matricula in db:
+                pallet_actualizado = db[matricula]
+                rack_asignado = pallet_actualizado.get('rack', 'N/A')
+                piso = pallet_actualizado.get('piso', '-')
+                nivel = pallet_actualizado.get('fila', '-')
+                col = pallet_actualizado.get('columna', '-')
+                
+                st.info(f"📍 **Ubicación asignada:** {rack_asignado} → Piso {piso}, Nivel {nivel}, Columna {col}")
+            
             st.balloons()
-            time.sleep(1)
+            time.sleep(2)
             st.rerun()
 
 def buscar_y_mostrar_pallet(matricula):
@@ -271,8 +287,9 @@ def buscar_y_mostrar_pallet(matricula):
         st.caption("Verifica la matrícula o usa el formulario de entrada manual")
 
 def registrar_escaneo(data):
-    """Registra el escaneo en Firebase y en el historial local"""
-    from firebase import cargar_db, guardar_db
+    """Registra el escaneo en Firebase usando la lógica de asignación automática"""
+    from firebase import cargar_db, guardar_db, registrar_movimiento
+    from logica import registrar_pallet
     
     matricula = data.get('matricula')
     
@@ -280,32 +297,35 @@ def registrar_escaneo(data):
     db = cargar_db()
     
     if matricula:
-        # Si el pallet ya existe, actualizar timestamp
+        # Si el pallet ya existe, solo actualizar timestamp
         if matricula in db:
             db[matricula]['ultimo_escaneo'] = time.time()
+            guardar_db(db)
+            print(f"[ESCANER] Timestamp actualizado: {matricula}")
         else:
-            # Si no existe, crear entrada nueva con los datos del QR
-            db[matricula] = {
-                'sku_base': data.get('sku', 'N/A'),
-                'nombre': data.get('nombre', 'N/A'),
-                'peso': data.get('peso', 0),
-                'cantidad': data.get('pzas', 1),
-                'rack': data.get('rack', 'POS_1'),
-                'estado': data.get('estado', 'ACTIVO'),
-                'embalaje': data.get('embalaje', 'N/A'),
-                'alto_m': data.get('alto_cm', 0) / 100.0,
-                'volumen': 0.0,
-                'piso': data.get('ubicacion', {}).get('piso'),
-                'fila': data.get('ubicacion', {}).get('nivel'),
-                'columna': data.get('ubicacion', {}).get('columna'),
-                'fecha_llegada': time.strftime('%Y-%m-%d %H:%M'),
-                'ultimo_escaneo': time.time()
-            }
-        
-        # Guardar en Firebase
-        guardar_db(db)
-        
-        print(f"[ESCANER] Escaneo registrado: {matricula}")
+            # Si no existe, usar la lógica de registrar_pallet para asignar ubicación
+            print(f"[ESCANER] Registrando nuevo pallet: {matricula}")
+            
+            exito, mensaje, avisos = registrar_pallet(
+                uid=matricula,
+                sku_base=data.get('sku', 'N/A'),
+                nombre=data.get('nombre', 'N/A'),
+                peso=float(data.get('peso', 0)),
+                cantidad=int(data.get('pzas', 1)),
+                alto_cm=float(data.get('alto_cm', 0)),
+                embalaje=data.get('embalaje', 'N/A'),
+                embalaje_obs='',
+                generar_qr=False  # No generar QR físico desde escáner
+            )
+            
+            if exito:
+                print(f"[ESCANER] ✓ {mensaje}")
+                for aviso in avisos:
+                    print(f"[ESCANER] ! {aviso}")
+            else:
+                print(f"[ESCANER] ✗ Error: {mensaje}")
+                st.error(f"Error al registrar: {mensaje}")
+                return
         
         # Guardar en historial de session
         if 'historial_escaneos' not in st.session_state:
