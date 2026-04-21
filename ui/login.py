@@ -90,39 +90,97 @@ def pantalla_login(token_secreto, token_admin_pwd):
 
     # Detectar si hay escaneo activo
     hay_escaneo = uid_entrante is not None
-
-    # Título principal
-    st.title("🏭 UMAD WMS")
-    st.caption("Warehouse Management System")
-    st.divider()
     
-    # Contenedor de la tarjeta RFID
+    # Título
+    st.markdown("<h1 style='text-align:center;color:#FF4B4B;font-size:42px;margin:40px 0 8px 0;'>UMAD WMS</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center;color:#8892b0;font-size:15px;margin-bottom:40px;'>Warehouse Management System</p>", unsafe_allow_html=True)
+
+    # Contenedor de la tarjeta RFID usando st.html()
     _, col_center, _ = st.columns([1, 2, 1])
     with col_center:
         
-        # Tarjeta RFID visual
+        # Determinar estado de la tarjeta
+        card_class = "card-awake" if hay_escaneo else "card-sleeping"
+        card_status = "AUTORIZADO" if hay_escaneo else "ESPERANDO"
+        card_dots = "•••• •••• •••• ••••" if hay_escaneo else ".... .... .... ...."
+        led_color = "#22c55e" if hay_escaneo else "#4a5568"
+        led_class = "led-active" if hay_escaneo else ""
+        led_text = "Lector Activo" if hay_escaneo else "Lector en Espera"
+        
+        # Usar st.html() en lugar de st.markdown() para renderizar HTML
+        st.html(f"""
+        <style>
+        @keyframes wakeUp {{
+            0% {{ filter: grayscale(100%) brightness(0.3); transform: scale(0.95); }}
+            50% {{ filter: grayscale(50%) brightness(0.6); transform: scale(1.05); }}
+            100% {{ filter: grayscale(0%) brightness(1); transform: scale(1); }}
+        }}
+        
+        @keyframes pulse {{
+            0%, 100% {{ transform: scale(1); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }}
+            50% {{ transform: scale(1.05); box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }}
+        }}
+        
+        .card-sleeping {{
+            filter: grayscale(100%) brightness(0.3);
+            opacity: 0.5;
+        }}
+        
+        .card-awake {{
+            animation: wakeUp 1s ease-out forwards;
+        }}
+        
+        .led-active {{
+            animation: pulse 1.5s ease-in-out infinite;
+        }}
+        </style>
+        
+        <div style='background:#1a1f35;border:2px solid #3a3f55;border-radius:20px;
+                    padding:40px;text-align:center;margin-bottom:20px;' class='{card_class}'>
+            
+            <!-- Tarjeta RFID Simple -->
+            <div style='width:280px;height:180px;margin:0 auto 20px;
+                        background:linear-gradient(135deg,#2d3548,#1a1f35);
+                        border:2px solid #4a5080;border-radius:15px;padding:20px;
+                        box-shadow:0 10px 30px rgba(0,0,0,0.5);'>
+                
+                <!-- Chip dorado -->
+                <div style='width:50px;height:40px;
+                            background:linear-gradient(135deg,#ffd700,#ffed4e);
+                            border-radius:6px;margin-bottom:30px;'></div>
+                
+                <!-- Números de tarjeta -->
+                <div style='color:#cdd3ea;font-family:monospace;font-size:18px;
+                            letter-spacing:3px;margin:20px 0;'>{card_dots}</div>
+                
+                <!-- Etiquetas inferiores -->
+                <div style='display:flex;justify-content:space-between;margin-top:30px;'>
+                    <div style='text-align:left;'>
+                        <div style='color:#8892b0;font-size:10px;text-transform:uppercase;'>
+                            {card_status}</div>
+                        <div style='color:#cdd3ea;font-size:14px;font-weight:600;'>
+                            RFID CARD</div>
+                    </div>
+                    <div style='text-align:right;'>
+                        <div style='color:#8892b0;font-size:10px;text-transform:uppercase;'>
+                            SISTEMA</div>
+                        <div style='color:#cdd3ea;font-size:14px;font-weight:600;'>
+                            WMS</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Indicador LED -->
+            <div style='display:flex;justify-content:center;align-items:center;gap:10px;'>
+                <div style='width:12px;height:12px;background:{led_color};
+                            border-radius:50%;' class='{led_class}'></div>
+                <span style='color:#8892b0;font-size:14px;'>{led_text}</span>
+            </div>
+        </div>
+        """)
+        
+        # Mensajes de estado
         if hay_escaneo:
-            # Estado ACTIVO - tarjeta detectada
-            st.success("✅ **TARJETA DETECTADA**")
-            
-            # Simulación visual de tarjeta RFID
-            st.markdown("### 💳")
-            st.code("•••• •••• •••• ••••", language=None)
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                st.caption("**Autorizado**")
-                st.caption("RFID CARD")
-            with col2:
-                st.caption("**Sistema**")
-                st.caption("WMS")
-            
-            # LED activo
-            st.markdown("🟢 **Lector Activo**")
-            
-            st.divider()
-            
-            # Verificar autorización
             if uid_entrante in UIDS_AUTORIZADOS:
                 with st.spinner("Iniciando sesión..."):
                     time.sleep(1)
@@ -131,27 +189,7 @@ def pantalla_login(token_secreto, token_admin_pwd):
                 st.rerun()
             else:
                 st.error(f"⚠️ **Acceso Denegado**\n\nUID: `{uid_entrante}`")
-        
         else:
-            # Estado INACTIVO - esperando tarjeta
-            st.info("⏸️ **ESPERANDO TARJETA**")
-            
-            # Tarjeta apagada
-            st.markdown("### 💳")
-            st.code(".... .... .... ....", language=None)
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                st.caption("Autorizado")
-                st.caption("RFID Card")
-            with col2:
-                st.caption("Sistema")
-                st.caption("WMS")
-            
-            # LED inactivo
-            st.markdown("⚫ Lector en Espera")
-            
-            st.divider()
             st.info("📡 **Acerca tu tarjeta RFID al lector**\n\nEl lector está conectado al ESP32")
         
         st.divider()
