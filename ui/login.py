@@ -320,70 +320,49 @@ def pantalla_login(token_secreto, token_admin_pwd):
         box-shadow: 0 0 10px #22c55e;
         animation: pulse-ring 1.5s ease-in-out infinite;
     }
-    
-    .divider-text {
-        text-align: center;
-        color: #8892b0;
-        font-size: 12px;
-        margin: 20px 0;
-        position: relative;
-    }
-    
-    .divider-text::before,
-    .divider-text::after {
-        content: '';
-        position: absolute;
-        top: 50%;
-        width: 40%;
-        height: 1px;
-        background: linear-gradient(90deg, transparent, #3a3f55, transparent);
-    }
-    
-    .divider-text::before { left: 0; }
-    .divider-text::after { right: 0; }
     </style>
     
-    <div class='rfid-reader-container'>
-        <h1 class='rfid-title'>UMAD WMS</h1>
-        <p class='rfid-subtitle'>Warehouse Management System</p>
+    <div class="rfid-reader-container">
+        <h1 class="rfid-title">UMAD WMS</h1>
+        <p class="rfid-subtitle">Warehouse Management System</p>
         
-        <div class='rfid-reader-box'>
-            <div class='virtual-card'>
-                <div class='card-chip'></div>
-                <div class='card-number'>•••• •••• •••• ••••</div>
-                <div style='display: flex; justify-content: space-between; margin-top: 20px;'>
+        <div class="rfid-reader-box">
+            <div class="virtual-card">
+                <div class="card-chip"></div>
+                <div class="card-number">•••• •••• •••• ••••</div>
+                <div style="display: flex; justify-content: space-between; margin-top: 20px;">
                     <div>
-                        <div class='card-label'>Autorizado</div>
-                        <div class='card-name'>RFID Card</div>
+                        <div class="card-label">Autorizado</div>
+                        <div class="card-name">RFID Card</div>
                     </div>
-                    <div style='text-align: right;'>
-                        <div class='card-label'>Sistema</div>
-                        <div class='card-name'>WMS</div>
+                    <div style="text-align: right;">
+                        <div class="card-label">Sistema</div>
+                        <div class="card-name">WMS</div>
                     </div>
                 </div>
             </div>
             
-            <div style='margin: 30px 0;'>
-                <svg width='100' height='40' style='margin: 0 auto; display: block;'>
-                    <path d='M 10,20 L 45,5 L 45,35 L 10,20' fill='#8892b0' opacity='0.5'/>
-                    <path d='M 90,20 L 55,5 L 55,35 L 90,20' fill='#8892b0' opacity='0.5'/>
+            <div style="margin: 30px 0;">
+                <svg width="100" height="40" style="margin: 0 auto; display: block;">
+                    <path d="M 10,20 L 45,5 L 45,35 L 10,20" fill="#8892b0" opacity="0.5"/>
+                    <path d="M 90,20 L 55,5 L 55,35 L 90,20" fill="#8892b0" opacity="0.5"/>
                 </svg>
             </div>
             
-            <div class='reader-icon-container'>
-                <div class='signal-wave'></div>
-                <div class='signal-wave'></div>
-                <div class='signal-wave'></div>
-                <div class='reader-icon'>
-                    <span class='rfid-icon-symbol'>📡</span>
+            <div class="reader-icon-container">
+                <div class="signal-wave"></div>
+                <div class="signal-wave"></div>
+                <div class="signal-wave"></div>
+                <div class="reader-icon">
+                    <span class="rfid-icon-symbol">📡</span>
                 </div>
             </div>
             
-            <p class='rfid-instruction'>
-                <span class='status-indicator'></span>
+            <p class="rfid-instruction">
+                <span class="status-indicator"></span>
                 Acerca tu tarjeta RFID al lector
             </p>
-            <p class='rfid-sub-instruction'>El lector está conectado al ESP32</p>
+            <p class="rfid-sub-instruction">El lector está conectado al ESP32</p>
         </div>
     </div>
     """, unsafe_allow_html=True)
