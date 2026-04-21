@@ -40,7 +40,7 @@ TOPIC_SUB  = "almacen/confirmacion"
 TOPIC_AUTH = "almacen/rfid"
 
 # ── Seguridad ─────────────────────────────────────────────────
-_uids_raw        = get_secret("UIDS_AUTORIZADOS", "06:7F:04:07,92:D1:10:06")
+_uids_raw        = get_secret("UIDS_AUTORIZADOS", "06:7F:04:07,92:D1:10:06,07:A5:FF:06")
 UIDS_AUTORIZADOS = set(u.strip().upper() for u in _uids_raw.split(",") if u.strip())
 PASSWORD_ACCESO  = get_secret("PASSWORD_ACCESO", "1234567890")  # Operador
 PASSWORD_ADMIN   = get_secret("PASSWORD_ADMIN",  "1020304050")  # Administrador
