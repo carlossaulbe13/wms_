@@ -73,22 +73,64 @@ def leer_uid_desde_archivo():
 def leer_uid_desde_firebase():
     """Lee el UID desde Firebase (PARA STREAMLIT CLOUD)"""
     print("\n" + "="*60)
-    print("[LOGIN] INICIO - Intentando leer UID desde Firebase (CLOUD)")
+    print("[LOGIN CLOUD] INICIO - Intentando leer UID desde Firebase")
     
     try:
         from firebase import leer_rfid_pendiente
+        from config import RFID_URL
+        import requests
         
+        print(f"[LOGIN CLOUD] URL Firebase: {RFID_URL}")
+        
+        # Primero hacer request directo para diagnóstico
+        try:
+            print(f"[LOGIN CLOUD] Haciendo GET a Firebase...")
+            res = requests.get(RFID_URL, timeout=5)
+            print(f"[LOGIN CLOUD] Status code: {res.status_code}")
+            print(f"[LOGIN CLOUD] Response: {res.text[:200]}")  # Primeros 200 chars
+            
+            if res.status_code == 200:
+                data = res.json() if res.json() else None
+                print(f"[LOGIN CLOUD] Data parseada: {data}")
+                
+                if data and isinstance(data, dict):
+                    uid_raw = data.get('uid', '')
+                    ts_raw = data.get('ts', 0)
+                    print(f"[LOGIN CLOUD] UID raw: '{uid_raw}'")
+                    print(f"[LOGIN CLOUD] Timestamp raw: {ts_raw}")
+                    print(f"[LOGIN CLOUD] Tiempo actual: {time.time()}")
+                    
+                    if uid_raw and ts_raw:
+                        edad = time.time() - ts_raw
+                        print(f"[LOGIN CLOUD] Antigüedad: {edad:.1f}s")
+                        print(f"[LOGIN CLOUD] ¿Válido? (< 10s): {edad < 10}")
+                else:
+                    print(f"[LOGIN CLOUD] ✗ Data es null o no es dict")
+            else:
+                print(f"[LOGIN CLOUD] ✗ Status code no es 200")
+                
+        except Exception as e:
+            print(f"[LOGIN CLOUD] ✗ Error en request directo: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        # Ahora usar la función oficial
+        print(f"[LOGIN CLOUD] Llamando a leer_rfid_pendiente()...")
         uid = leer_rfid_pendiente()
         
         if uid:
-            print(f"[LOGIN] ✓✓✓ UID recibido desde Firebase: {uid}")
+            print(f"[LOGIN CLOUD] ✓✓✓ UID recibido: {uid}")
             print("="*60 + "\n")
             return uid
         else:
-            print(f"[LOGIN] No hay UID pendiente en Firebase")
+            print(f"[LOGIN CLOUD] ✗ No hay UID pendiente")
             
+    except ImportError as e:
+        print(f"[LOGIN CLOUD] ✗✗✗ Error importando firebase: {e}")
+        import traceback
+        traceback.print_exc()
     except Exception as e:
-        print(f"[LOGIN] ✗ Error leyendo Firebase: {e}")
+        print(f"[LOGIN CLOUD] ✗✗✗ Error leyendo Firebase: {e}")
         import traceback
         traceback.print_exc()
     
@@ -150,7 +192,7 @@ def pantalla_login(token_secreto, token_admin_pwd):
                 st.info("🔵 **Esperando tarjeta RFID**")
         
         # DIAGNÓSTICO
-        with st.expander("🔍 Diagnóstico RFID", expanded=False):
+        with st.expander("🔍 Diagnóstico RFID", expanded=True):  # ← expanded=True para Cloud
             if ES_CLOUD:
                 st.code(f"""
 Modo: CLOUD (Streamlit Cloud)
@@ -158,6 +200,23 @@ Fuente: Firebase HTTP
 Último UID detectado: {uid_recibido or 'Ninguno'}
 UIDs Autorizados: {UIDS_AUTORIZADOS}
                 """)
+                
+                # Botón de prueba manual
+                if st.button("🔬 Probar Lectura Firebase AHORA"):
+                    with st.spinner("Leyendo Firebase..."):
+                        test_uid = leer_uid_desde_firebase()
+                        if test_uid:
+                            st.success(f"✓ UID encontrado: {test_uid}")
+                        else:
+                            st.error("✗ No se encontró UID en Firebase")
+                    
+                # Mostrar URL
+                try:
+                    from config import RFID_URL
+                    st.caption(f"URL: `{RFID_URL}`")
+                except:
+                    pass
+                    
             else:
                 st.code(f"""
 Modo: LOCAL
