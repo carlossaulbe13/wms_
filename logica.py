@@ -96,8 +96,24 @@ def registrar_pallet(uid, sku_base, nombre, peso, cantidad,
         return False, "Completa ID, SKU y descripcion.", []
 
     db = st.session_state.db or {}
+    
+    # Si ya existe, permitir actualizar
     if uid in db:
-        return False, f"El ID {uid} ya existe en el sistema.", []
+        existente = db[uid]
+        # Actualizar solo campos proporcionados
+        existente.update({
+            'sku_base': sku_base,
+            'nombre': nombre,
+            'peso': peso,
+            'cantidad': cantidad,
+            'alto_m': round(alto_cm / 100.0, 2),
+            'embalaje': embalaje,
+            'embalaje_obs': embalaje_obs,
+        })
+        guardar_db(db)
+        registrar_movimiento('ACTUALIZACION', uid,
+            f"{nombre} | SKU: {sku_base} | {peso}kg")
+        return True, f"Pallet {uid} actualizado correctamente.", []
 
     alto_m = alto_cm / 100.0
     avisos = []
