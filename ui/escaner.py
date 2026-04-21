@@ -1,29 +1,59 @@
 """
-ui/escaner.py — Interfaz móvil para escaneo y registro de material.
+ui/escaner.py — Interfaz móvil para escaneo QR y registro de material.
 """
 import streamlit as st
 import json
 import time
 
 def render_escaner():
-    """Renderiza la interfaz de escáner móvil."""
+    """Renderiza la interfaz de escáner móvil con QR."""
     
     st.title("📱 Escáner Móvil")
-    st.caption("Escanea códigos QR o ingresa datos manualmente")
+    st.caption("Escanea códigos QR o busca pallets manualmente")
+    
+    # Intentar importar el escáner QR
+    try:
+        from streamlit_qrcode_scanner import qrcode_scanner
+        tiene_qr = True
+    except ImportError:
+        tiene_qr = False
     
     # Tabs para diferentes modos
-    tab1, tab2 = st.tabs(["🔍 Buscar Pallet", "📋 Entrada Manual"])
+    if tiene_qr:
+        tab1, tab2, tab3 = st.tabs(["📸 Escáner QR", "🔍 Buscar Pallet", "📋 Entrada Manual"])
+    else:
+        tab1, tab2 = st.tabs(["🔍 Buscar Pallet", "📋 Entrada Manual"])
     
-    with tab1:
-        st.info("""
-        **📸 Escáner de Cámara**
-        
-        Para usar el escáner QR, necesitas:
-        1. Instalar: `pip install streamlit-qrcode-scanner`
-        2. O usar la búsqueda manual abajo
-        """)
-        
-        # Búsqueda por matrícula
+    # TAB 1: Escáner QR (solo si está instalado)
+    if tiene_qr:
+        with tab1:
+            st.subheader("📸 Escáner de Código QR")
+            
+            # Escáner QR
+            qr_code = qrcode_scanner(key='qrcode_mobile')
+            
+            if qr_code:
+                try:
+                    # Parsear el código QR
+                    data = json.loads(qr_code)
+                    mostrar_detalle_pallet(data, True)
+                    
+                except json.JSONDecodeError:
+                    st.error(f"❌ Código QR inválido: `{qr_code}`")
+                    st.caption("El código debe ser un JSON válido")
+            else:
+                st.info("""
+                **📸 Instrucciones:**
+                
+                1. Centra el código QR en el recuadro verde
+                2. Espera a que se detecte automáticamente
+                3. Revisa los detalles del pallet
+                4. Presiona **REGISTRAR ESCANEO** para confirmar
+                """)
+    
+    # TAB: Buscar Pallet (siempre disponible)
+    tab_buscar = tab2 if tiene_qr else tab1
+    with tab_buscar:
         st.subheader("🔎 Buscar por Matrícula")
         
         matricula_buscar = st.text_input(
@@ -38,7 +68,9 @@ def render_escaner():
             else:
                 st.warning("⚠️ Ingresa una matrícula")
     
-    with tab2:
+    # TAB: Entrada Manual
+    tab_manual = tab3 if tiene_qr else tab2
+    with tab_manual:
         st.subheader("📝 Ingreso Manual de Datos")
         
         with st.form("form_entrada_manual"):
@@ -70,6 +102,19 @@ def render_escaner():
                 else:
                     st.error("❌ Matrícula y SKU son obligatorios")
     
+    # Mensaje si no tiene QR instalado
+    if not tiene_qr:
+        st.divider()
+        st.info("""
+        **📸 ¿Quieres usar el escáner QR?**
+        
+        Instala la librería:
+        ```bash
+        pip install streamlit-qrcode-scanner
+        ```
+        Luego reinicia la aplicación.
+        """)
+    
     # Mostrar historial reciente
     if 'historial_escaneos' in st.session_state and st.session_state.historial_escaneos:
         st.divider()
@@ -79,6 +124,41 @@ def render_escaner():
             timestamp = time.strftime('%H:%M:%S', time.localtime(scan['timestamp']))
             st.caption(f"🕒 {timestamp} - {scan['matricula']} ({scan.get('usuario', 'N/A')})")
 
+def mostrar_detalle_pallet(data, mostrar_boton_registro=True):
+    """Muestra los detalles de un pallet"""
+    matricula = data.get('matricula', 'N/A')
+    
+    st.success(f"✅ Pallet: **{matricula}**")
+    
+    # Mostrar detalles
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.metric("SKU", data.get('sku', 'N/A'))
+        st.metric("Piezas", data.get('pzas', 'N/A'))
+        st.metric("Rack", data.get('rack', 'N/A'))
+    
+    with col2:
+        st.metric("Peso (kg)", data.get('peso', 'N/A'))
+        st.metric("Estado", data.get('estado', 'N/A'))
+        ubicacion = data.get('ubicacion', {})
+        pos = f"P{ubicacion.get('piso','-')}N{ubicacion.get('nivel','-')}C{ubicacion.get('columna','-')}"
+        st.metric("Ubicación", pos)
+    
+    # Detalles completos
+    with st.expander("📋 Ver JSON completo"):
+        st.json(data)
+    
+    # Botón de registro
+    if mostrar_boton_registro:
+        st.divider()
+        if st.button("✅ REGISTRAR ESCANEO", use_container_width=True, type="primary", key=f"btn_reg_{matricula}"):
+            registrar_escaneo(data)
+            st.success("🎉 Escaneo registrado!")
+            st.balloons()
+            time.sleep(1)
+            st.rerun()
+
 def buscar_y_mostrar_pallet(matricula):
     """Busca un pallet en la DB y muestra sus detalles"""
     from firebase import get_db
@@ -87,33 +167,7 @@ def buscar_y_mostrar_pallet(matricula):
     
     if matricula in db:
         data = db[matricula]
-        
-        st.success(f"✅ Pallet encontrado: **{matricula}**")
-        
-        # Mostrar detalles
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.metric("SKU", data.get('sku', 'N/A'))
-            st.metric("Piezas", data.get('pzas', 'N/A'))
-            st.metric("Rack", data.get('rack', 'N/A'))
-        
-        with col2:
-            st.metric("Peso (kg)", data.get('peso', 'N/A'))
-            st.metric("Estado", data.get('estado', 'N/A'))
-            ubicacion = data.get('ubicacion', {})
-            pos = f"P{ubicacion.get('piso','-')}N{ubicacion.get('nivel','-')}C{ubicacion.get('columna','-')}"
-            st.metric("Ubicación", pos)
-        
-        # Detalles completos
-        with st.expander("📋 Ver todos los detalles"):
-            st.json(data)
-        
-        # Botón de registro
-        if st.button("✅ REGISTRAR ESCANEO", use_container_width=True, type="primary", key="btn_reg_busqueda"):
-            registrar_escaneo(data)
-            st.success("🎉 Escaneo registrado!")
-            st.balloons()
+        mostrar_detalle_pallet(data, True)
     else:
         st.error(f"❌ No se encontró el pallet: **{matricula}**")
         st.caption("Verifica la matrícula o usa el formulario de entrada manual")
