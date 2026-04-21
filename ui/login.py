@@ -1,6 +1,6 @@
 """
-ui/login.py — Pantalla de autenticación RFID + contraseña MEJORADA.
-VERSIÓN 2.0 - MQTT optimizado con queue thread-safe
+ui/login.py — Pantalla de autenticación RFID + contraseña.
+VERSIÓN HÍBRIDA - Local (archivo) + Cloud (Firebase)
 """
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
@@ -10,96 +10,106 @@ import json
 import time
 import os
 
-# Detectar entorno
+# Archivo donde el bridge serial guarda los UIDs (solo local)
+RFID_JSON_PATH = "rfid_uid.json"
+
+# Detectar si estamos en Streamlit Cloud o local
 ES_CLOUD = not os.path.exists('serial_rfid_bridge.py')
 
-if not ES_CLOUD:
-    SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    RFID_JSON_PATH = os.path.join(SCRIPT_DIR, 'rfid_uid.json')
-else:
-    from firebase import leer_rfid_pendiente
-
-def leer_rfid_local():
-    """Lee el UID desde archivo local (desarrollo)."""
+def leer_uid_desde_archivo():
+    """Lee el UID desde el archivo JSON generado por serial_rfid_bridge.py (SOLO LOCAL)"""
+    print("\n" + "="*60)
+    print("[LOGIN] INICIO - Intentando leer archivo RFID (LOCAL)")
+    print(f"[LOGIN] Ruta del archivo: {os.path.abspath(RFID_JSON_PATH)}")
+    print(f"[LOGIN] Directorio actual: {os.getcwd()}")
+    print(f"[LOGIN] ¿Archivo existe? {os.path.exists(RFID_JSON_PATH)}")
+    
     try:
         if os.path.exists(RFID_JSON_PATH):
+            print(f"[LOGIN] ✓ Archivo encontrado, leyendo contenido...")
+            
             with open(RFID_JSON_PATH, 'r') as f:
                 data = json.load(f)
+            
+            print(f"[LOGIN] Contenido del JSON: {data}")
             
             uid = data.get('uid', '').strip().upper()
             ts = data.get('timestamp', 0)
             edad = time.time() - ts
             
+            print(f"[LOGIN] UID extraído: '{uid}'")
+            print(f"[LOGIN] Timestamp: {ts}")
+            print(f"[LOGIN] Antigüedad: {edad:.1f} segundos")
+            print(f"[LOGIN] ¿UID válido? {bool(uid)}")
+            print(f"[LOGIN] ¿Edad < 10s? {edad < 10}")
+            
             if uid and edad < 10:
+                # Eliminar archivo para evitar reprocesamiento
+                print(f"[LOGIN] ✓✓✓ UID VÁLIDO - Eliminando archivo")
                 os.remove(RFID_JSON_PATH)
+                print(f"[LOGIN] ✓ Archivo eliminado")
+                print(f"[LOGIN] Retornando UID: {uid}")
+                print("="*60 + "\n")
                 return uid
+            else:
+                if not uid:
+                    print(f"[LOGIN] ✗ UID vacío")
+                if edad >= 10:
+                    print(f"[LOGIN] ✗ UID expirado ({edad:.1f}s > 10s)")
+        else:
+            print(f"[LOGIN] ✗ Archivo NO existe en: {os.path.abspath(RFID_JSON_PATH)}")
+            
+    except json.JSONDecodeError as e:
+        print(f"[LOGIN] ✗✗✗ Error JSON: {e}")
     except Exception as e:
-        print(f"[DEBUG] Error leyendo RFID local: {e}")
+        print(f"[LOGIN] ✗✗✗ Error leyendo archivo RFID: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    print(f"[LOGIN] Retornando None (no se encontró UID válido)")
+    print("="*60 + "\n")
     return None
 
-def obtener_uid_desde_mqtt():
-    """
-    Obtiene UID desde MQTT usando la función mejorada.
-    Prioriza queue sobre session_state.
-    """
-    from mqtt_client import obtener_uid_pendiente
+def leer_uid_desde_firebase():
+    """Lee el UID desde Firebase (PARA STREAMLIT CLOUD)"""
+    print("\n" + "="*60)
+    print("[LOGIN] INICIO - Intentando leer UID desde Firebase (CLOUD)")
     
-    print("[LOGIN] Intentando obtener UID desde MQTT...")
+    try:
+        from firebase import leer_rfid_pendiente
+        
+        uid = leer_rfid_pendiente()
+        
+        if uid:
+            print(f"[LOGIN] ✓✓✓ UID recibido desde Firebase: {uid}")
+            print("="*60 + "\n")
+            return uid
+        else:
+            print(f"[LOGIN] No hay UID pendiente en Firebase")
+            
+    except Exception as e:
+        print(f"[LOGIN] ✗ Error leyendo Firebase: {e}")
+        import traceback
+        traceback.print_exc()
     
-    # 1. Intentar desde queue (más confiable)
-    uid_queue = obtener_uid_pendiente()
-    if uid_queue:
-        print(f"[LOGIN] ✓ UID desde MQTT queue: {uid_queue}")
-        return uid_queue
-    else:
-        print("[LOGIN] Queue vacío o UIDs expirados")
-    
-    # 2. Fallback: revisar buffer en session_state
-    if 'uid_rfid_buffer' in st.session_state:
-        buffer = st.session_state.uid_rfid_buffer
-        print(f"[LOGIN] Buffer tiene {len(buffer)} items")
-        if buffer:
-            # Tomar el más reciente que tenga menos de 10 segundos
-            for item in reversed(buffer):
-                edad = time.time() - item['timestamp']
-                print(f"[LOGIN] Revisando buffer item: UID={item['uid']}, edad={edad:.1f}s")
-                if edad < 10:
-                    uid = item['uid']
-                    # Marcar como procesado
-                    st.session_state.uid_rfid_buffer.remove(item)
-                    print(f"[LOGIN] ✓ UID desde buffer: {uid}")
-                    return uid
-    else:
-        print("[LOGIN] Buffer no existe en session_state")
-    
-    print("[LOGIN] ✗ No se encontró ningún UID válido")
+    print("="*60 + "\n")
     return None
 
 def pantalla_login(token_secreto, token_admin_pwd):
-    """Muestra el login con RFID mejorado."""
+    """Muestra el login con RFID híbrido (local + cloud)."""
     
-    # CRÍTICO: Procesar mensajes MQTT antes de verificar UID
-    from mqtt_client import procesar_mensajes_mqtt
-    procesar_mensajes_mqtt()
+    # Refresh cada 2 segundos para detectar UID
+    st_autorefresh(interval=2000, key='login_rfid_refresh')
     
-    # Refresh más agresivo para MQTT (1 segundo)
-    st_autorefresh(interval=1000, key='login_rfid_refresh')
-    
-    # Estado de conexión MQTT
-    from mqtt_client import verificar_conexion
-    mqtt_conectado = verificar_conexion()
-    
+    # Intentar leer UID según el entorno
     uid_recibido = None
     
-    # Obtener UID desde diferentes fuentes (prioridad)
-    if mqtt_conectado:
-        uid_recibido = obtener_uid_desde_mqtt()
-    
-    if not uid_recibido and not ES_CLOUD:
-        uid_recibido = leer_rfid_local()
-    
-    if not uid_recibido and ES_CLOUD:
-        uid_recibido = leer_rfid_pendiente()
+    if ES_CLOUD:
+        # Streamlit Cloud → Leer desde Firebase
+        uid_recibido = leer_uid_desde_firebase()
+    else:
+        # Local → Leer desde archivo
+        uid_recibido = leer_uid_desde_archivo()
     
     # Procesar UID si se detectó
     if uid_recibido:
@@ -107,7 +117,7 @@ def pantalla_login(token_secreto, token_admin_pwd):
         print(f"[LOGIN] UIDs autorizados: {UIDS_AUTORIZADOS}")
         
         if uid_recibido in UIDS_AUTORIZADOS:
-            print(f"[LOGIN] ✓ UID AUTORIZADO")
+            print(f"[LOGIN] ✓✓✓ UID AUTORIZADO - Iniciando sesión")
             _conceder_acceso('admin', token_secreto + '_admin')
             return
         else:
@@ -128,30 +138,47 @@ def pantalla_login(token_secreto, token_admin_pwd):
     st.markdown("<h1 style='text-align:center;color:#FF4B4B;font-size:42px;margin:40px 0 8px 0;'>UMAD WMS</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align:center;color:#8892b0;font-size:15px;margin-bottom:40px;'>Warehouse Management System</p>", unsafe_allow_html=True)
     
-    # Indicador de conexión MQTT
     _, col_center, _ = st.columns([1, 2, 1])
     with col_center:
-        if mqtt_conectado:
-            st.success("🟢 **MQTT Conectado** - Lector activo")
+        # Indicador según entorno
+        if ES_CLOUD:
+            st.info("☁️ **Modo Cloud** - Esperando RFID via Firebase")
         else:
-            st.warning("🟡 **MQTT Desconectado** - Verifica conexión")
+            if os.path.exists(RFID_JSON_PATH):
+                st.success("🟢 **Lector RFID Activo** - Archivo detectado")
+            else:
+                st.info("🔵 **Esperando tarjeta RFID**")
         
-        # DIAGNÓSTICO TEMPORAL
-        with st.expander("🔍 Diagnóstico MQTT (temporal)", expanded=False):
-            st.code(f"""
-Estado MQTT: {'CONECTADO' if mqtt_conectado else 'DESCONECTADO'}
-Buffer UIDs: {len(st.session_state.get('uid_rfid_buffer', []))} items
+        # DIAGNÓSTICO
+        with st.expander("🔍 Diagnóstico RFID", expanded=False):
+            if ES_CLOUD:
+                st.code(f"""
+Modo: CLOUD (Streamlit Cloud)
+Fuente: Firebase HTTP
 Último UID detectado: {uid_recibido or 'Ninguno'}
 UIDs Autorizados: {UIDS_AUTORIZADOS}
-            """)
+                """)
+            else:
+                st.code(f"""
+Modo: LOCAL
+Archivo RFID: {'✓ Existe' if os.path.exists(RFID_JSON_PATH) else '✗ No existe'}
+Último UID detectado: {uid_recibido or 'Ninguno'}
+UIDs Autorizados: {UIDS_AUTORIZADOS}
+                """)
         
         # Tarjeta RFID
         card_class = "card-awake" if uid_recibido else "card-sleeping"
-        card_status = "AUTORIZADO" if uid_recibido else "ESPERANDO"
+        card_status = "DETECTADO" if uid_recibido else "ESPERANDO"
         card_dots = "•••• •••• •••• ••••" if uid_recibido else ".... .... .... ...."
-        led_color = "#22c55e" if mqtt_conectado else "#dc3545"
-        led_class = "led-active" if mqtt_conectado else ""
-        led_text = "Lector Activo" if mqtt_conectado else "Lector Inactivo"
+        
+        if ES_CLOUD:
+            led_color = "#3b9edd"  # Azul para cloud
+            led_text = "Firebase Cloud"
+        else:
+            led_color = "#22c55e" if os.path.exists(RFID_JSON_PATH) else "#4a5568"
+            led_text = "Lector Local"
+        
+        led_class = "led-active" if uid_recibido else ""
         
         st.html(f"""
         <style>
@@ -220,6 +247,8 @@ UIDs Autorizados: {UIDS_AUTORIZADOS}
         """)
         
         st.info("📡 **Acerca tu tarjeta RFID al lector**")
+        if not ES_CLOUD:
+            st.caption("Asegúrate de tener `serial_rfid_bridge.py` ejecutándose")
         
         st.divider()
         st.caption("— o ingresa tu contraseña —")
