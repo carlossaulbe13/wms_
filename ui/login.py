@@ -127,7 +127,7 @@ def pantalla_login(token_secreto, token_admin_pwd):
         
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("🔬 PROBAR FIREBASE AHORA", type="primary"):
+            if st.button(" PROBAR FIREBASE AHORA", type="primary"):
                 with st.spinner("Leyendo Firebase..."):
                     test_uid = leer_uid_cloud()
                     if test_uid:
@@ -143,12 +143,12 @@ def pantalla_login(token_secreto, token_admin_pwd):
                 pass
     
     # Diagnóstico local
-    with st.expander("🔍 Debug Completo"):
+    with st.expander(" Debug Completo"):
         st.write(f"**Modo:** {'CLOUD' if ES_CLOUD else 'LOCAL'}")
         st.write(f"**Último UID:** {uid or 'Ninguno'}")
         st.write(f"**UIDs válidos:** {UIDS_AUTORIZADOS}")
     
-    st.info("📡 Pasa tu tarjeta RFID")
+    st.info(" Pasa tu tarjeta RFID")
     
     # Formulario contraseña
     with st.form("login"):
