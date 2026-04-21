@@ -1,5 +1,6 @@
 """
-ui/login.py — Pantalla de autenticacion RFID + contrasena.
+ui/login.py — Pantalla de autenticación RFID + contraseña MEJORADA.
+VERSIÓN 2.0 - MQTT optimizado con queue thread-safe
 """
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
@@ -9,7 +10,7 @@ import json
 import time
 import os
 
-# Detectar si estamos en Streamlit Cloud o local
+# Detectar entorno
 ES_CLOUD = not os.path.exists('serial_rfid_bridge.py')
 
 if not ES_CLOUD:
@@ -19,10 +20,9 @@ else:
     from firebase import leer_rfid_pendiente
 
 def leer_rfid_local():
-    """Lee el UID desde archivo local generado por serial_rfid_bridge.py"""
+    """Lee el UID desde archivo local (desarrollo)."""
     try:
         if os.path.exists(RFID_JSON_PATH):
-            print(f"[DEBUG] rfid_uid.json encontrado en: {RFID_JSON_PATH}")
             with open(RFID_JSON_PATH, 'r') as f:
                 data = json.load(f)
             
@@ -30,84 +30,107 @@ def leer_rfid_local():
             ts = data.get('timestamp', 0)
             edad = time.time() - ts
             
-            print(f"[DEBUG] UID leído: {uid}")
-            print(f"[DEBUG] Edad del UID: {edad:.1f} segundos")
-            
             if uid and edad < 10:
-                print(f"[DEBUG] UID válido, eliminando archivo")
                 os.remove(RFID_JSON_PATH)
                 return uid
-            else:
-                print(f"[DEBUG] UID muy viejo o vacío, ignorando")
     except Exception as e:
-        print(f"[DEBUG] Error leyendo RFID: {e}")
+        print(f"[DEBUG] Error leyendo RFID local: {e}")
+    return None
+
+def obtener_uid_desde_mqtt():
+    """
+    Obtiene UID desde MQTT usando la función mejorada.
+    Prioriza queue sobre session_state.
+    """
+    from mqtt_client import obtener_uid_pendiente
+    
+    # 1. Intentar desde queue (más confiable)
+    uid_queue = obtener_uid_pendiente()
+    if uid_queue:
+        print(f"[LOGIN] UID desde MQTT queue: {uid_queue}")
+        return uid_queue
+    
+    # 2. Fallback: revisar buffer en session_state
+    if 'uid_rfid_buffer' in st.session_state:
+        buffer = st.session_state.uid_rfid_buffer
+        if buffer:
+            # Tomar el más reciente que tenga menos de 10 segundos
+            for item in reversed(buffer):
+                edad = time.time() - item['timestamp']
+                if edad < 10:
+                    uid = item['uid']
+                    # Marcar como procesado
+                    st.session_state.uid_rfid_buffer.remove(item)
+                    print(f"[LOGIN] UID desde buffer: {uid}")
+                    return uid
+    
     return None
 
 def pantalla_login(token_secreto, token_admin_pwd):
-    """Muestra el login. Llama st.rerun() si el acceso es concedido."""
-
-    st_autorefresh(interval=2000, key='login_rfid_refresh')
-
+    """Muestra el login con RFID mejorado."""
+    
+    # Refresh más agresivo para MQTT (1 segundo)
+    st_autorefresh(interval=1000, key='login_rfid_refresh')
+    
+    # Estado de conexión MQTT
+    from mqtt_client import verificar_conexion
+    mqtt_conectado = verificar_conexion()
+    
     uid_recibido = None
     
-    if 'uid_rfid_recibido' in st.session_state and st.session_state.uid_rfid_recibido:
-        uid_recibido = st.session_state.uid_rfid_recibido
-        print(f"[DEBUG] UID recibido desde MQTT: {uid_recibido}")
-    elif not ES_CLOUD:
-        uid_recibido = leer_rfid_local()
-        if uid_recibido:
-            print(f"[DEBUG] UID recibido desde archivo local: {uid_recibido}")
-    else:
-        uid_recibido = leer_rfid_pendiente()
-        if uid_recibido:
-            print(f"[DEBUG] UID recibido desde Firebase: {uid_recibido}")
+    # Obtener UID desde diferentes fuentes (prioridad)
+    if mqtt_conectado:
+        uid_recibido = obtener_uid_desde_mqtt()
     
+    if not uid_recibido and not ES_CLOUD:
+        uid_recibido = leer_rfid_local()
+    
+    if not uid_recibido and ES_CLOUD:
+        uid_recibido = leer_rfid_pendiente()
+    
+    # Procesar UID si se detectó
     if uid_recibido:
-        st.session_state.uid_rfid_recibido = uid_recibido
-
-    uid_entrante = st.session_state.get('uid_rfid_recibido')
-    if uid_entrante:
-        print(f"[DEBUG] UID entrante detectado: {uid_entrante}")
-        st.session_state.uid_rfid_recibido = None
+        print(f"[LOGIN] UID detectado: {uid_recibido}")
+        print(f"[LOGIN] UIDs autorizados: {UIDS_AUTORIZADOS}")
         
-        print(f"[DEBUG] UIDs autorizados: {UIDS_AUTORIZADOS}")
-        
-        if uid_entrante in UIDS_AUTORIZADOS:
-            print(f"[DEBUG] UID AUTORIZADO - Iniciando sesión")
+        if uid_recibido in UIDS_AUTORIZADOS:
+            print(f"[LOGIN] ✓ UID AUTORIZADO")
             _conceder_acceso('admin', token_secreto + '_admin')
             return
         else:
-            print(f"[DEBUG] UID NO AUTORIZADO")
-            st.session_state.intentos_password += 1
-
-    # Bloqueo
+            print(f"[LOGIN] ✗ UID NO AUTORIZADO")
+            st.session_state.intentos_password = st.session_state.get('intentos_password', 0) + 1
+            st.error(f"⚠️ **Acceso Denegado** - UID: `{uid_recibido}`")
+            time.sleep(2)
+    
+    # Bloqueo por intentos fallidos
     bloqueado_hasta = st.session_state.get('bloqueado_hasta', 0.0)
     restante = bloqueado_hasta - time.time()
     if restante > 0:
-        st.error(f"🔒 **Acceso bloqueado**\n\nIntenta de nuevo en **{restante:.0f} segundos**")
+        st.error(f"🔒 **Acceso bloqueado**\n\nIntenta en **{restante:.0f}s**")
         st_autorefresh(interval=1000, key='bloqueo_refresh')
         return
-
-    # Detectar si hay escaneo activo
-    hay_escaneo = uid_entrante is not None
     
-    # Título
+    # UI
     st.markdown("<h1 style='text-align:center;color:#FF4B4B;font-size:42px;margin:40px 0 8px 0;'>UMAD WMS</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align:center;color:#8892b0;font-size:15px;margin-bottom:40px;'>Warehouse Management System</p>", unsafe_allow_html=True)
-
-    # Contenedor de la tarjeta RFID usando st.html()
+    
+    # Indicador de conexión MQTT
     _, col_center, _ = st.columns([1, 2, 1])
     with col_center:
+        if mqtt_conectado:
+            st.success("🟢 **MQTT Conectado** - Lector activo")
+        else:
+            st.warning("🟡 **MQTT Desconectado** - Verifica conexión")
         
-        # Determinar estado de la tarjeta
-        card_class = "card-awake" if hay_escaneo else "card-sleeping"
-        card_status = "AUTORIZADO" if hay_escaneo else "ESPERANDO"
-        card_dots = "•••• •••• •••• ••••" if hay_escaneo else ".... .... .... ...."
-        led_color = "#22c55e" if hay_escaneo else "#4a5568"
-        led_class = "led-active" if hay_escaneo else ""
-        led_text = "Lector Activo" if hay_escaneo else "Lector en Espera"
+        # Tarjeta RFID
+        card_class = "card-awake" if uid_recibido else "card-sleeping"
+        card_status = "AUTORIZADO" if uid_recibido else "ESPERANDO"
+        card_dots = "•••• •••• •••• ••••" if uid_recibido else ".... .... .... ...."
+        led_color = "#22c55e" if mqtt_conectado else "#dc3545"
+        led_class = "led-active" if mqtt_conectado else ""
+        led_text = "Lector Activo" if mqtt_conectado else "Lector Inactivo"
         
-        # Usar st.html() en lugar de st.markdown() para renderizar HTML
         st.html(f"""
         <style>
         @keyframes wakeUp {{
@@ -138,22 +161,18 @@ def pantalla_login(token_secreto, token_admin_pwd):
         <div style='background:#1a1f35;border:2px solid #3a3f55;border-radius:20px;
                     padding:40px;text-align:center;margin-bottom:20px;' class='{card_class}'>
             
-            <!-- Tarjeta RFID Simple -->
             <div style='width:280px;height:180px;margin:0 auto 20px;
                         background:linear-gradient(135deg,#2d3548,#1a1f35);
                         border:2px solid #4a5080;border-radius:15px;padding:20px;
                         box-shadow:0 10px 30px rgba(0,0,0,0.5);'>
                 
-                <!-- Chip dorado -->
                 <div style='width:50px;height:40px;
                             background:linear-gradient(135deg,#ffd700,#ffed4e);
                             border-radius:6px;margin-bottom:30px;'></div>
                 
-                <!-- Números de tarjeta -->
                 <div style='color:#cdd3ea;font-family:monospace;font-size:18px;
                             letter-spacing:3px;margin:20px 0;'>{card_dots}</div>
                 
-                <!-- Etiquetas inferiores -->
                 <div style='display:flex;justify-content:space-between;margin-top:30px;'>
                     <div style='text-align:left;'>
                         <div style='color:#8892b0;font-size:10px;text-transform:uppercase;'>
@@ -170,7 +189,6 @@ def pantalla_login(token_secreto, token_admin_pwd):
                 </div>
             </div>
             
-            <!-- Indicador LED -->
             <div style='display:flex;justify-content:center;align-items:center;gap:10px;'>
                 <div style='width:12px;height:12px;background:{led_color};
                             border-radius:50%;' class='{led_class}'></div>
@@ -179,18 +197,7 @@ def pantalla_login(token_secreto, token_admin_pwd):
         </div>
         """)
         
-        # Mensajes de estado
-        if hay_escaneo:
-            if uid_entrante in UIDS_AUTORIZADOS:
-                with st.spinner("Iniciando sesión..."):
-                    time.sleep(1)
-                st.success("🎉 ¡Acceso autorizado!")
-                time.sleep(0.5)
-                st.rerun()
-            else:
-                st.error(f"⚠️ **Acceso Denegado**\n\nUID: `{uid_entrante}`")
-        else:
-            st.info("📡 **Acerca tu tarjeta RFID al lector**\n\nEl lector está conectado al ESP32")
+        st.info("📡 **Acerca tu tarjeta RFID al lector**")
         
         st.divider()
         st.caption("— o ingresa tu contraseña —")
@@ -210,8 +217,8 @@ def pantalla_login(token_secreto, token_admin_pwd):
                 elif pwd == PASSWORD_ACCESO:
                     _conceder_acceso('operador', token_secreto + '_operador')
                 else:
-                    st.session_state.intentos_password += 1
-                    intentos = st.session_state.intentos_password
+                    intentos = st.session_state.get('intentos_password', 0) + 1
+                    st.session_state.intentos_password = intentos
                     if intentos >= 3:
                         st.session_state.bloqueado_hasta = time.time() + 30
                         st.rerun()
@@ -219,9 +226,12 @@ def pantalla_login(token_secreto, token_admin_pwd):
                         st.error(f"❌ Contraseña incorrecta. Intento {intentos}/3.")
 
 def _conceder_acceso(rol, token):
-    st.session_state.autenticado       = True
-    st.session_state.rol               = rol
+    """Concede acceso y redirige."""
+    st.session_state.autenticado = True
+    st.session_state.rol = rol
     st.session_state.intentos_password = 0
-    st.session_state.session_token     = token
+    st.session_state.session_token = token
     st.query_params['_s'] = token
+    st.success(f"✅ Acceso concedido como {rol}")
+    time.sleep(0.5)
     st.rerun()
