@@ -14,26 +14,65 @@ def render_escaner():
     # CSS para ajustar el tamaño del escáner QR
     st.markdown("""
     <style>
-    /* Ajustar tamaño del video de la cámara */
+    /* Contenedor principal del escáner */
+    [data-testid="stImage"], 
+    [data-testid="stImage"] > div,
+    section[data-testid="stVerticalBlock"] > div {
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+    }
+    
+    /* Video de la cámara */
     video {
         max-width: 100% !important;
         width: 100% !important;
         height: auto !important;
-        border-radius: 12px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        object-fit: cover !important;
+        border-radius: 12px !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
     }
     
-    /* Contenedor del escáner */
-    [data-testid="stImage"] {
-        display: flex;
-        justify-content: center;
+    /* Canvas del escáner (recuadro de detección) */
+    canvas {
+        max-width: 100% !important;
+        width: 100% !important;
+        height: auto !important;
+        border-radius: 12px !important;
     }
     
-    /* Ajustes para móvil */
+    /* Ajustar contenedor del componente QR */
+    .streamlit-qrcode-scanner {
+        width: 100% !important;
+        max-width: 640px !important;
+        margin: 0 auto !important;
+    }
+    
+    /* Asegurar que video y canvas tengan el mismo tamaño */
+    .streamlit-qrcode-scanner video,
+    .streamlit-qrcode-scanner canvas {
+        width: 100% !important;
+        height: auto !important;
+        aspect-ratio: 4/3 !important;
+    }
+    
+    /* Ajustes específicos para móvil */
     @media (max-width: 768px) {
-        video {
-            max-height: 400px;
+        video, canvas {
+            max-height: 480px !important;
+            aspect-ratio: 4/3 !important;
         }
+        
+        .streamlit-qrcode-scanner {
+            max-width: 100% !important;
+        }
+    }
+    
+    /* Centrar todo el contenido del escáner */
+    div[data-testid="column"] {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
     }
     </style>
     """, unsafe_allow_html=True)
