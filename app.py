@@ -106,12 +106,12 @@ with st.sidebar:
     _es_movil = st.session_state.get('es_movil', False)
     st.caption(f"Modo: {'Móvil' if _es_movil else 'Escritorio'}")
     if _es_movil:
-        if st.button('🖥️ Cambiar a Escritorio', use_container_width=True, key='btn_escritorio'):
+        if st.button(' Cambiar a Escritorio', use_container_width=True, key='btn_escritorio'):
             st.query_params['movil'] = '0'
             st.session_state.es_movil = False
             st.rerun()
     else:
-        if st.button('📱 Cambiar a Móvil', use_container_width=True, key='btn_movil'):
+        if st.button(' Cambiar a Móvil', use_container_width=True, key='btn_movil'):
             st.query_params['movil'] = '1'
             st.session_state.es_movil = True
             st.rerun()
@@ -156,8 +156,8 @@ if _alertas_s:
 
 # ── Banner confirmación pendiente ─────────────────────────────
 if st.session_state.confirmacion_pendiente:
-    st.warning(f"⚠️ ACCIÓN REQUERIDA: LED del Rack {st.session_state.confirmacion_pendiente} ENCENDIDO")
-    if st.button(f"✅ CONFIRMAR — APAGAR LED DE {st.session_state.confirmacion_pendiente}"):
+    st.warning(f"ALERTA: ACCIÓN REQUERIDA: LED del Rack {st.session_state.confirmacion_pendiente} ENCENDIDO")
+    if st.button(f" CONFIRMAR — APAGAR LED DE {st.session_state.confirmacion_pendiente}"):
         try:
             from mqtt_client import publicar
             publicar(st.session_state.confirmacion_pendiente, "OFF")
