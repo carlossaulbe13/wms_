@@ -1,190 +1,142 @@
 """
-ui/escaner.py — Escaner QR movil y alta rapida de material.
+ui/escaner.py — Interfaz móvil para escaneo QR y registro de material.
 """
 import streamlit as st
-import cv2
-import numpy as np
-from pyzbar.pyzbar import decode
-from config import TIPOS_EMBALAJE, TOPIC_PUB, PESO_SOBRE, ALTO_MAX_N3
-from firebase import cargar_db, guardar_db, registrar_movimiento
-from logica import registrar_pallet
-from mqtt_client import publicar
-import time, qrcode
+from streamlit_qrcode_scanner import qrcode_scanner
+import json
+import time
 
 def render_escaner():
-    """Pestaña escaner de campo."""
-    st.subheader("CAPTURA DE PALLET FISICO")
-
-    if st.session_state.sku_pendiente is None:
-        # CSS para que la camara se vea cuadrada como lector QR de telefono
-        st.markdown("""
-        <style>
-        /* Contenedor de la camara: cuadrado centrado */
-        [data-testid="stCameraInput"] > div {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        /* Video cuadrado con guias de escaneo */
-        [data-testid="stCameraInput"] video,
-        [data-testid="stCameraInput"] img {
-            width: 300px !important;
-            height: 300px !important;
-            object-fit: cover !important;
-            border-radius: 16px !important;
-            border: 2px solid #3a3f55 !important;
-        }
-        /* Boton de captura centrado */
-        [data-testid="stCameraInput"] button {
-            margin: 12px auto 0 !important;
-            display: block !important;
-            width: 300px !important;
-            border-radius: 12px !important;
-            font-size: 15px !important;
-            padding: 10px !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-
-        # Marco guia de escaneo encima de la camara
-        st.markdown("""
-        <div style='width:300px;margin:0 auto 8px;position:relative;'>
-          <div style='position:relative;width:300px;height:300px;
-                      border-radius:16px;overflow:hidden;
-                      background:#0d0f1a;'>
-            <!-- Guias de esquina estilo lector QR -->
-            <div style='position:absolute;top:16px;left:16px;width:40px;height:40px;
-              border-top:3px solid #22c55e;border-left:3px solid #22c55e;
-              border-radius:4px 0 0 0;'></div>
-            <div style='position:absolute;top:16px;right:16px;width:40px;height:40px;
-              border-top:3px solid #22c55e;border-right:3px solid #22c55e;
-              border-radius:0 4px 0 0;'></div>
-            <div style='position:absolute;bottom:16px;left:16px;width:40px;height:40px;
-              border-bottom:3px solid #22c55e;border-left:3px solid #22c55e;
-              border-radius:0 0 0 4px;'></div>
-            <div style='position:absolute;bottom:16px;right:16px;width:40px;height:40px;
-              border-bottom:3px solid #22c55e;border-right:3px solid #22c55e;
-              border-radius:0 0 4px 0;'></div>
-            <div style='position:absolute;top:50%;left:10%;right:10%;
-              height:1px;background:rgba(34,197,94,0.3);'></div>
-          </div>
-          <p style='text-align:center;color:#8892b0;font-size:12px;
-            margin-top:8px;'>Centra el codigo QR en el recuadro</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-        foto = st.camera_input("", label_visibility="collapsed")
-        if foto:
-            img = cv2.imdecode(np.asarray(bytearray(foto.read()), dtype=np.uint8), 1)
-            # Rotar si viene en orientacion incorrecta
-            if img.shape[1] > img.shape[0]:  # si es mas ancha que alta, rotar
-                img = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
-            qrs = decode(img)
-            if qrs:
-                uid_pallet = qrs[0].data.decode('utf-8').strip().upper()
-
-                if uid_pallet in st.session_state.db:
-                    item = st.session_state.db[uid_pallet]
-                    if item.get('estado') == "CONGELADO":
-                        st.error(
-                            f"ALERTA OPERATIVA: EL PALLET {uid_pallet} ESTA CONGELADO. NO MOVER."
-                        )
-                    else:
-                        if uid_pallet != st.session_state.ultimo_sku_procesado:
-                            st.success(
-                                f"IDENTIFICADO: {item['nombre']} "
-                                f"({item.get('cantidad', 1)} pzas) | RACK: {item['rack']}"
-                            )
-                            if st.session_state.mqtt_client:
-                                st.session_state.mqtt_client.publish(
-                                    TOPIC_PUB, f"{item['rack']}_ON"
-                                )
-                            registrar_movimiento('ESCANEO', uid_pallet,
-                                f"{item['nombre']} | Rack: {item['rack']}")
-                            st.session_state.confirmacion_pendiente = item['rack']
-                            st.session_state.ultimo_sku_procesado   = uid_pallet
-                            st.rerun()
-                        else:
-                            st.info(f"Visualizando pallet en {item['rack']}. Hardware activado.")
-                else:
-                    st.session_state.sku_pendiente = uid_pallet
-                    st.session_state.ultimo_sku_procesado = None
-                    st.rerun()
-        else:
-            st.session_state.ultimo_sku_procesado = None
-
-    else:
-        st.warning(f"QR DE PALLET NUEVO DETECTADO: {st.session_state.sku_pendiente}")
-        with st.form("reg_cloud"):
-            c_sku, c_nom = st.columns(2)
-            with c_sku: sku_base = st.text_input("SKU / NUMERO DE PARTE DE LA PIEZA")
-            with c_nom: nom      = st.text_input("DESCRIPCION DE LA PIEZA")
-
-            c_peso, c_cant = st.columns(2)
-            with c_peso: peso = st.number_input("PESO TOTAL DEL PALLET (KG)", min_value=0.0)
-            with c_cant: cant = st.number_input("CANTIDAD DE PIEZAS EN EL PALLET", min_value=1, value=1)
-
-            c1, c2, c3 = st.columns(3)
-            with c1: l = st.number_input("LARGO (CM)", min_value=0.0)
-            with c2: a = st.number_input("ANCHO (CM)", min_value=0.0)
-            with c3: h = st.number_input("ALTO (CM)",  min_value=0.0)
-
-            col_btn1, col_btn2 = st.columns(2)
-            with col_btn1: submit   = st.form_submit_button("REGISTRAR PALLET Y ALMACENAR")
-            with col_btn2: cancelar = st.form_submit_button("CANCELAR ESCANEO")
-
-            if cancelar:
-                st.session_state.sku_pendiente = None
+    """Renderiza la interfaz de escáner QR móvil con botón de confirmación."""
+    
+    st.title("📱 Escáner QR")
+    st.caption("Escanea el código QR del pallet para ver sus detalles")
+    
+    # Escáner QR centrado
+    qr_code = qrcode_scanner(key='qrcode_mobile')
+    
+    if qr_code:
+        try:
+            # Parsear el código QR
+            data = json.loads(qr_code)
+            matricula = data.get('matricula', 'N/A')
+            
+            # Guardar en session state
+            st.session_state.qr_data_temp = data
+            
+            # Mostrar detalles del pallet
+            st.success(f"✅ Código QR detectado")
+            
+            st.markdown(f"### 📦 {matricula}")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.metric("SKU", data.get('sku', 'N/A'))
+                st.metric("Piezas", data.get('pzas', 'N/A'))
+                st.metric("Rack", data.get('rack', 'N/A'))
+            
+            with col2:
+                st.metric("Peso (kg)", data.get('peso', 'N/A'))
+                st.metric("Estado", data.get('estado', 'N/A'))
+                ubicacion = data.get('ubicacion', {})
+                pos = f"P{ubicacion.get('piso','-')}N{ubicacion.get('nivel','-')}C{ubicacion.get('columna','-')}"
+                st.metric("Ubicación", pos)
+            
+            st.divider()
+            
+            # Información adicional
+            with st.expander("📋 Ver JSON completo"):
+                st.json(data)
+            
+            st.divider()
+            
+            # Botón grande para confirmar registro
+            if st.button("✅ REGISTRAR ESCANEO", type="primary", use_container_width=True, key="btn_registrar_escaneo"):
+                registrar_escaneo(data)
+                st.success("🎉 Escaneo registrado exitosamente!")
+                st.session_state.qr_data_temp = None
+                st.balloons()
+                time.sleep(1.5)
                 st.rerun()
+        
+        except json.JSONDecodeError:
+            st.error(f"❌ Código QR inválido: `{qr_code}`")
+            st.caption("El código debe ser un JSON válido")
+    
+    else:
+        # Instrucciones cuando no hay código
+        st.info("""
+        **📸 Cómo usar el escáner:**
+        
+        1. Centra el código QR en el recuadro verde
+        2. Espera a que se detecte automáticamente  
+        3. Revisa los detalles del pallet
+        4. Presiona **REGISTRAR ESCANEO** para confirmar
+        """)
+        
+        # Mostrar historial reciente si existe
+        if 'historial_escaneos' in st.session_state and st.session_state.historial_escaneos:
+            st.divider()
+            st.subheader("📜 Últimos escaneos")
+            for scan in reversed(st.session_state.historial_escaneos[-5:]):
+                st.caption(f"🕒 {time.strftime('%H:%M:%S', time.localtime(scan['timestamp']))} - {scan['matricula']}")
 
-            if submit and nom and sku_base:
-                ok, msg, avisos_sc = registrar_pallet(
-                    uid=st.session_state.sku_pendiente,
-                    sku_base=sku_base, nombre=nom,
-                    peso=peso, cantidad=cant, alto_cm=h,
-                )
-                for av in avisos_sc:
-                    st.warning(av)
-                if ok:
-                    st.session_state.sku_pendiente = None
-                    st.success(msg)
-                    st.rerun()
-                else:
-                    st.error(msg)
-
-
+def registrar_escaneo(data):
+    """
+    Registra el escaneo del QR en el sistema.
+    """
+    from firebase import get_db, guardar_db
+    
+    matricula = data.get('matricula')
+    
+    # Obtener DB
+    db = get_db()
+    
+    if matricula and matricula in db:
+        # Actualizar timestamp de último escaneo
+        db[matricula]['ultimo_escaneo'] = time.time()
+        
+        # Guardar en Firebase
+        guardar_db(db)
+        
+        print(f"[ESCANER] Escaneo registrado: {matricula}")
+        
+        # Guardar en historial de session
+        if 'historial_escaneos' not in st.session_state:
+            st.session_state.historial_escaneos = []
+        
+        st.session_state.historial_escaneos.append({
+            'matricula': matricula,
+            'timestamp': time.time(),
+            'usuario': st.session_state.get('rol', 'operador')
+        })
+    else:
+        print(f"[ESCANER] Advertencia: Matrícula {matricula} no encontrada en DB")
 
 def render_alta():
-    """Pestaña alta rapida de material (movil)."""
-    import datetime as _dt
-    st.subheader("ALTA RAPIDA DE MATERIAL")
-    db_movil = cargar_db()  # usa cache
-    with st.form("alta_movil"):
-        uid_m = st.text_input("ID del pallet (ej. PALLET-020)").upper()
-        sku_m = st.text_input("SKU / No. de parte")
-        nom_m = st.text_input("Descripcion del material")
-        emb_m = st.selectbox("Tipo de embalaje", TIPOS_EMBALAJE)
-        col_pm, col_cm = st.columns(2)
-        with col_pm: peso_m = st.number_input("Peso (KG)", min_value=0.0, step=1.0)
-        with col_cm: cant_m = st.number_input("Piezas",    min_value=1,   value=1)
-        alto_cm = st.number_input("Alto (CM)", min_value=0.0, step=1.0)
-        gen_qr  = st.checkbox("Generar QR", value=True)
-        if st.form_submit_button("REGISTRAR", use_container_width=True):
-            ok, msg, avisos_m = registrar_pallet(
-                uid=uid_m, sku_base=sku_m, nombre=nom_m,
-                peso=peso_m, cantidad=cant_m, alto_cm=alto_cm,
-                embalaje=emb_m, generar_qr=gen_qr,
-            )
-            for av in avisos_m:
-                st.warning(av)
-            if ok:
-                st.success(msg)
-                st.rerun()
-            else:
-                st.error(msg)
-    if st.session_state.qr_generado:
-        st.image(st.session_state.qr_generado, width=220, caption="QR listo")
-        if st.button("Limpiar QR"):
-            st.session_state.qr_generado = None
-            st.rerun()
-
+    """Renderiza la interfaz de alta de material (móvil)."""
+    st.title("➕ Alta de Material")
+    st.caption("Registra un nuevo pallet desde tu móvil")
+    
+    st.info("""
+    **🚧 Función en desarrollo**
+    
+    Por ahora, usa la versión de escritorio en la pestaña **Maestro de Artículos** para dar de alta material.
+    
+    **Funcionalidades próximas:**
+    - ✨ Captura de datos por voz
+    - 📷 Escaneo de código de barras
+    - 📸 Cámara para fotos del material
+    - ✍️ Firma digital del operador
+    """)
+    
+    st.divider()
+    
+    # Vista previa del formulario futuro
+    with st.expander("👀 Vista previa del formulario"):
+        st.text_input("Matrícula", placeholder="Ej: MAT-001", disabled=True)
+        st.text_input("SKU", placeholder="Ej: SKU12345", disabled=True)
+        st.number_input("Piezas", min_value=1, disabled=True)
+        st.number_input("Peso (kg)", min_value=0.0, disabled=True)
+        st.button("Registrar", disabled=True, use_container_width=True)
