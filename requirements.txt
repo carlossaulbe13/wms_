@@ -6,3 +6,4 @@ streamlit-autorefresh
 qrcode[pil]
 pillow
 streamlit-aggrid
+streamlit-qrcode-scanner>=0.1.2
