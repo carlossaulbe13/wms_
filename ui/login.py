@@ -112,8 +112,8 @@ def pantalla_login(token_secreto, token_admin_pwd):
     # UI con fuente más grande
     st.markdown("""
     <div style='max-width:420px;margin:8vh auto 0;text-align:center;'>
-      <h1 style='color:#FF4B4B;font-size:36px;margin-bottom:8px;'>Warehouse Managment Cloud</h1>
-      <p style='color:#8892b0;font-size:15px;margin-bottom:32px;'>Warehouse Management System</p>
+      <h1 style='color:#FF4B4B;font-size:36px;margin-bottom:8px;'>Warehouse Managment</h1>
+      <p style='color:#8892b0;font-size:15px;margin-bottom:32px;'>Cloud</p>
     </div>""", unsafe_allow_html=True)
 
     _, col_c, _ = st.columns([1, 2, 1])
