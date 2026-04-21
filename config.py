@@ -21,7 +21,12 @@ def get_secret(key, default=""):
 
 # ── Firebase ─────────────────────────────────────────────────
 FIREBASE_URL  = get_secret("FIREBASE_URL",
-    "https://umad-wms-default-rtdb.firebaseio.com/")
+    "https://umad-wms-default-rtdb.firebaseio.com/maestro_articulos.json")
+    
+# Si FIREBASE_URL no tiene .json, agregarlo
+if not FIREBASE_URL.endswith('.json'):
+    FIREBASE_URL = FIREBASE_URL.rstrip('/') + '/maestro_articulos.json'
+    
 HISTORIAL_URL = FIREBASE_URL.replace("maestro_articulos.json", "historial.json")
 RFID_URL      = FIREBASE_URL.replace("maestro_articulos.json", "rfid_pendiente.json")
 
