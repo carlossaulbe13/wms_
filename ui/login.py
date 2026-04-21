@@ -44,26 +44,35 @@ def obtener_uid_desde_mqtt():
     """
     from mqtt_client import obtener_uid_pendiente
     
+    print("[LOGIN] Intentando obtener UID desde MQTT...")
+    
     # 1. Intentar desde queue (más confiable)
     uid_queue = obtener_uid_pendiente()
     if uid_queue:
-        print(f"[LOGIN] UID desde MQTT queue: {uid_queue}")
+        print(f"[LOGIN] ✓ UID desde MQTT queue: {uid_queue}")
         return uid_queue
+    else:
+        print("[LOGIN] Queue vacío o UIDs expirados")
     
     # 2. Fallback: revisar buffer en session_state
     if 'uid_rfid_buffer' in st.session_state:
         buffer = st.session_state.uid_rfid_buffer
+        print(f"[LOGIN] Buffer tiene {len(buffer)} items")
         if buffer:
             # Tomar el más reciente que tenga menos de 10 segundos
             for item in reversed(buffer):
                 edad = time.time() - item['timestamp']
+                print(f"[LOGIN] Revisando buffer item: UID={item['uid']}, edad={edad:.1f}s")
                 if edad < 10:
                     uid = item['uid']
                     # Marcar como procesado
                     st.session_state.uid_rfid_buffer.remove(item)
-                    print(f"[LOGIN] UID desde buffer: {uid}")
+                    print(f"[LOGIN] ✓ UID desde buffer: {uid}")
                     return uid
+    else:
+        print("[LOGIN] Buffer no existe en session_state")
     
+    print("[LOGIN] ✗ No se encontró ningún UID válido")
     return None
 
 def pantalla_login(token_secreto, token_admin_pwd):
@@ -126,6 +135,15 @@ def pantalla_login(token_secreto, token_admin_pwd):
             st.success("🟢 **MQTT Conectado** - Lector activo")
         else:
             st.warning("🟡 **MQTT Desconectado** - Verifica conexión")
+        
+        # DIAGNÓSTICO TEMPORAL
+        with st.expander("🔍 Diagnóstico MQTT (temporal)", expanded=False):
+            st.code(f"""
+Estado MQTT: {'CONECTADO' if mqtt_conectado else 'DESCONECTADO'}
+Buffer UIDs: {len(st.session_state.get('uid_rfid_buffer', []))} items
+Último UID detectado: {uid_recibido or 'Ninguno'}
+UIDs Autorizados: {UIDS_AUTORIZADOS}
+            """)
         
         # Tarjeta RFID
         card_class = "card-awake" if uid_recibido else "card-sleeping"
