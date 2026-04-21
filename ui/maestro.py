@@ -313,11 +313,47 @@ def render():
                     st.error(msg)
 
     if st.session_state.qr_generado:
-        st.success("MATERIAL REGISTRADO. ESPERANDO CONFIRMACION FISICA EN EL RACK.")
-        st.image(st.session_state.qr_generado, width=200, caption="CODIGO QR LISTO PARA IMPRESION")
-        if st.button("LIMPIAR PANTALLA DE IMPRESION"):
-            st.session_state.qr_generado = None
-            st.rerun()
+        st.success("✅ MATERIAL REGISTRADO. ESPERANDO CONFIRMACIÓN FÍSICA EN EL RACK.")
+        
+        col_qr1, col_qr2 = st.columns([1, 2])
+        
+        with col_qr1:
+            st.image(st.session_state.qr_generado, width=200, caption="CÓDIGO QR LISTO PARA IMPRESIÓN")
+        
+        with col_qr2:
+            st.markdown("### 📄 Descargar QR")
+            st.caption("Haz clic para descargar la etiqueta QR")
+            
+            # Leer archivo QR y crear botón de descarga
+            try:
+                with open(st.session_state.qr_generado, "rb") as file:
+                    qr_bytes = file.read()
+                    
+                st.download_button(
+                    label="⬇️ DESCARGAR QR",
+                    data=qr_bytes,
+                    file_name=st.session_state.qr_generado,
+                    mime="image/png",
+                    use_container_width=True,
+                    type="primary"
+                )
+            except Exception as e:
+                st.error(f"Error al leer QR: {e}")
+            
+            st.markdown("")  # Espacio
+            
+            if st.button("🗑️ LIMPIAR PANTALLA", use_container_width=True):
+                # Eliminar archivo temporal
+                import os
+                try:
+                    if os.path.exists(st.session_state.qr_generado):
+                        os.remove(st.session_state.qr_generado)
+                except:
+                    pass
+                st.session_state.qr_generado = None
+                st.rerun()
+        
+        st.divider()
 
     # ── Historial (solo admin) ────────────────────────────────
     if _es_admin_m:
