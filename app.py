@@ -1,6 +1,7 @@
 """
 app.py — Punto de entrada del UMAD WMS.
 Orquesta los modulos: config, firebase, mqtt_client, logica, ui/*
+VERSIÓN 2.1 - MQTT Login mejorado
 """
 import sys
 import os
@@ -26,6 +27,7 @@ st.set_page_config(page_title="UMAD WMS Cloud", layout="wide")
 _mqtt = init_mqtt()
 if _mqtt and 'mqtt_client' not in st.session_state:
     st.session_state.mqtt_client = _mqtt
+    print("[APP] ✓ Cliente MQTT guardado en session_state")
 
 # ── Defaults de session_state ─────────────────────────────────
 _defaults = {
@@ -42,6 +44,7 @@ _defaults = {
     'es_movil': None,
     'msg_mqtt_recibido': None,
     'uid_rfid_recibido': None,
+    'uid_rfid_buffer': [],  # NUEVO: Buffer de UIDs
     # Autenticacion
     'autenticado': False,
     'rol': 'operador',
@@ -56,10 +59,6 @@ for k, v in _defaults.items():
 # Carga inicial de Firebase
 if st.session_state.db is None:
     cargar_db(forzar=True)
-
-# Procesar mensajes MQTT acumulados
-from mqtt_client import procesar_mensajes_mqtt
-procesar_mensajes_mqtt()
 
 # ── Tokens de sesion ─────────────────────────────────────────
 _TOKEN_BASE  = hashlib.sha256(PASSWORD_ACCESO.encode()).hexdigest()[:16]
@@ -79,12 +78,25 @@ if not st.session_state.get('autenticado'):
 
 # ── Control de acceso ────────────────────────────────────────
 if not st.session_state.get('autenticado', False):
+    # DIAGNÓSTICO MQTT antes de login
+    from mqtt_client import verificar_conexion
+    mqtt_ok = verificar_conexion()
+    print(f"[APP] Estado MQTT antes de login: {'CONECTADO' if mqtt_ok else 'DESCONECTADO'}")
+    
+    # Procesar mensajes MQTT acumulados ANTES de login
+    from mqtt_client import procesar_mensajes_mqtt
+    procesar_mensajes_mqtt()
+    
     from ui.login import pantalla_login
     pantalla_login(_TOKEN_BASE, _TOKEN_ADMIN_PWD)
     st.stop()
 
 # Token activo para links de navegacion
 _TOK_ACTIVO = st.session_state.get('session_token') or (_TOKEN_BASE + '_operador')
+
+# Procesar mensajes MQTT después de autenticado
+from mqtt_client import procesar_mensajes_mqtt
+procesar_mensajes_mqtt()
 
 # ── Sidebar ───────────────────────────────────────────────────
 with st.sidebar:
