@@ -10,6 +10,10 @@ from config import MQTT_HOST, MQTT_PORT, MQTT_USER, MQTT_PASS, TOPIC_SUB, TOPIC_
 import threading
 import queue
 import time
+import warnings
+
+# Suprimir warnings de ScriptRunContext en threads MQTT
+warnings.filterwarnings('ignore', message='.*ScriptRunContext.*')
 
 # Queue thread-safe para mensajes RFID
 _rfid_queue = queue.Queue()
