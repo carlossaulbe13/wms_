@@ -3,6 +3,10 @@ mqtt_client.py — Conexión MQTT con HiveMQ Cloud mejorada.
 Usa queue thread-safe para mensajes RFID.
 VERSIÓN 2.0 - CLUSTER NUEVO
 """
+import warnings
+# Suprimir warnings de ScriptRunContext ANTES de importar streamlit
+warnings.filterwarnings('ignore', message='.*ScriptRunContext.*')
+
 import ssl
 import streamlit as st
 import paho.mqtt.client as mqtt
@@ -10,10 +14,6 @@ from config import MQTT_HOST, MQTT_PORT, MQTT_USER, MQTT_PASS, TOPIC_SUB, TOPIC_
 import threading
 import queue
 import time
-import warnings
-
-# Suprimir warnings de ScriptRunContext en threads MQTT
-warnings.filterwarnings('ignore', message='.*ScriptRunContext.*')
 
 # Queue thread-safe para mensajes RFID
 _rfid_queue = queue.Queue()
@@ -36,12 +36,14 @@ def on_message(client, userdata, msg):
     """Callback: procesa mensajes entrantes del broker."""
     try:
         payload = msg.payload.decode('utf-8').strip()
+        print(f"[MQTT DEBUG] Mensaje recibido en topic '{msg.topic}': {payload}")
         
         if msg.topic == TOPIC_AUTH:
             # Guardar UID en queue thread-safe (PRIORITARIO)
             uid_upper = payload.upper()
             _rfid_queue.put(('rfid', uid_upper, time.time()))
-            print(f"[MQTT] ✓ UID recibido en queue: {uid_upper}")
+            print(f"[MQTT] ✓✓✓ UID GUARDADO EN QUEUE: {uid_upper}")
+            print(f"[MQTT] Queue size: {_rfid_queue.qsize()}")
             
             # Intentar guardar en session_state si existe (opcional)
             try:
@@ -65,9 +67,13 @@ def on_message(client, userdata, msg):
             rack_id = payload.replace("_OFF", "")
             _rfid_queue.put(('confirmacion', rack_id, time.time()))
             print(f"[MQTT] ✓ Confirmación rack: {rack_id}")
+        else:
+            print(f"[MQTT DEBUG] Mensaje no procesado: topic={msg.topic}, payload={payload}")
             
     except Exception as e:
-        print(f"[MQTT] Error en callback: {e}")
+        print(f"[MQTT] ✗✗✗ ERROR en callback: {e}")
+        import traceback
+        traceback.print_exc()
 
 # Cliente MQTT global (singleton manual)
 _mqtt_client_instance = None
@@ -119,13 +125,21 @@ def init_mqtt():
                     time.sleep(2)
             
             # Suscribirse a topics
-            client.subscribe(TOPIC_SUB)
-            client.subscribe(TOPIC_AUTH)
+            print(f"[MQTT] Suscribiéndose a topics...")
+            print(f"[MQTT]   - TOPIC_SUB: {TOPIC_SUB}")
+            print(f"[MQTT]   - TOPIC_AUTH: {TOPIC_AUTH}")
+            
+            result_sub = client.subscribe(TOPIC_SUB)
+            result_auth = client.subscribe(TOPIC_AUTH)
+            
+            print(f"[MQTT] Suscripción TOPIC_SUB ({TOPIC_SUB}): {result_sub}")
+            print(f"[MQTT] Suscripción TOPIC_AUTH ({TOPIC_AUTH}): {result_auth}")
             
             # Iniciar loop
             client.loop_start()
             
-            print("[MQTT] Cliente inicializado correctamente")
+            print("[MQTT] ✓✓✓ Cliente inicializado correctamente")
+            print(f"[MQTT] Estado conexión: {client.is_connected()}")
             
             # Guardar instancia global
             _mqtt_client_instance = client
