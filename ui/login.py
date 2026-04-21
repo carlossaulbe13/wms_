@@ -52,13 +52,29 @@ def pantalla_login(token_secreto, token_admin_pwd):
     # Autorefresh para detectar tarjeta RFID cada 2 segundos
     st_autorefresh(interval=2000, key='login_rfid_refresh')
 
-    # Leer UID según el modo (local o cloud)
-    if ES_CLOUD:
-        print("[DEBUG] Modo CLOUD - Leyendo desde Firebase")
-        uid_recibido = leer_rfid_pendiente()
-    else:
-        print("[DEBUG] Modo LOCAL - Leyendo desde archivo")
+    # Prioridad de lectura:
+    # 1. MQTT (si hay cliente MQTT conectado)
+    # 2. Archivo local (si existe)
+    # 3. Firebase (si estamos en cloud)
+    
+    uid_recibido = None
+    
+    # Primero: intentar leer desde session_state (MQTT ya lo puso ahí)
+    if 'uid_rfid_recibido' in st.session_state and st.session_state.uid_rfid_recibido:
+        uid_recibido = st.session_state.uid_rfid_recibido
+        print(f"[DEBUG] UID recibido desde MQTT: {uid_recibido}")
+    
+    # Segundo: intentar leer desde archivo local
+    elif not ES_CLOUD:
         uid_recibido = leer_rfid_local()
+        if uid_recibido:
+            print(f"[DEBUG] UID recibido desde archivo local: {uid_recibido}")
+    
+    # Tercero: leer desde Firebase (solo en cloud)
+    else:
+        uid_recibido = leer_rfid_pendiente()
+        if uid_recibido:
+            print(f"[DEBUG] UID recibido desde Firebase: {uid_recibido}")
     
     if uid_recibido:
         st.session_state.uid_rfid_recibido = uid_recibido
