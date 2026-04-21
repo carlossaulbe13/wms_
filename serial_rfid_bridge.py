@@ -19,8 +19,8 @@ ARCHIVO_UID = "rfid_uid.json"
 MQTT_ENABLED = True  # Cambiar a False para desactivar MQTT
 MQTT_HOST = "0915b3e64d01444da73c24d109538a81.s1.eu.hivemq.cloud"
 MQTT_PORT = 8883
-MQTT_USER = "logistica123"
-MQTT_PASS = "Logistica1"
+MQTT_USER = "Logistica1234"
+MQTT_PASS = "Logistica2"
 MQTT_TOPIC_RFID = "almacen/rfid"
 
 # Obtener ruta completa
