@@ -13,11 +13,9 @@ import os
 ES_CLOUD = not os.path.exists('serial_rfid_bridge.py')
 
 if not ES_CLOUD:
-    # Modo LOCAL: usa archivo JSON del bridge serial
     SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     RFID_JSON_PATH = os.path.join(SCRIPT_DIR, 'rfid_uid.json')
 else:
-    # Modo CLOUD: usa Firebase
     from firebase import leer_rfid_pendiente
 
 def leer_rfid_local():
@@ -35,7 +33,6 @@ def leer_rfid_local():
             print(f"[DEBUG] UID leído: {uid}")
             print(f"[DEBUG] Edad del UID: {edad:.1f} segundos")
             
-            # Verificar que no sea muy viejo (máximo 10 segundos)
             if uid and edad < 10:
                 print(f"[DEBUG] UID válido, eliminando archivo")
                 os.remove(RFID_JSON_PATH)
@@ -49,28 +46,17 @@ def leer_rfid_local():
 def pantalla_login(token_secreto, token_admin_pwd):
     """Muestra el login. Llama st.rerun() si el acceso es concedido."""
 
-    # Autorefresh para detectar tarjeta RFID cada 2 segundos
     st_autorefresh(interval=2000, key='login_rfid_refresh')
 
-    # Prioridad de lectura:
-    # 1. MQTT (si hay cliente MQTT conectado)
-    # 2. Archivo local (si existe)
-    # 3. Firebase (si estamos en cloud)
-    
     uid_recibido = None
     
-    # Primero: intentar leer desde session_state (MQTT ya lo puso ahí)
     if 'uid_rfid_recibido' in st.session_state and st.session_state.uid_rfid_recibido:
         uid_recibido = st.session_state.uid_rfid_recibido
         print(f"[DEBUG] UID recibido desde MQTT: {uid_recibido}")
-    
-    # Segundo: intentar leer desde archivo local
     elif not ES_CLOUD:
         uid_recibido = leer_rfid_local()
         if uid_recibido:
             print(f"[DEBUG] UID recibido desde archivo local: {uid_recibido}")
-    
-    # Tercero: leer desde Firebase (solo en cloud)
     else:
         uid_recibido = leer_rfid_pendiente()
         if uid_recibido:
@@ -98,123 +84,29 @@ def pantalla_login(token_secreto, token_admin_pwd):
     bloqueado_hasta = st.session_state.get('bloqueado_hasta', 0.0)
     restante = bloqueado_hasta - time.time()
     if restante > 0:
-        st.markdown(f"""
-        <div style='max-width:420px;margin:10vh auto;background:#16192a;
-             border:1.5px solid #ef4444;border-radius:12px;padding:32px;text-align:center;'>
-          <h2 style='color:#ef4444;margin-bottom:8px;'>Acceso bloqueado</h2>
-          <p style='color:#8892b0;font-size:13px;'>Intenta de nuevo en
-          <b style='color:#cdd3ea;'>{restante:.0f} segundos</b>.</p>
-        </div>""", unsafe_allow_html=True)
+        st.error(f"🔒 **Acceso bloqueado**\n\nIntenta de nuevo en **{restante:.0f} segundos**")
         st_autorefresh(interval=1000, key='bloqueo_refresh')
         return
 
-    # Título
-    st.markdown("<h1 style='text-align:center;color:#FF4B4B;font-size:42px;margin:40px 0 8px 0;letter-spacing:2px;'>UMAD WMS</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align:center;color:#8892b0;font-size:15px;margin-bottom:40px;'>Warehouse Management System</p>", unsafe_allow_html=True)
-
-    # Detectar si hay un escaneo reciente
-    hay_escaneo = uid_entrante is not None
+    # UI Simple con Streamlit nativo
+    st.markdown("# UMAD WMS")
+    st.caption("Warehouse Management System")
+    st.divider()
     
-    # CSS y HTML del lector RFID
-    card_html = """
-        <div class="card">
-            <div class="chip"></div>
-            <div style="color:#cdd3ea;font-family:monospace;font-size:18px;letter-spacing:3px;margin:15px 0">
-                •••• •••• •••• ••••
-            </div>
-            <div style="display:flex;justify-content:space-between;margin-top:20px">
-                <div>
-                    <div style="color:#8892b0;font-size:10px;text-transform:uppercase">Autorizado</div>
-                    <div style="color:#cdd3ea;font-size:14px;font-weight:600">RFID CARD</div>
-                </div>
-                <div style="text-align:right">
-                    <div style="color:#8892b0;font-size:10px;text-transform:uppercase">Sistema</div>
-                    <div style="color:#cdd3ea;font-size:14px;font-weight:600">WMS</div>
-                </div>
-            </div>
-        </div>
-        <div class="arrow-down">↓ ↓ ↓</div>
-    """ if hay_escaneo else ""
-    
-    st.markdown(f"""
-    <style>
-    @keyframes slideIn{{0%{{transform:translateY(-100px);opacity:0}}100%{{transform:translateY(0);opacity:1}}}}
-    @keyframes pulse{{0%,100%{{transform:scale(1)}}50%{{transform:scale(1.1)}}}}
-    @keyframes wave{{0%{{transform:scale(1);opacity:.7}}100%{{transform:scale(1.5);opacity:0}}}}
-    
-    .rfid-box{{max-width:500px;margin:0 auto 30px;background:#1a1f35;border:2px solid #3a3f55;
-    border-radius:20px;padding:50px 40px;box-shadow:0 10px 40px rgba(0,0,0,.5)}}
-    
-    .card{{width:280px;height:180px;margin:0 auto;background:linear-gradient(135deg,#2d3548,#1a1f35);
-    border:2px solid #4a5080;border-radius:15px;padding:20px;box-shadow:0 10px 30px rgba(0,0,0,.5);
-    animation:slideIn 0.8s ease-out}}
-    
-    .chip{{width:50px;height:40px;background:linear-gradient(135deg,#ffd700,#ffed4e);
-    border-radius:6px;margin-bottom:15px}}
-    
-    .arrow-down{{text-align:center;color:#8892b0;font-size:24px;margin:15px 0;
-    animation:pulse 2s ease-in-out infinite}}
-    
-    .reader{{width:120px;height:120px;margin:20px auto;background:#2a2f45;
-    border:3px solid #4a5080;border-radius:15px;display:flex;align-items:center;
-    justify-content:center;position:relative;box-shadow:0 5px 20px rgba(255,75,75,.3)}}
-    
-    .wave{{position:absolute;width:100%;height:100%;border:2px solid #FF4B4B;
-    border-radius:15px;animation:wave 2s ease-out infinite}}
-    .wave:nth-child(2){{animation-delay:.5s}}
-    .wave:nth-child(3){{animation-delay:1s}}
-    
-    .led{{display:inline-block;width:12px;height:12px;background:#22c55e;
-    border-radius:50%;box-shadow:0 0 10px #22c55e;animation:pulse 1.5s ease-in-out infinite}}
-    </style>
-    
-    <div class="rfid-box">
-        {card_html}
-        
-        <div class="reader">
-            <div class="wave"></div>
-            <div class="wave"></div>
-            <div class="wave"></div>
-            <span style="font-size:48px;z-index:1">📡</span>
-        </div>
-        
-        <p style="color:#cdd3ea;font-size:16px;font-weight:600;text-align:center;margin:20px 0 8px">
-            <span class="led"></span> Acerca tu tarjeta RFID al lector
-        </p>
-        <p style="color:#8892b0;font-size:12px;text-align:center">El lector está conectado al ESP32</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Mostrar error si UID no autorizado
-    uid_actual = st.session_state.get('uid_rfid_recibido')
-    if uid_entrante and uid_entrante not in UIDS_AUTORIZADOS:
-        st.markdown(f"""
-        <div style='max-width:500px;margin:20px auto;background:#7f1d1d;border:2px solid #ef4444;
-        border-radius:12px;padding:20px;text-align:center'>
-            <p style='color:#fca5a5;font-size:16px;font-weight:600;margin:0 0 8px 0'>⚠️ Acceso Denegado</p>
-            <p style='color:#fca5a5;font-size:13px;margin:0'>UID no autorizado: {uid_entrante}</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    # Formulario de contraseña
-    _, col, _ = st.columns([1, 2, 1])
+    # Mensaje RFID
+    _, col, _ = st.columns([1, 3, 1])
     with col:
-        st.markdown("""
-        <div style='text-align:center;color:#8892b0;font-size:13px;margin:30px 0 20px;position:relative'>
-            <span style='background:#0e1117;padding:0 15px;position:relative;z-index:1'>
-                o ingresa tu contraseña
-            </span>
-            <div style='position:absolute;top:50%;left:0;right:0;height:1px;
-            background:linear-gradient(90deg,transparent,#3a3f55,transparent);z-index:0'></div>
-        </div>
-        """, unsafe_allow_html=True)
+        if uid_entrante and uid_entrante not in UIDS_AUTORIZADOS:
+            st.error(f"⚠️ **Acceso Denegado**\n\nUID no autorizado: `{uid_entrante}`")
         
-        st.markdown("<div style='background:#16192a;border:1.5px solid #3a3f55;border-radius:12px;padding:24px'>", unsafe_allow_html=True)
+        st.info("📡 **Acerca tu tarjeta RFID al lector**\n\nEl lector está conectado al ESP32")
+        
+        st.divider()
+        st.caption("— o ingresa tu contraseña —")
         
         with st.form("login_form"):
-            pwd = st.text_input("Contraseña", type="password",
-                                placeholder="Ingresa la contraseña de acceso",
-                                label_visibility="collapsed")
+            pwd = st.text_input("Contraseña", type="password", 
+                              placeholder="Ingresa la contraseña de acceso")
             if st.form_submit_button("🔐 Iniciar Sesión", use_container_width=True, type="primary"):
                 if pwd == PASSWORD_ADMIN:
                     _conceder_acceso('admin', token_admin_pwd + '_admin')
@@ -228,8 +120,6 @@ def pantalla_login(token_secreto, token_admin_pwd):
                         st.rerun()
                     else:
                         st.error(f"Contraseña incorrecta. Intento {intentos}/3.")
-        
-        st.markdown("</div>", unsafe_allow_html=True)
 
 def _conceder_acceso(rol, token):
     st.session_state.autenticado       = True
