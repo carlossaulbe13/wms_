@@ -112,38 +112,11 @@ def pantalla_login(token_secreto, token_admin_pwd):
     st.markdown("<h1 style='text-align:center;color:#FF4B4B;font-size:42px;margin:40px 0 8px 0;letter-spacing:2px;'>UMAD WMS</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align:center;color:#8892b0;font-size:15px;margin-bottom:40px;'>Warehouse Management System</p>", unsafe_allow_html=True)
 
-    # Crear el lector RFID con HTML más simple
-    st.markdown("""
-    <style>
-    @keyframes scan{0%,100%{opacity:0}50%{opacity:1}}
-    @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
-    @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
-    @keyframes wave{0%{transform:scale(1);opacity:.7}100%{transform:scale(1.5);opacity:0}}
+    # Detectar si hay un escaneo reciente
+    hay_escaneo = uid_entrante is not None
     
-    .rfid-box{max-width:500px;margin:0 auto 30px;background:#1a1f35;border:2px solid #3a3f55;
-    border-radius:20px;padding:50px 40px;box-shadow:0 10px 40px rgba(0,0,0,.5);position:relative}
-    
-    .card{width:280px;height:180px;margin:0 auto 30px;background:linear-gradient(135deg,#2d3548,#1a1f35);
-    border:2px solid #4a5080;border-radius:15px;padding:20px;box-shadow:0 10px 30px rgba(0,0,0,.5);
-    animation:float 2s ease-in-out infinite}
-    
-    .chip{width:50px;height:40px;background:linear-gradient(135deg,#ffd700,#ffed4e);
-    border-radius:6px;margin-bottom:15px}
-    
-    .reader{width:120px;height:120px;margin:20px auto;background:#2a2f45;
-    border:3px solid #4a5080;border-radius:15px;display:flex;align-items:center;
-    justify-content:center;position:relative;box-shadow:0 5px 20px rgba(255,75,75,.3)}
-    
-    .wave{position:absolute;width:100%;height:100%;border:2px solid #FF4B4B;
-    border-radius:15px;animation:wave 2s ease-out infinite}
-    .wave:nth-child(2){animation-delay:.5s}
-    .wave:nth-child(3){animation-delay:1s}
-    
-    .led{display:inline-block;width:12px;height:12px;background:#22c55e;
-    border-radius:50%;box-shadow:0 0 10px #22c55e;animation:pulse 1.5s ease-in-out infinite}
-    </style>
-    
-    <div class="rfid-box">
+    # CSS y HTML del lector RFID
+    card_html = """
         <div class="card">
             <div class="chip"></div>
             <div style="color:#cdd3ea;font-family:monospace;font-size:18px;letter-spacing:3px;margin:15px 0">
@@ -160,11 +133,43 @@ def pantalla_login(token_secreto, token_admin_pwd):
                 </div>
             </div>
         </div>
-        
-        <svg width="100" height="40" style="margin:20px auto;display:block">
-            <path d="M10,20 L45,5 L45,35 L10,20" fill="#8892b0" opacity=".5"/>
-            <path d="M90,20 L55,5 L55,35 L90,20" fill="#8892b0" opacity=".5"/>
-        </svg>
+        <div class="arrow-down">↓ ↓ ↓</div>
+    """ if hay_escaneo else ""
+    
+    st.markdown(f"""
+    <style>
+    @keyframes slideIn{{0%{{transform:translateY(-100px);opacity:0}}100%{{transform:translateY(0);opacity:1}}}}
+    @keyframes pulse{{0%,100%{{transform:scale(1)}}50%{{transform:scale(1.1)}}}}
+    @keyframes wave{{0%{{transform:scale(1);opacity:.7}}100%{{transform:scale(1.5);opacity:0}}}}
+    
+    .rfid-box{{max-width:500px;margin:0 auto 30px;background:#1a1f35;border:2px solid #3a3f55;
+    border-radius:20px;padding:50px 40px;box-shadow:0 10px 40px rgba(0,0,0,.5)}}
+    
+    .card{{width:280px;height:180px;margin:0 auto;background:linear-gradient(135deg,#2d3548,#1a1f35);
+    border:2px solid #4a5080;border-radius:15px;padding:20px;box-shadow:0 10px 30px rgba(0,0,0,.5);
+    animation:slideIn 0.8s ease-out}}
+    
+    .chip{{width:50px;height:40px;background:linear-gradient(135deg,#ffd700,#ffed4e);
+    border-radius:6px;margin-bottom:15px}}
+    
+    .arrow-down{{text-align:center;color:#8892b0;font-size:24px;margin:15px 0;
+    animation:pulse 2s ease-in-out infinite}}
+    
+    .reader{{width:120px;height:120px;margin:20px auto;background:#2a2f45;
+    border:3px solid #4a5080;border-radius:15px;display:flex;align-items:center;
+    justify-content:center;position:relative;box-shadow:0 5px 20px rgba(255,75,75,.3)}}
+    
+    .wave{{position:absolute;width:100%;height:100%;border:2px solid #FF4B4B;
+    border-radius:15px;animation:wave 2s ease-out infinite}}
+    .wave:nth-child(2){{animation-delay:.5s}}
+    .wave:nth-child(3){{animation-delay:1s}}
+    
+    .led{{display:inline-block;width:12px;height:12px;background:#22c55e;
+    border-radius:50%;box-shadow:0 0 10px #22c55e;animation:pulse 1.5s ease-in-out infinite}}
+    </style>
+    
+    <div class="rfid-box">
+        {card_html}
         
         <div class="reader">
             <div class="wave"></div>
