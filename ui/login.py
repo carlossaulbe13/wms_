@@ -83,11 +83,18 @@ def leer_uid_cloud():
 def pantalla_login(token_secreto, token_admin_pwd):
     """Login simplificado"""
     
+    print("="*60)
+    print("[LOGIN] PANTALLA LOGIN INICIADA")
+    print(f"[LOGIN] ES_CLOUD: {ES_CLOUD}")
+    print("="*60)
+    
     # Refresh cada 2 segundos
     st_autorefresh(interval=2000, key='login_refresh')
     
     # Leer UID según entorno
+    print(f"[LOGIN] Intentando leer UID...")
     uid = leer_uid_cloud() if ES_CLOUD else leer_uid_local()
+    print(f"[LOGIN] UID obtenido: {uid}")
     
     # Si hay UID, procesar login
     if uid:
@@ -106,21 +113,40 @@ def pantalla_login(token_secreto, token_admin_pwd):
         else:
             print(f"[LOGIN] NO AUTORIZADO")
             st.error(f"UID no autorizado: {uid}")
+    else:
+        print(f"[LOGIN] No hay UID pendiente")
     
     # UI simple
     st.title("UMAD WMS")
     st.subheader("Login")
     
-    # Diagnóstico
-    with st.expander("🔍 Debug", expanded=True):
+    # Diagnóstico SIEMPRE VISIBLE en Cloud
+    if ES_CLOUD:
+        st.warning("MODO CLOUD - Leyendo desde Firebase")
+        st.write(f"**Último UID:** {uid or 'Ninguno'}")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🔬 PROBAR FIREBASE AHORA", type="primary"):
+                with st.spinner("Leyendo Firebase..."):
+                    test_uid = leer_uid_cloud()
+                    if test_uid:
+                        st.success(f"✓ UID: {test_uid}")
+                    else:
+                        st.error("✗ Firebase vacío o UID expirado")
+        with col2:
+            # Mostrar URL de Firebase
+            try:
+                from config import RFID_URL
+                st.caption(f"`{RFID_URL}`")
+            except:
+                pass
+    
+    # Diagnóstico local
+    with st.expander("🔍 Debug Completo"):
         st.write(f"**Modo:** {'CLOUD' if ES_CLOUD else 'LOCAL'}")
         st.write(f"**Último UID:** {uid or 'Ninguno'}")
         st.write(f"**UIDs válidos:** {UIDS_AUTORIZADOS}")
-        
-        if ES_CLOUD:
-            if st.button("🔬 Probar Firebase"):
-                test_uid = leer_uid_cloud()
-                st.write(f"Resultado: {test_uid}")
     
     st.info("📡 Pasa tu tarjeta RFID")
     
