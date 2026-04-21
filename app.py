@@ -18,16 +18,9 @@ from config import (
     PASSWORD_ACCESO, PASSWORD_ADMIN,
 )
 from firebase import cargar_db
-from mqtt_client import init_mqtt
 
 # ── Configuracion de pagina ───────────────────────────────────
 st.set_page_config(page_title="UMAD WMS Cloud", layout="wide")
-
-# ── Inicializar MQTT una sola vez (cache_resource) ────────────
-_mqtt = init_mqtt()
-if _mqtt and 'mqtt_client' not in st.session_state:
-    st.session_state.mqtt_client = _mqtt
-    print("[APP] ✓ Cliente MQTT guardado en session_state")
 
 # ── Defaults de session_state ─────────────────────────────────
 _defaults = {
@@ -78,25 +71,12 @@ if not st.session_state.get('autenticado'):
 
 # ── Control de acceso ────────────────────────────────────────
 if not st.session_state.get('autenticado', False):
-    # DIAGNÓSTICO MQTT antes de login
-    from mqtt_client import verificar_conexion
-    mqtt_ok = verificar_conexion()
-    print(f"[APP] Estado MQTT antes de login: {'CONECTADO' if mqtt_ok else 'DESCONECTADO'}")
-    
-    # Procesar mensajes MQTT acumulados ANTES de login
-    from mqtt_client import procesar_mensajes_mqtt
-    procesar_mensajes_mqtt()
-    
     from ui.login import pantalla_login
     pantalla_login(_TOKEN_BASE, _TOKEN_ADMIN_PWD)
     st.stop()
 
 # Token activo para links de navegacion
 _TOK_ACTIVO = st.session_state.get('session_token') or (_TOKEN_BASE + '_operador')
-
-# Procesar mensajes MQTT después de autenticado
-from mqtt_client import procesar_mensajes_mqtt
-procesar_mensajes_mqtt()
 
 # ── Sidebar ───────────────────────────────────────────────────
 with st.sidebar:
