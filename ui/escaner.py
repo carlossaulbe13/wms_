@@ -227,9 +227,9 @@ def mostrar_detalle_pallet(data, mostrar_boton_registro=True):
 
 def buscar_y_mostrar_pallet(matricula):
     """Busca un pallet en la DB y muestra sus detalles"""
-    from firebase import get_db
+    from firebase import cargar_db
     
-    db = get_db()
+    db = cargar_db()
     
     if matricula in db:
         data = db[matricula]
@@ -240,12 +240,12 @@ def buscar_y_mostrar_pallet(matricula):
 
 def registrar_escaneo(data):
     """Registra el escaneo en Firebase y en el historial local"""
-    from firebase import get_db, guardar_db
+    from firebase import cargar_db, guardar_db
     
     matricula = data.get('matricula')
     
     # Obtener DB
-    db = get_db()
+    db = cargar_db()
     
     if matricula and matricula in db:
         # Actualizar timestamp de último escaneo
@@ -268,9 +268,9 @@ def registrar_escaneo(data):
 
 def registrar_entrada_manual(datos):
     """Registra entrada manual en Firebase"""
-    from firebase import get_db, guardar_db
+    from firebase import cargar_db, guardar_db
     
-    db = get_db()
+    db = cargar_db()
     matricula = datos['matricula']
     
     # Agregar campos adicionales
