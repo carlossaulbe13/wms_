@@ -1,91 +1,125 @@
 """
-ui/escaner.py — Interfaz móvil para escaneo QR y registro de material.
+ui/escaner.py — Interfaz móvil para escaneo y registro de material.
 """
 import streamlit as st
-from streamlit_qrcode_scanner import qrcode_scanner
 import json
 import time
 
 def render_escaner():
-    """Renderiza la interfaz de escáner QR móvil con botón de confirmación."""
+    """Renderiza la interfaz de escáner móvil."""
     
-    st.title("📱 Escáner QR")
-    st.caption("Escanea el código QR del pallet para ver sus detalles")
+    st.title("📱 Escáner Móvil")
+    st.caption("Escanea códigos QR o ingresa datos manualmente")
     
-    # Escáner QR centrado
-    qr_code = qrcode_scanner(key='qrcode_mobile')
+    # Tabs para diferentes modos
+    tab1, tab2 = st.tabs(["🔍 Buscar Pallet", "📋 Entrada Manual"])
     
-    if qr_code:
-        try:
-            # Parsear el código QR
-            data = json.loads(qr_code)
-            matricula = data.get('matricula', 'N/A')
-            
-            # Guardar en session state
-            st.session_state.qr_data_temp = data
-            
-            # Mostrar detalles del pallet
-            st.success(f"✅ Código QR detectado")
-            
-            st.markdown(f"### 📦 {matricula}")
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.metric("SKU", data.get('sku', 'N/A'))
-                st.metric("Piezas", data.get('pzas', 'N/A'))
-                st.metric("Rack", data.get('rack', 'N/A'))
-            
-            with col2:
-                st.metric("Peso (kg)", data.get('peso', 'N/A'))
-                st.metric("Estado", data.get('estado', 'N/A'))
-                ubicacion = data.get('ubicacion', {})
-                pos = f"P{ubicacion.get('piso','-')}N{ubicacion.get('nivel','-')}C{ubicacion.get('columna','-')}"
-                st.metric("Ubicación", pos)
-            
-            st.divider()
-            
-            # Información adicional
-            with st.expander("📋 Ver JSON completo"):
-                st.json(data)
-            
-            st.divider()
-            
-            # Botón grande para confirmar registro
-            if st.button("✅ REGISTRAR ESCANEO", type="primary", use_container_width=True, key="btn_registrar_escaneo"):
-                registrar_escaneo(data)
-                st.success("🎉 Escaneo registrado exitosamente!")
-                st.session_state.qr_data_temp = None
-                st.balloons()
-                time.sleep(1.5)
-                st.rerun()
-        
-        except json.JSONDecodeError:
-            st.error(f"❌ Código QR inválido: `{qr_code}`")
-            st.caption("El código debe ser un JSON válido")
-    
-    else:
-        # Instrucciones cuando no hay código
+    with tab1:
         st.info("""
-        **📸 Cómo usar el escáner:**
+        **📸 Escáner de Cámara**
         
-        1. Centra el código QR en el recuadro verde
-        2. Espera a que se detecte automáticamente  
-        3. Revisa los detalles del pallet
-        4. Presiona **REGISTRAR ESCANEO** para confirmar
+        Para usar el escáner QR, necesitas:
+        1. Instalar: `pip install streamlit-qrcode-scanner`
+        2. O usar la búsqueda manual abajo
         """)
         
-        # Mostrar historial reciente si existe
-        if 'historial_escaneos' in st.session_state and st.session_state.historial_escaneos:
-            st.divider()
-            st.subheader("📜 Últimos escaneos")
-            for scan in reversed(st.session_state.historial_escaneos[-5:]):
-                st.caption(f"🕒 {time.strftime('%H:%M:%S', time.localtime(scan['timestamp']))} - {scan['matricula']}")
+        # Búsqueda por matrícula
+        st.subheader("🔎 Buscar por Matrícula")
+        
+        matricula_buscar = st.text_input(
+            "Matrícula",
+            placeholder="Ej: TEST-001",
+            key="buscar_matricula"
+        )
+        
+        if st.button("🔍 Buscar", use_container_width=True, type="primary"):
+            if matricula_buscar:
+                buscar_y_mostrar_pallet(matricula_buscar.strip().upper())
+            else:
+                st.warning("⚠️ Ingresa una matrícula")
+    
+    with tab2:
+        st.subheader("📝 Ingreso Manual de Datos")
+        
+        with st.form("form_entrada_manual"):
+            matricula = st.text_input("Matrícula", placeholder="TEST-001")
+            sku = st.text_input("SKU", placeholder="SKU12345")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                pzas = st.number_input("Piezas", min_value=1, value=1)
+                peso = st.number_input("Peso (kg)", min_value=0.0, value=0.0, step=0.1)
+            
+            with col2:
+                rack = st.selectbox("Rack", ["POS_1", "POS_2", "POS_3", "POS_4", "POS_5"])
+                estado = st.selectbox("Estado", ["ACTIVO", "CONGELADO"])
+            
+            if st.form_submit_button("💾 Guardar", use_container_width=True, type="primary"):
+                if matricula and sku:
+                    datos = {
+                        'matricula': matricula.upper(),
+                        'sku': sku.upper(),
+                        'pzas': pzas,
+                        'peso': peso,
+                        'rack': rack,
+                        'estado': estado
+                    }
+                    registrar_entrada_manual(datos)
+                    st.success(f"✅ Pallet {matricula} registrado!")
+                    st.balloons()
+                else:
+                    st.error("❌ Matrícula y SKU son obligatorios")
+    
+    # Mostrar historial reciente
+    if 'historial_escaneos' in st.session_state and st.session_state.historial_escaneos:
+        st.divider()
+        st.subheader("📜 Historial Reciente")
+        
+        for scan in reversed(st.session_state.historial_escaneos[-5:]):
+            timestamp = time.strftime('%H:%M:%S', time.localtime(scan['timestamp']))
+            st.caption(f"🕒 {timestamp} - {scan['matricula']} ({scan.get('usuario', 'N/A')})")
+
+def buscar_y_mostrar_pallet(matricula):
+    """Busca un pallet en la DB y muestra sus detalles"""
+    from firebase import get_db
+    
+    db = get_db()
+    
+    if matricula in db:
+        data = db[matricula]
+        
+        st.success(f"✅ Pallet encontrado: **{matricula}**")
+        
+        # Mostrar detalles
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.metric("SKU", data.get('sku', 'N/A'))
+            st.metric("Piezas", data.get('pzas', 'N/A'))
+            st.metric("Rack", data.get('rack', 'N/A'))
+        
+        with col2:
+            st.metric("Peso (kg)", data.get('peso', 'N/A'))
+            st.metric("Estado", data.get('estado', 'N/A'))
+            ubicacion = data.get('ubicacion', {})
+            pos = f"P{ubicacion.get('piso','-')}N{ubicacion.get('nivel','-')}C{ubicacion.get('columna','-')}"
+            st.metric("Ubicación", pos)
+        
+        # Detalles completos
+        with st.expander("📋 Ver todos los detalles"):
+            st.json(data)
+        
+        # Botón de registro
+        if st.button("✅ REGISTRAR ESCANEO", use_container_width=True, type="primary", key="btn_reg_busqueda"):
+            registrar_escaneo(data)
+            st.success("🎉 Escaneo registrado!")
+            st.balloons()
+    else:
+        st.error(f"❌ No se encontró el pallet: **{matricula}**")
+        st.caption("Verifica la matrícula o usa el formulario de entrada manual")
 
 def registrar_escaneo(data):
-    """
-    Registra el escaneo del QR en el sistema.
-    """
+    """Registra el escaneo en Firebase y en el historial local"""
     from firebase import get_db, guardar_db
     
     matricula = data.get('matricula')
@@ -111,32 +145,53 @@ def registrar_escaneo(data):
             'timestamp': time.time(),
             'usuario': st.session_state.get('rol', 'operador')
         })
-    else:
-        print(f"[ESCANER] Advertencia: Matrícula {matricula} no encontrada en DB")
+
+def registrar_entrada_manual(datos):
+    """Registra entrada manual en Firebase"""
+    from firebase import get_db, guardar_db
+    
+    db = get_db()
+    matricula = datos['matricula']
+    
+    # Agregar campos adicionales
+    datos['fecha_alta'] = time.time()
+    datos['usuario_alta'] = st.session_state.get('rol', 'operador')
+    
+    # Si no existe ubicación, asignar vacía
+    if 'ubicacion' not in datos:
+        datos['ubicacion'] = {'piso': None, 'nivel': None, 'columna': None}
+    
+    # Guardar en DB
+    db[matricula] = datos
+    guardar_db(db)
+    
+    print(f"[ESCANER] Entrada manual registrada: {matricula}")
+    
+    # Registrar en historial
+    if 'historial_escaneos' not in st.session_state:
+        st.session_state.historial_escaneos = []
+    
+    st.session_state.historial_escaneos.append({
+        'matricula': matricula,
+        'timestamp': time.time(),
+        'usuario': st.session_state.get('rol', 'operador')
+    })
 
 def render_alta():
     """Renderiza la interfaz de alta de material (móvil)."""
     st.title("➕ Alta de Material")
     st.caption("Registra un nuevo pallet desde tu móvil")
     
+    # Redirigir a la pestaña de entrada manual del escáner
     st.info("""
-    **🚧 Función en desarrollo**
+    **💡 Tip:**
     
-    Por ahora, usa la versión de escritorio en la pestaña **Maestro de Artículos** para dar de alta material.
+    Para dar de alta un nuevo pallet, usa la pestaña **"📋 Entrada Manual"** 
+    en la sección de Escáner Móvil.
     
-    **Funcionalidades próximas:**
-    - ✨ Captura de datos por voz
-    - 📷 Escaneo de código de barras
-    - 📸 Cámara para fotos del material
-    - ✍️ Firma digital del operador
+    O usa la versión de escritorio en **Maestro de Artículos** para 
+    funcionalidades avanzadas.
     """)
     
-    st.divider()
-    
-    # Vista previa del formulario futuro
-    with st.expander("👀 Vista previa del formulario"):
-        st.text_input("Matrícula", placeholder="Ej: MAT-001", disabled=True)
-        st.text_input("SKU", placeholder="Ej: SKU12345", disabled=True)
-        st.number_input("Piezas", min_value=1, disabled=True)
-        st.number_input("Peso (kg)", min_value=0.0, disabled=True)
-        st.button("Registrar", disabled=True, use_container_width=True)
+    if st.button("📱 Ir a Entrada Manual", use_container_width=True, type="primary"):
+        st.switch_page("pages/escaner.py")
