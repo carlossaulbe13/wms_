@@ -1,43 +1,69 @@
 """
-mqtt_client.py — Conexion MQTT con HiveMQ Cloud.
-Usa st.cache_resource para inicializar UNA sola vez por sesion.
-Versión mejorada sin warnings de ScriptRunContext.
+mqtt_client.py — Conexión MQTT con HiveMQ Cloud mejorada.
+Usa queue thread-safe para mensajes RFID.
+VERSIÓN 2.0 - CLUSTER NUEVO
 """
 import ssl
 import streamlit as st
 import paho.mqtt.client as mqtt
 from config import MQTT_HOST, MQTT_PORT, MQTT_USER, MQTT_PASS, TOPIC_SUB, TOPIC_AUTH
 import threading
+import queue
+import time
 
-# Lock para evitar race conditions
+# Queue thread-safe para mensajes RFID
+_rfid_queue = queue.Queue()
 _mqtt_lock = threading.Lock()
+
+def on_connect(client, userdata, flags, rc):
+    """Callback cuando se conecta al broker."""
+    if rc == 0:
+        print("[MQTT] ✓ Conectado exitosamente")
+    else:
+        print(f"[MQTT] ✗ Error de conexión. Código: {rc}")
+
+def on_disconnect(client, userdata, rc):
+    """Callback cuando se desconecta del broker."""
+    print(f"[MQTT] Desconectado. Código: {rc}")
+    if rc != 0:
+        print("[MQTT] Reconectando...")
 
 def on_message(client, userdata, msg):
     """Callback: procesa mensajes entrantes del broker."""
     try:
-        payload = msg.payload.decode('utf-8')
+        payload = msg.payload.decode('utf-8').strip()
         
-        # Usar lock para acceso seguro a session_state
-        with _mqtt_lock:
-            if payload.endswith("_OFF"):
-                # Guardar en una variable temporal que el main loop revisará
-                if not hasattr(st, '_mqtt_messages'):
-                    st._mqtt_messages = []
-                st._mqtt_messages.append(('confirmacion', payload.replace("_OFF", "")))
-                
-            elif msg.topic == TOPIC_AUTH:
-                # Guardar UID RFID
-                if not hasattr(st, '_mqtt_messages'):
-                    st._mqtt_messages = []
-                st._mqtt_messages.append(('rfid', payload.strip().upper()))
+        if msg.topic == TOPIC_AUTH:
+            # Guardar UID en queue thread-safe
+            uid_upper = payload.upper()
+            _rfid_queue.put(('rfid', uid_upper, time.time()))
+            print(f"[MQTT] ✓ UID recibido: {uid_upper}")
+            
+            # También en session_state con lock
+            with _mqtt_lock:
+                if 'uid_rfid_buffer' not in st.session_state:
+                    st.session_state.uid_rfid_buffer = []
+                st.session_state.uid_rfid_buffer.append({
+                    'uid': uid_upper,
+                    'timestamp': time.time()
+                })
+                # Mantener solo los últimos 5 UIDs
+                st.session_state.uid_rfid_buffer = st.session_state.uid_rfid_buffer[-5:]
+        
+        elif payload.endswith("_OFF"):
+            # Confirmación de rack
+            rack_id = payload.replace("_OFF", "")
+            _rfid_queue.put(('confirmacion', rack_id, time.time()))
+            print(f"[MQTT] ✓ Confirmación rack: {rack_id}")
+            
     except Exception as e:
         print(f"[MQTT] Error en callback: {e}")
 
 @st.cache_resource(show_spinner=False)
 def init_mqtt():
     """
-    Inicializa el cliente MQTT UNA sola vez por sesion de Streamlit.
-    st.cache_resource garantiza que no se reconecta en cada render.
+    Inicializa el cliente MQTT UNA sola vez por sesión.
+    Incluye reconexión automática.
     """
     try:
         try:
@@ -45,20 +71,65 @@ def init_mqtt():
         except AttributeError:
             client = mqtt.Client()
 
+        # Configurar callbacks
+        client.on_connect = on_connect
+        client.on_disconnect = on_disconnect
+        client.on_message = on_message
+        
+        # Autenticación
         client.username_pw_set(MQTT_USER, MQTT_PASS)
         client.tls_set(cert_reqs=ssl.CERT_NONE)
         client.tls_insecure_set(True)
-        client.on_message = on_message
-        client.connect(MQTT_HOST, MQTT_PORT, keepalive=60)
+        
+        # Conectar con retry
+        max_retries = 3
+        for intento in range(max_retries):
+            try:
+                client.connect(MQTT_HOST, MQTT_PORT, keepalive=60)
+                break
+            except Exception as e:
+                print(f"[MQTT] Intento {intento + 1}/{max_retries} falló: {e}")
+                if intento == max_retries - 1:
+                    raise
+                time.sleep(2)
+        
+        # Suscribirse a topics
         client.subscribe(TOPIC_SUB)
         client.subscribe(TOPIC_AUTH)
+        
+        # Iniciar loop
         client.loop_start()
         
-        print("[MQTT] Cliente inicializado y conectado")
+        print("[MQTT] Cliente inicializado correctamente")
         return client
+        
     except Exception as e:
-        print(f"[MQTT] Error al inicializar: {e}")
+        print(f"[MQTT] ✗ Error fatal al inicializar: {e}")
         return None
+
+def obtener_uid_pendiente():
+    """
+    Obtiene el UID más reciente del queue (no bloqueante).
+    Retorna el UID si es menor a 10 segundos, None si no hay.
+    """
+    uid_mas_reciente = None
+    timestamp_mas_reciente = 0
+    
+    # Vaciar queue y quedarse con el más reciente
+    while not _rfid_queue.empty():
+        try:
+            tipo, payload, ts = _rfid_queue.get_nowait()
+            if tipo == 'rfid' and ts > timestamp_mas_reciente:
+                uid_mas_reciente = payload
+                timestamp_mas_reciente = ts
+        except queue.Empty:
+            break
+    
+    # Validar antigüedad (10 segundos)
+    if uid_mas_reciente and (time.time() - timestamp_mas_reciente) < 10:
+        return uid_mas_reciente
+    
+    return None
 
 def publicar(rack_id, accion="ON"):
     """Publica un mensaje pick-to-light al ESP32."""
@@ -66,44 +137,34 @@ def publicar(rack_id, accion="ON"):
     if client:
         from config import TOPIC_PUB
         try:
-            client.publish(TOPIC_PUB, f"{rack_id}_{accion}")
-            print(f"[MQTT] Publicado: {rack_id}_{accion}")
+            result = client.publish(TOPIC_PUB, f"{rack_id}_{accion}")
+            if result.rc == 0:
+                print(f"[MQTT] ✓ Publicado: {rack_id}_{accion}")
+            else:
+                print(f"[MQTT] ✗ Error al publicar (rc={result.rc})")
         except Exception as e:
             print(f"[MQTT] Error al publicar: {e}")
 
+def verificar_conexion():
+    """Verifica si el cliente MQTT está conectado."""
+    client = st.session_state.get('mqtt_client')
+    if client:
+        return client.is_connected()
+    return False
+
 def procesar_mensajes_mqtt():
     """
-    Procesa mensajes MQTT acumulados.
-    Llamar esto desde el main loop de Streamlit.
+    Procesa mensajes MQTT acumulados (para confirmaciones de rack).
+    Llamar desde el main loop.
     """
-    if not hasattr(st, '_mqtt_messages'):
-        return
-    
-    with _mqtt_lock:
-        mensajes = st._mqtt_messages.copy()
-        st._mqtt_messages = []
-    
-    for tipo, payload in mensajes:
-        if tipo == 'confirmacion':
-            if st.session_state.get('confirmacion_pendiente') == payload:
-                st.session_state.confirmacion_pendiente = None
-                print(f"[MQTT] Confirmación procesada: {payload}")
-                
-        elif tipo == 'rfid':
-            # IMPORTANTE: Guardar el UID para que login.py lo procese
-            st.session_state.uid_rfid_recibido = payload
-            print(f"[MQTT] ✓ UID RFID recibido por MQTT: {payload}")
+    while not _rfid_queue.empty():
+        try:
+            tipo, payload, ts = _rfid_queue.get_nowait()
             
-            # También guardarlo en archivo local (para compatibilidad)
-            try:
-                import time
-                data = {
-                    "uid": payload,
-                    "timestamp": time.time()
-                }
-                with open('rfid_uid.json', 'w') as f:
-                    import json
-                    json.dump(data, f)
-                print(f"[MQTT] ✓ UID también guardado en archivo local")
-            except Exception as e:
-                print(f"[MQTT] Advertencia: No se pudo guardar en archivo: {e}")
+            if tipo == 'confirmacion':
+                if st.session_state.get('confirmacion_pendiente') == payload:
+                    st.session_state.confirmacion_pendiente = None
+                    print(f"[MQTT] Confirmación procesada: {payload}")
+                    
+        except queue.Empty:
+            break
