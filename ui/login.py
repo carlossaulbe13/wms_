@@ -182,10 +182,17 @@ def pantalla_login(token_secreto, token_admin_pwd):
         # Mensajes de estado
         if hay_escaneo:
             if uid_entrante in UIDS_AUTORIZADOS:
-                with st.spinner("Iniciando sesión..."):
-                    time.sleep(1)
+                # Mostrar spinner mientras procesa
+                with st.spinner("🔄 Validando tarjeta..."):
+                    time.sleep(0.8)
+                
+                # Mostrar éxito
                 st.success("🎉 ¡Acceso autorizado!")
-                time.sleep(0.5)
+                
+                # Esperar un momento antes de redirigir
+                with st.spinner("Iniciando sesión..."):
+                    time.sleep(0.7)
+                
                 st.rerun()
             else:
                 st.error(f"⚠️ **Acceso Denegado**\n\nUID: `{uid_entrante}`")
