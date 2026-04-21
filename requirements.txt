@@ -11,3 +11,4 @@ requests
 streamlit-autorefresh
 python-dotenv
 pyserial
+streamlit-qrcode-scanner
