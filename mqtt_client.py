@@ -34,21 +34,27 @@ def on_message(client, userdata, msg):
         payload = msg.payload.decode('utf-8').strip()
         
         if msg.topic == TOPIC_AUTH:
-            # Guardar UID en queue thread-safe
+            # Guardar UID en queue thread-safe (PRIORITARIO)
             uid_upper = payload.upper()
             _rfid_queue.put(('rfid', uid_upper, time.time()))
-            print(f"[MQTT] ✓ UID recibido: {uid_upper}")
+            print(f"[MQTT] ✓ UID recibido en queue: {uid_upper}")
             
-            # También en session_state con lock
-            with _mqtt_lock:
-                if 'uid_rfid_buffer' not in st.session_state:
-                    st.session_state.uid_rfid_buffer = []
-                st.session_state.uid_rfid_buffer.append({
-                    'uid': uid_upper,
-                    'timestamp': time.time()
-                })
-                # Mantener solo los últimos 5 UIDs
-                st.session_state.uid_rfid_buffer = st.session_state.uid_rfid_buffer[-5:]
+            # Intentar guardar en session_state si existe (opcional)
+            try:
+                with _mqtt_lock:
+                    if hasattr(st, 'session_state'):
+                        if 'uid_rfid_buffer' not in st.session_state:
+                            st.session_state.uid_rfid_buffer = []
+                        st.session_state.uid_rfid_buffer.append({
+                            'uid': uid_upper,
+                            'timestamp': time.time()
+                        })
+                        # Mantener solo los últimos 5 UIDs
+                        st.session_state.uid_rfid_buffer = st.session_state.uid_rfid_buffer[-5:]
+                        print(f"[MQTT] ✓ UID guardado en session_state buffer")
+            except Exception as e:
+                # No es crítico si falla - el queue es suficiente
+                print(f"[MQTT] Advertencia: No se pudo guardar en session_state: {e}")
         
         elif payload.endswith("_OFF"):
             # Confirmación de rack
@@ -114,20 +120,31 @@ def obtener_uid_pendiente():
     """
     uid_mas_reciente = None
     timestamp_mas_reciente = 0
+    items_procesados = 0
     
     # Vaciar queue y quedarse con el más reciente
     while not _rfid_queue.empty():
         try:
             tipo, payload, ts = _rfid_queue.get_nowait()
+            items_procesados += 1
             if tipo == 'rfid' and ts > timestamp_mas_reciente:
                 uid_mas_reciente = payload
                 timestamp_mas_reciente = ts
+                print(f"[MQTT] Queue procesada: UID={payload}, antigüedad={time.time()-ts:.1f}s")
         except queue.Empty:
             break
     
+    if items_procesados > 0:
+        print(f"[MQTT] Total items procesados del queue: {items_procesados}")
+    
     # Validar antigüedad (10 segundos)
-    if uid_mas_reciente and (time.time() - timestamp_mas_reciente) < 10:
-        return uid_mas_reciente
+    if uid_mas_reciente:
+        edad = time.time() - timestamp_mas_reciente
+        if edad < 10:
+            print(f"[MQTT] ✓ UID válido retornado: {uid_mas_reciente} (edad: {edad:.1f}s)")
+            return uid_mas_reciente
+        else:
+            print(f"[MQTT] ✗ UID demasiado viejo: {uid_mas_reciente} (edad: {edad:.1f}s)")
     
     return None
 
