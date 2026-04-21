@@ -1,7 +1,6 @@
 """
-app.py — Punto de entrada del UMAD WMS.
-Orquesta los modulos: config, firebase, mqtt_client, logica, ui/*
-VERSIÓN 2.1 - MQTT Login mejorado
+app.py — Punto de entrada del UMAD WMS Cloud
+Versión 3.0 - Optimizada y limpia
 """
 import sys
 import os
@@ -10,13 +9,8 @@ sys.path.insert(0, os.path.dirname(__file__))
 import streamlit as st
 import streamlit.components.v1 as _components
 import hashlib
-import time
 
-# ── Modulos propios ───────────────────────────────────────────
-from config import (
-    TOKEN_OPERADOR, TOKEN_ADMIN, TOKEN_ADMIN_2,
-    PASSWORD_ACCESO, PASSWORD_ADMIN,
-)
+from config import PASSWORD_ACCESO, PASSWORD_ADMIN
 from firebase import cargar_db
 
 # ── Configuracion de pagina ───────────────────────────────────
@@ -25,8 +19,6 @@ st.set_page_config(page_title="UMAD WMS Cloud", layout="wide")
 # ── Defaults de session_state ─────────────────────────────────
 _defaults = {
     'db': None,
-    'sku_pendiente': None,
-    'ultimo_sku_procesado': None,
     'confirmacion_pendiente': None,
     'qr_generado': None,
     'twin_zona': None,
@@ -34,11 +26,7 @@ _defaults = {
     'twin_rack': None,
     'rack_resaltado': None,
     'rack_resaltado_ts': 0.0,
-    'es_movil': None,
-    'msg_mqtt_recibido': None,
-    'uid_rfid_recibido': None,
-    'uid_rfid_buffer': [],  # NUEVO: Buffer de UIDs
-    # Autenticacion
+    'es_movil': False,
     'autenticado': False,
     'rol': 'operador',
     'intentos_password': 0,
@@ -54,38 +42,36 @@ if st.session_state.db is None:
     cargar_db(forzar=True)
 
 # ── Tokens de sesion ─────────────────────────────────────────
-_TOKEN_BASE  = hashlib.sha256(PASSWORD_ACCESO.encode()).hexdigest()[:16]
-_TOKEN_ADMIN_PWD = hashlib.sha256(PASSWORD_ADMIN.encode()).hexdigest()[:16]
+_TOKEN_BASE = hashlib.sha256(PASSWORD_ACCESO.encode()).hexdigest()[:16]
+_TOKEN_ADMIN = hashlib.sha256(PASSWORD_ADMIN.encode()).hexdigest()[:16]
 
 # ── Restaurar sesion desde query param ───────────────────────
 if not st.session_state.get('autenticado'):
     _tok = st.query_params.get('_s', '')
-    if _tok in (_TOKEN_BASE + '_admin', _TOKEN_ADMIN_PWD + '_admin'):
-        st.session_state.autenticado   = True
-        st.session_state.rol           = 'admin'
+    if _tok in (_TOKEN_BASE + '_admin', _TOKEN_ADMIN + '_admin'):
+        st.session_state.autenticado = True
+        st.session_state.rol = 'admin'
         st.session_state.session_token = _tok
     elif _tok == _TOKEN_BASE + '_operador':
-        st.session_state.autenticado   = True
-        st.session_state.rol           = 'operador'
+        st.session_state.autenticado = True
+        st.session_state.rol = 'operador'
         st.session_state.session_token = _tok
 
 # ── Control de acceso ────────────────────────────────────────
 if not st.session_state.get('autenticado', False):
     from ui.login import pantalla_login
-    pantalla_login(_TOKEN_BASE, _TOKEN_ADMIN_PWD)
+    pantalla_login(_TOKEN_BASE, _TOKEN_ADMIN)
     st.stop()
 
-# Token activo para links de navegacion
+# Token activo para navegación
 _TOK_ACTIVO = st.session_state.get('session_token') or (_TOKEN_BASE + '_operador')
 
 # ── Sidebar ───────────────────────────────────────────────────
 with st.sidebar:
-    # Título más grande
     st.markdown("<h2 style='margin:0;padding:0;'>UMAD WMS</h2>", unsafe_allow_html=True)
     
     _rol = st.session_state.get('rol', 'operador')
     _color = '#22c55e' if _rol == 'admin' else '#8892b0'
-    # Texto de rol más grande
     st.markdown(
         f"<div style='font-size:16px;color:{_color};margin-bottom:8px;margin-top:4px;'>"
         f"Rol: <b>{'Administrador' if _rol == 'admin' else 'Operador'}</b></div>",
@@ -110,13 +96,13 @@ with st.sidebar:
         )
 
     if st.button("Cerrar sesion", use_container_width=True):
-        st.session_state.autenticado   = False
-        st.session_state.rol           = 'operador'
+        st.session_state.autenticado = False
+        st.session_state.rol = 'operador'
         st.session_state.session_token = None
         st.query_params.clear()
         st.rerun()
 
-    # Toggle modo movil/escritorio
+    # Toggle modo móvil/escritorio
     _es_movil = st.session_state.get('es_movil', False)
     st.caption(f"Modo: {'Móvil' if _es_movil else 'Escritorio'}")
     if _es_movil:
@@ -151,7 +137,7 @@ div[data-testid="stSelectbox"] [data-baseweb="select"] * { cursor: pointer !impo
 </style>
 """, unsafe_allow_html=True)
 
-# ── Titulo ────────────────────────────────────────────────────
+# ── Título ────────────────────────────────────────────────────
 st.markdown(
     "<h1 style='text-align:center;color:#FF4B4B;margin-bottom:4px;'>"
     "UMAD Warehouse Management System</h1>",
@@ -159,34 +145,29 @@ st.markdown(
 )
 
 # ── Alertas de reorden (banner) ───────────────────────────────
-_alertas = [
-    (k, v) for k, v in (_db_s.items())
-    if int(v.get('stock_minimo', 0)) > 0
-    and int(v.get('cantidad', 1)) <= int(v.get('stock_minimo', 0))
-    and v.get('estado') == 'ACTIVO'
-]
-if _alertas:
-    with st.expander(f"ALERTA DE REORDEN — {len(_alertas)} articulo(s) bajo minimo", expanded=True):
-        for _k, _v in _alertas:
+if _alertas_s:
+    with st.expander(f"ALERTA DE REORDEN — {len(_alertas_s)} articulo(s) bajo mínimo", expanded=True):
+        for _k, _v in _alertas_s:
             st.warning(
                 f"{_v.get('nombre','N/A')} | SKU: {_v.get('sku_base','N/A')} | "
-                f"Stock: {_v.get('cantidad',1)} pzas | Min: {_v.get('stock_minimo',0)} pzas | "
+                f"Stock: {_v.get('cantidad',1)} pzas | Mín: {_v.get('stock_minimo',0)} pzas | "
                 f"Rack: {_v.get('rack','')} Piso {_v.get('piso','')} Niv {_v.get('fila','')} Col {_v.get('columna','')}"
             )
 
-# ── Banner confirmacion pendiente ─────────────────────────────
+# ── Banner confirmación pendiente ─────────────────────────────
 if st.session_state.confirmacion_pendiente:
-    st.warning(
-        f"ACCION REQUERIDA: LED del Rack {st.session_state.confirmacion_pendiente} ENCENDIDO."
-    )
-    if st.button(f"CONFIRMAR — APAGAR LED DE {st.session_state.confirmacion_pendiente}"):
-        from mqtt_client import publicar
-        publicar(st.session_state.confirmacion_pendiente, "OFF")
+    st.warning(f"⚠️ ACCIÓN REQUERIDA: LED del Rack {st.session_state.confirmacion_pendiente} ENCENDIDO")
+    if st.button(f"✅ CONFIRMAR — APAGAR LED DE {st.session_state.confirmacion_pendiente}"):
+        try:
+            from mqtt_client import publicar
+            publicar(st.session_state.confirmacion_pendiente, "OFF")
+        except:
+            print(f"[APP] MQTT no disponible")
         st.session_state.confirmacion_pendiente = None
         st.rerun()
     st.divider()
 
-# ── Deteccion automatica de dispositivo ──────────────────────
+# ── Detección automática de dispositivo ──────────────────────
 if 'movil' not in st.query_params:
     _components.html("""
     <script>
@@ -206,7 +187,7 @@ if 'movil' not in st.query_params:
 _es_movil = st.query_params.get('movil', '0') == '1'
 st.session_state.es_movil = _es_movil
 
-# ── Navegacion por query params del gemelo ────────────────────
+# ── Navegación por query params del gemelo ────────────────────
 _qp = dict(st.query_params)
 if 'zona' in _qp:
     fila_raw = _qp.get('fila', None)
@@ -218,7 +199,7 @@ if 'zona' in _qp:
     st.query_params['_s'] = _TOK_ACTIVO
     st.rerun()
 
-# ── Renderizar segun dispositivo ──────────────────────────────
+# ── Renderizar según dispositivo ──────────────────────────────
 if not _es_movil:
     tabs = st.tabs(['GEMELO DIGITAL', 'MAESTRO DE ARTICULOS'])
     with tabs[0]:
