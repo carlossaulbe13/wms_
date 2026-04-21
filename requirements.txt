@@ -1,13 +1,8 @@
 streamlit
-opencv-python-headless
-pyzbar
-qrcode[pil]
-pillow
-streamlit-aggrid
 pandas
 numpy
 requests
 streamlit-autorefresh
-python-dotenv
-pyserial
-streamlit-qrcode-scanner
+qrcode[pil]
+pillow
+streamlit-aggrid
