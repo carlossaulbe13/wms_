@@ -69,6 +69,10 @@ def obtener_uid_desde_mqtt():
 def pantalla_login(token_secreto, token_admin_pwd):
     """Muestra el login con RFID mejorado."""
     
+    # CRÍTICO: Procesar mensajes MQTT antes de verificar UID
+    from mqtt_client import procesar_mensajes_mqtt
+    procesar_mensajes_mqtt()
+    
     # Refresh más agresivo para MQTT (1 segundo)
     st_autorefresh(interval=1000, key='login_rfid_refresh')
     
