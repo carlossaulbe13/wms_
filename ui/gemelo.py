@@ -6,7 +6,7 @@ import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 import pandas as pd
 from config import ZONA_A_RACK, NUM_PISOS, NUM_NIVELES, NUM_COLS
-from firebase import cargar_db, leer_rfid_pendiente
+from firebase import cargar_db
 from logica import rack_stats
 import hashlib as _hashlib
 
@@ -14,21 +14,6 @@ def render(_TOK_ACTIVO):
     """Renderiza el gemelo digital completo."""
     st_autorefresh(interval=4000, key="twin_refresh")
     db = cargar_db(forzar=True)  # refrescar desde Firebase en cada tick
-
-    # Leer UID pendiente de Firebase (publicado por ESP32 via HTTP)
-    try:
-        _r = requests.get(RFID_URL, timeout=3)
-        _rfid_fb = _r.json() if _r.status_code == 200 and _r.json() else None
-        if _rfid_fb and isinstance(_rfid_fb, dict):
-            _uid_fb = _rfid_fb.get('uid', '').strip().upper()
-            _ts_fb  = _rfid_fb.get('ts', 0)
-            # Procesar solo si es reciente (menos de 10 segundos)
-            if _uid_fb and (time.time() - _ts_fb) < 10:
-                st.session_state.uid_rfid_recibido = _uid_fb
-                # Limpiar el nodo para no reprocesar
-                requests.put(RFID_URL, json=None, timeout=3)
-    except Exception:
-        pass
 
     # Calculos (necesarios para el layout y los KPIs) - Excluir artículos de BAJA
     db_activos = {k: v for k, v in db.items() if v.get('estado') != 'BAJA'}
