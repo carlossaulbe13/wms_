@@ -128,13 +128,22 @@ def render_escaner():
             
             if qr_code:
                 try:
-                    # Parsear el código QR
+                    # Intentar parsear como JSON
                     data = json.loads(qr_code)
                     mostrar_detalle_pallet(data, True)
                     
                 except json.JSONDecodeError:
-                    st.error(f"❌ Código QR inválido: `{qr_code}`")
-                    st.caption("El código debe ser un JSON válido")
+                    # Si no es JSON, puede ser solo el UID (QR simple)
+                    if len(qr_code.strip()) > 0:
+                        st.warning(f"⚠️ QR de texto simple detectado: `{qr_code}`")
+                        st.info("Este QR solo contiene un ID. Usa 'Buscar Pallet' para ver sus datos.")
+                        
+                        # Ofrecer buscar por ese UID
+                        if st.button("🔍 Buscar este pallet", key="buscar_qr_simple"):
+                            buscar_y_mostrar_pallet(qr_code.strip().upper())
+                    else:
+                        st.error(f"❌ Código QR inválido o vacío")
+                        st.caption("El código debe ser un JSON válido con los datos del pallet")
             else:
                 st.info("""
                 **📸 Instrucciones:**
