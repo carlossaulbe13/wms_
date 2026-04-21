@@ -28,7 +28,7 @@ RFID_URL      = FIREBASE_URL.replace("maestro_articulos.json", "rfid_pendiente.j
 # ── MQTT ─────────────────────────────────────────────────────
 MQTT_HOST  = get_secret("MQTT_HOST",  "0915b3e64d01444da73c24d109538a81.s1.eu.hivemq.cloud")
 MQTT_PORT  = int(get_secret("MQTT_PORT", "8883"))
-MQTT_USER  = get_secret("MQTT_USER",  "Logistica1234")
+MQTT_USER  = get_secret("MQTT_USER",  "logistica1234")
 MQTT_PASS  = get_secret("MQTT_PASS",  "Logistica2")
 TOPIC_PUB  = "almacen/escaneo"
 TOPIC_SUB  = "almacen/confirmacion"
