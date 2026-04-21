@@ -565,7 +565,7 @@ def render(_TOK_ACTIVO):
         total_fila      = len(items_fila_kpi)
         activos_fila    = sum(1 for v in items_fila_kpi if v.get('estado') == 'ACTIVO')
         congelados_fila = sum(1 for v in items_fila_kpi if v.get('estado') == 'CONGELADO')
-        cap_total       = NUM_PISOS * NUM_NIVELES * NUM_COLS   # 5×3×3 = 45
+        cap_total       = 5 * 3 * 3   # 5 pisos × 3 niveles × 3 columnas = 45
         ocupacion_fila  = round(total_fila / cap_total * 100) if cap_total else 0
         peso_total_fila = round(sum(v.get('peso', 0) for v in items_fila_kpi), 1)
 
