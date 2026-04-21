@@ -11,6 +11,33 @@ def render_escaner():
     st.title("📱 Escáner Móvil")
     st.caption("Escanea códigos QR o busca pallets manualmente")
     
+    # CSS para ajustar el tamaño del escáner QR
+    st.markdown("""
+    <style>
+    /* Ajustar tamaño del video de la cámara */
+    video {
+        max-width: 100% !important;
+        width: 100% !important;
+        height: auto !important;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    
+    /* Contenedor del escáner */
+    [data-testid="stImage"] {
+        display: flex;
+        justify-content: center;
+    }
+    
+    /* Ajustes para móvil */
+    @media (max-width: 768px) {
+        video {
+            max-height: 400px;
+        }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
     # Intentar importar el escáner QR
     try:
         from streamlit_qrcode_scanner import qrcode_scanner
