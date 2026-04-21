@@ -7,6 +7,7 @@ from config import UIDS_AUTORIZADOS, PASSWORD_ACCESO, PASSWORD_ADMIN
 import json
 import time
 import os
+import requests
 
 RFID_JSON_PATH = "rfid_uid.json"
 ES_CLOUD = not os.path.exists('serial_rfid_bridge.py')
@@ -28,13 +29,55 @@ def leer_uid_local():
 
 def leer_uid_cloud():
     """Lectura cloud desde Firebase"""
+    print("\n" + "="*50)
+    print("[LOGIN CLOUD] Iniciando lectura Firebase...")
+    
     try:
+        # Importar y obtener URL
         from firebase import leer_rfid_pendiente
+        from config import RFID_URL
+        import requests
+        
+        print(f"[LOGIN CLOUD] URL: {RFID_URL}")
+        
+        # Request directo para debug
+        try:
+            res = requests.get(RFID_URL, timeout=5)
+            print(f"[LOGIN CLOUD] Status: {res.status_code}")
+            print(f"[LOGIN CLOUD] Raw response: {res.text}")
+            
+            if res.status_code == 200:
+                data = res.json() if res.text and res.text != 'null' else None
+                print(f"[LOGIN CLOUD] Parsed data: {data}")
+                
+                if data:
+                    uid_raw = data.get('uid', '')
+                    ts_raw = data.get('ts', 0)
+                    print(f"[LOGIN CLOUD] UID raw: '{uid_raw}' (type: {type(uid_raw)})")
+                    print(f"[LOGIN CLOUD] TS raw: {ts_raw}")
+                    
+                    if uid_raw:
+                        edad = time.time() - ts_raw
+                        print(f"[LOGIN CLOUD] Edad: {edad:.1f}s")
+                        print(f"[LOGIN CLOUD] Valido?: {edad < 10}")
+                        
+        except Exception as e:
+            print(f"[LOGIN CLOUD] Error request directo: {e}")
+        
+        # Usar función oficial
+        print(f"[LOGIN CLOUD] Llamando leer_rfid_pendiente()...")
         uid = leer_rfid_pendiente()
-        print(f"[LOGIN] Firebase retornó: {uid}")
+        print(f"[LOGIN CLOUD] Resultado: '{uid}' (type: {type(uid)})")
+        print("="*50 + "\n")
+        
         return uid
+        
     except Exception as e:
-        print(f"[LOGIN] Error Firebase: {e}")
+        print(f"[LOGIN CLOUD] ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+        print("="*50 + "\n")
+    
     return None
 
 def pantalla_login(token_secreto, token_admin_pwd):
@@ -52,16 +95,16 @@ def pantalla_login(token_secreto, token_admin_pwd):
         print(f"[LOGIN] Autorizados: {UIDS_AUTORIZADOS}")
         
         if uid in UIDS_AUTORIZADOS:
-            print(f"[LOGIN] ✓✓✓ AUTORIZADO")
+            print(f"[LOGIN] AUTORIZADO OK")
             st.session_state.autenticado = True
             st.session_state.rol = 'admin'
             st.session_state.session_token = token_secreto + '_admin'
             st.query_params['_s'] = token_secreto + '_admin'
-            st.success(f"✓ Login RFID exitoso: {uid}")
+            st.success(f"OK Login RFID exitoso: {uid}")
             time.sleep(1)
             st.rerun()
         else:
-            print(f"[LOGIN] ✗ NO AUTORIZADO")
+            print(f"[LOGIN] NO AUTORIZADO")
             st.error(f"UID no autorizado: {uid}")
     
     # UI simple
