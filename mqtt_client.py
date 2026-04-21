@@ -90,5 +90,20 @@ def procesar_mensajes_mqtt():
                 print(f"[MQTT] Confirmación procesada: {payload}")
                 
         elif tipo == 'rfid':
+            # IMPORTANTE: Guardar el UID para que login.py lo procese
             st.session_state.uid_rfid_recibido = payload
-            print(f"[MQTT] RFID procesado: {payload}")
+            print(f"[MQTT] ✓ UID RFID recibido por MQTT: {payload}")
+            
+            # También guardarlo en archivo local (para compatibilidad)
+            try:
+                import time
+                data = {
+                    "uid": payload,
+                    "timestamp": time.time()
+                }
+                with open('rfid_uid.json', 'w') as f:
+                    import json
+                    json.dump(data, f)
+                print(f"[MQTT] ✓ UID también guardado en archivo local")
+            except Exception as e:
+                print(f"[MQTT] Advertencia: No se pudo guardar en archivo: {e}")
