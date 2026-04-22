@@ -203,15 +203,18 @@ def registrar_pallet(uid, sku_base, nombre, peso, cantidad,
         print(f"[QR] Generado: {fname}")
         print(f"[QR] Contenido: {qr_json}")
 
-    # Activar LED pick-to-light (solo si mqtt_client existe)
+    # Activar LED pick-to-light via Firebase
     try:
-        from mqtt_client import publicar
-        publicar(r, "ON")
-        time.sleep(0.1)
-    except (ImportError, ModuleNotFoundError):
-        # MQTT no disponible (Cloud o no configurado)
-        print(f"[LOGICA] MQTT no disponible - LED no encendido")
-        pass
+        import requests as _req
+        from config import PTL_COMANDO_URL
+        _req.put(PTL_COMANDO_URL, json={
+            "rack": r,
+            "accion": "ON",
+            "ts": time.time()
+        }, timeout=3)
+        print(f"[PTL] Comando enviado a Firebase: {r}_ON")
+    except Exception as e:
+        print(f"[PTL] Error escribiendo comando PTL: {e}")
 
     # Actualizar estado
     st.session_state.confirmacion_pendiente = r
