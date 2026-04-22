@@ -44,8 +44,10 @@ for k, v in _defaults.items():
 if st.session_state.db is None:
     cargar_db(forzar=True)
 
-# ── Leer confirmacion PTL desde Firebase (cada render) ───────
+# ── Polling confirmacion PTL (autorefresh cuando hay pendiente) ──
 if st.session_state.get("confirmacion_pendiente"):
+    from streamlit_autorefresh import st_autorefresh
+    st_autorefresh(interval=2000, key="ptl_confirm_refresh")
     try:
         from config import PTL_CONFIRM_URL
         _r = _req_ptl.get(PTL_CONFIRM_URL, timeout=2)
@@ -57,8 +59,10 @@ if st.session_state.get("confirmacion_pendiente"):
                 if _rack_conf == st.session_state.confirmacion_pendiente:
                     st.session_state.confirmacion_pendiente = None
                     st.session_state.rack_resaltado = None
+                    st.session_state.ultima_ubicacion = None
                     _req_ptl.put(PTL_CONFIRM_URL, json=None, timeout=2)
                     print(f"[PTL] Confirmacion recibida: {_rack_conf}")
+                    st.rerun()
     except Exception as _e:
         print(f"[PTL] Error leyendo confirmacion: {_e}")
 
