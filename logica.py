@@ -222,5 +222,10 @@ def registrar_pallet(uid, sku_base, nombre, peso, cantidad,
     st.session_state.rack_resaltado_ts      = time.time()
     st.session_state.twin_zona              = None
     st.session_state.twin_fila              = None
+    # Guardar ubicacion para mostrar al operador
+    st.session_state.ultima_ubicacion = {
+        'rack': r, 'piso': piso, 'nivel': nivel, 'col': col,
+        'nombre': nombre, 'sku': sku_base
+    }
 
     return True, f"Pallet registrado — Rack: {r} | Piso {piso} | Nivel {nivel} | Col {col}", avisos
