@@ -32,7 +32,9 @@ if not FIREBASE_URL.endswith('.json'):
     FIREBASE_URL = FIREBASE_URL.rstrip('/') + '/maestro_articulos.json'
     
 HISTORIAL_URL = FIREBASE_URL.replace("maestro_articulos.json", "historial.json")
-RFID_URL      = FIREBASE_URL.replace("maestro_articulos.json", "rfid_pendiente.json")
+RFID_URL         = FIREBASE_URL.replace("maestro_articulos.json", "rfid_pendiente.json")
+PTL_COMANDO_URL  = FIREBASE_URL.replace("maestro_articulos.json", "ptl_comando.json")
+PTL_CONFIRM_URL  = FIREBASE_URL.replace("maestro_articulos.json", "ptl_confirmacion.json")
 
 # ── MQTT ─────────────────────────────────────────────────────
 MQTT_HOST  = get_secret("MQTT_HOST",  "0915b3e64d01444da73c24d109538a81.s1.eu.hivemq.cloud")
@@ -44,7 +46,7 @@ TOPIC_SUB  = "almacen/confirmacion"
 TOPIC_AUTH = "almacen/rfid"
 
 # ── Seguridad ─────────────────────────────────────────────────
-_uids_raw        = get_secret("UIDS_AUTORIZADOS", "06:7F:04:07,92:D1:10:06")
+_uids_raw        = get_secret("UIDS_AUTORIZADOS", "06:7F:04:07,92:D1:10:06,07:A5:FF:06")
 UIDS_AUTORIZADOS = set(u.strip().upper() for u in _uids_raw.split(",") if u.strip())
 PASSWORD_ACCESO  = get_secret("PASSWORD_ACCESO", "1234567890")  # Operador
 PASSWORD_ADMIN   = get_secret("PASSWORD_ADMIN",  "1020304050")  # Administrador
