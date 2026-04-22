@@ -34,6 +34,7 @@ _defaults = {
     'intentos_password': 0,
     'bloqueado_hasta': 0.0,
     'session_token': None,
+    'ultima_ubicacion': None,
 }
 for k, v in _defaults.items():
     if k not in st.session_state:
@@ -176,14 +177,43 @@ if _alertas_s:
 
 # ── Banner confirmación pendiente ─────────────────────────────
 if st.session_state.confirmacion_pendiente:
-    st.warning(f"ALERTA: ACCIÓN REQUERIDA: LED del Rack {st.session_state.confirmacion_pendiente} ENCENDIDO")
-    if st.button(f" CONFIRMAR — APAGAR LED DE {st.session_state.confirmacion_pendiente}"):
-        try:
-            from mqtt_client import publicar
-            publicar(st.session_state.confirmacion_pendiente, "OFF")
-        except:
-            print(f"[APP] MQTT no disponible")
+    _ub = st.session_state.get('ultima_ubicacion', {})
+    _rack = st.session_state.confirmacion_pendiente
+
+    # Mapa fila legible
+    _fila_nombres = {'POS_1':'FILA A','POS_2':'FILA B','POS_3':'FILA C','POS_4':'FILA D','POS_5':'SOBREDIMENSIONES'}
+    _fila = _fila_nombres.get(_rack, _rack)
+
+    st.markdown(
+        f"<div style='background:#713f12;border:2px solid #facc15;border-radius:10px;"
+        f"padding:16px 20px;margin-bottom:12px;'>"
+        f"<div style='color:#facc15;font-size:13px;font-weight:700;letter-spacing:1px;"
+        f"margin-bottom:10px;'>MATERIAL ASIGNADO — ACCION REQUERIDA</div>"
+        f"<div style='display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px;'>"
+        f"<div style='background:rgba(0,0,0,0.3);border-radius:6px;padding:8px;text-align:center;'>"
+        f"<div style='color:#8892b0;font-size:10px;'>FILA</div>"
+        f"<div style='color:#facc15;font-size:18px;font-weight:700;'>{_fila}</div></div>"
+        f"<div style='background:rgba(0,0,0,0.3);border-radius:6px;padding:8px;text-align:center;'>"
+        f"<div style='color:#8892b0;font-size:10px;'>RACK</div>"
+        f"<div style='color:#facc15;font-size:18px;font-weight:700;'>{'R'+str(_ub.get('piso','?')) if _ub else '?'}</div></div>"
+        f"<div style='background:rgba(0,0,0,0.3);border-radius:6px;padding:8px;text-align:center;'>"
+        f"<div style='color:#8892b0;font-size:10px;'>NIVEL</div>"
+        f"<div style='color:#facc15;font-size:18px;font-weight:700;'>{_ub.get('nivel','?') if _ub else '?'}</div></div>"
+        f"<div style='background:rgba(0,0,0,0.3);border-radius:6px;padding:8px;text-align:center;'>"
+        f"<div style='color:#8892b0;font-size:10px;'>COLUMNA</div>"
+        f"<div style='color:#facc15;font-size:18px;font-weight:700;'>{_ub.get('col','?') if _ub else '?'}</div></div>"
+        f"</div>"
+        f"<div style='color:#cdd3ea;font-size:12px;'>"
+        f"<b>{_ub.get('nombre','') if _ub else ''}</b>"
+        f"{'  |  SKU: ' + _ub.get('sku','') if _ub and _ub.get('sku') else ''}"
+        f"</div>"
+        f"<div style='color:#8892b0;font-size:11px;margin-top:4px;'>LED encendido en panel — Confirma depositando el material</div>"
+        f"</div>",
+        unsafe_allow_html=True
+    )
+    if st.button(f"CONFIRMAR DEPOSITO — APAGAR LED {_fila}", type="primary", use_container_width=True):
         st.session_state.confirmacion_pendiente = None
+        st.session_state.rack_resaltado = None
         st.rerun()
     st.divider()
 
