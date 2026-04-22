@@ -54,15 +54,15 @@ if st.session_state.get("confirmacion_pendiente"):
         _data = _r.json() if _r.status_code == 200 and _r.json() else None
         if _data and isinstance(_data, dict):
             _rack_conf = _data.get("rack", "").strip()
-            _ts_conf   = _data.get("ts", 0)
-            if _rack_conf and (time.time() - _ts_conf) < 30:
-                if _rack_conf == st.session_state.confirmacion_pendiente:
-                    st.session_state.confirmacion_pendiente = None
-                    st.session_state.rack_resaltado = None
-                    st.session_state.ultima_ubicacion = None
-                    _req_ptl.put(PTL_CONFIRM_URL, json=None, timeout=2)
-                    print(f"[PTL] Confirmacion recibida: {_rack_conf}")
-                    st.rerun()
+            if _rack_conf and _rack_conf == st.session_state.confirmacion_pendiente:
+                # Limpiar todo - boton fisico presionado
+                st.session_state.confirmacion_pendiente = None
+                st.session_state.rack_resaltado = None
+                st.session_state.ultima_ubicacion = None
+                # Limpiar nodo en Firebase para no re-procesar
+                _req_ptl.put(PTL_CONFIRM_URL, json=None, timeout=2)
+                print(f"[PTL] Confirmacion fisica recibida: {_rack_conf}")
+                st.rerun()
     except Exception as _e:
         print(f"[PTL] Error leyendo confirmacion: {_e}")
 
