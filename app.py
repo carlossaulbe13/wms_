@@ -10,6 +10,8 @@ import streamlit as st
 import streamlit.components.v1 as _components
 import hashlib
 
+import time
+import requests as _req_ptl
 from config import PASSWORD_ACCESO, PASSWORD_ADMIN
 from firebase import cargar_db
 
@@ -40,6 +42,24 @@ for k, v in _defaults.items():
 # Carga inicial de Firebase
 if st.session_state.db is None:
     cargar_db(forzar=True)
+
+# ── Leer confirmacion PTL desde Firebase (cada render) ───────
+if st.session_state.get("confirmacion_pendiente"):
+    try:
+        from config import PTL_CONFIRM_URL
+        _r = _req_ptl.get(PTL_CONFIRM_URL, timeout=2)
+        _data = _r.json() if _r.status_code == 200 and _r.json() else None
+        if _data and isinstance(_data, dict):
+            _rack_conf = _data.get("rack", "").strip()
+            _ts_conf   = _data.get("ts", 0)
+            if _rack_conf and (time.time() - _ts_conf) < 30:
+                if _rack_conf == st.session_state.confirmacion_pendiente:
+                    st.session_state.confirmacion_pendiente = None
+                    st.session_state.rack_resaltado = None
+                    _req_ptl.put(PTL_CONFIRM_URL, json=None, timeout=2)
+                    print(f"[PTL] Confirmacion recibida: {_rack_conf}")
+    except Exception as _e:
+        print(f"[PTL] Error leyendo confirmacion: {_e}")
 
 # ── Tokens de sesion ─────────────────────────────────────────
 _TOKEN_BASE = hashlib.sha256(PASSWORD_ACCESO.encode()).hexdigest()[:16]
