@@ -179,40 +179,6 @@ if _alertas_s:
                 f"Rack: {_v.get('rack','')} Piso {_v.get('piso','')} Niv {_v.get('fila','')} Col {_v.get('columna','')}"
             )
 
-
-
-# ── Detección automática de dispositivo ──────────────────────
-if 'movil' not in st.query_params:
-    _components.html("""
-    <script>
-    const esMov = window.screen.width < 768 ||
-                  /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-    const url = new URL(window.parent.location.href);
-    if (esMov && url.searchParams.get('movil') !== '1') {
-        url.searchParams.set('movil', '1');
-        window.parent.location.href = url.toString();
-    } else if (!esMov && url.searchParams.get('movil') !== '0') {
-        url.searchParams.set('movil', '0');
-        window.parent.location.href = url.toString();
-    }
-    </script>
-    """, height=0)
-
-_es_movil = st.query_params.get('movil', '0') == '1'
-st.session_state.es_movil = _es_movil
-
-# ── Navegación por query params del gemelo ────────────────────
-_qp = dict(st.query_params)
-if 'zona' in _qp:
-    fila_raw = _qp.get('fila', None)
-    st.session_state.twin_zona = _qp['zona']
-    st.session_state.twin_fila = fila_raw.replace('+', ' ') if fila_raw else None
-    if 'rack' in _qp:
-        st.session_state.twin_rack = int(_qp['rack'])
-    st.query_params.clear()
-    st.query_params['_s'] = _TOK_ACTIVO
-    st.rerun()
-
 # ── Banner confirmación pendiente ─────────────────────────────
 if st.session_state.confirmacion_pendiente:
     _ub = st.session_state.get('ultima_ubicacion', {})
@@ -254,6 +220,38 @@ if st.session_state.confirmacion_pendiente:
         st.session_state.rack_resaltado = None
         st.rerun()
     st.divider()
+
+# ── Detección automática de dispositivo ──────────────────────
+if 'movil' not in st.query_params:
+    _components.html("""
+    <script>
+    const esMov = window.screen.width < 768 ||
+                  /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+    const url = new URL(window.parent.location.href);
+    if (esMov && url.searchParams.get('movil') !== '1') {
+        url.searchParams.set('movil', '1');
+        window.parent.location.href = url.toString();
+    } else if (!esMov && url.searchParams.get('movil') !== '0') {
+        url.searchParams.set('movil', '0');
+        window.parent.location.href = url.toString();
+    }
+    </script>
+    """, height=0)
+
+_es_movil = st.query_params.get('movil', '0') == '1'
+st.session_state.es_movil = _es_movil
+
+# ── Navegación por query params del gemelo ────────────────────
+_qp = dict(st.query_params)
+if 'zona' in _qp:
+    fila_raw = _qp.get('fila', None)
+    st.session_state.twin_zona = _qp['zona']
+    st.session_state.twin_fila = fila_raw.replace('+', ' ') if fila_raw else None
+    if 'rack' in _qp:
+        st.session_state.twin_rack = int(_qp['rack'])
+    st.query_params.clear()
+    st.query_params['_s'] = _TOK_ACTIVO
+    st.rerun()
 
 # ── Renderizar según dispositivo ──────────────────────────────
 if not _es_movil:
