@@ -45,32 +45,22 @@ def render(_TOK_ACTIVO):
         t5, c5 = rack_stats(db, 'POS_5')
         badge5 = '#dc3545' if c5 > 0 else '#3a3f55'  # solo rojo si hay congelados, neutro si no
 
-        # Resaltado amarillo: activo si el rack se asignó hace menos de 5 seg
-        rack_res    = st.session_state.get('rack_resaltado')
-        ts_res      = st.session_state.get('rack_resaltado_ts', 0.0)
-        elapsed     = time.time() - ts_res
-        res_activo  = rack_res is not None and elapsed < 5
+        # Resaltado: activo mientras haya confirmacion pendiente (hasta boton fisico)
+        rack_res   = st.session_state.get('rack_resaltado')
+        res_activo = rack_res is not None and st.session_state.get('confirmacion_pendiente') is not None
 
         if not res_activo and rack_res is not None:
-            # Limpiar el estado una vez que pasaron los 5 seg
-            st.session_state.rack_resaltado    = None
-            st.session_state.rack_resaltado_ts = 0.0
+            st.session_state.rack_resaltado = None
 
         if res_activo:
-            # duracion_restante para que el rerun limpie el borde justo al terminar
-            duracion_restante = max(0.0, 5.0 - elapsed)
             st.markdown("""
             <style>
             @keyframes pulso_amarillo {
-                0%   { background:#2e3550; border-color:#4a5080; box-shadow:none; }
-                30%  { background:#713f12; border-color:#facc15;
-                       box-shadow:0 0 18px 4px rgba(250,204,21,0.55); }
-                70%  { background:#713f12; border-color:#facc15;
-                       box-shadow:0 0 18px 4px rgba(250,204,21,0.55); }
-                100% { background:#2e3550; border-color:#4a5080; box-shadow:none; }
+                0%,100% { background:#2e3550; border-color:#4a5080; box-shadow:none; }
+                50%     { background:#713f12; border-color:#facc15;
+                          box-shadow:0 0 18px 4px rgba(250,204,21,0.55); }
             }
-            /* animation: sin 'forwards' para que vuelva al estado inicial */
-            .fila-res { animation: pulso_amarillo 5s ease !important; }
+            .fila-res { animation: pulso_amarillo 2s ease-in-out infinite !important; }
             </style>""", unsafe_allow_html=True)
 
 
