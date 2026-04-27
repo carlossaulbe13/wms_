@@ -31,22 +31,13 @@ FIREBASE_URL  = get_secret("FIREBASE_URL",
 if not FIREBASE_URL.endswith('.json'):
     FIREBASE_URL = FIREBASE_URL.rstrip('/') + '/maestro_articulos.json'
     
-HISTORIAL_URL = FIREBASE_URL.replace("maestro_articulos.json", "historial.json")
-RFID_URL         = FIREBASE_URL.replace("maestro_articulos.json", "rfid_pendiente.json")
-PTL_COMANDO_URL  = FIREBASE_URL.replace("maestro_articulos.json", "ptl_comando.json")
-PTL_CONFIRM_URL  = FIREBASE_URL.replace("maestro_articulos.json", "ptl_confirmacion.json")
-
-# ── MQTT ─────────────────────────────────────────────────────
-MQTT_HOST  = get_secret("MQTT_HOST",  "0915b3e64d01444da73c24d109538a81.s1.eu.hivemq.cloud")
-MQTT_PORT  = int(get_secret("MQTT_PORT", "8883"))
-MQTT_USER  = get_secret("MQTT_USER",  "logistica1234")
-MQTT_PASS  = get_secret("MQTT_PASS",  "Logistica2")
-TOPIC_PUB  = "almacen/escaneo"
-TOPIC_SUB  = "almacen/confirmacion"
-TOPIC_AUTH = "almacen/rfid"
+HISTORIAL_URL   = FIREBASE_URL.replace("maestro_articulos.json", "historial.json")
+RFID_URL        = FIREBASE_URL.replace("maestro_articulos.json", "almacen/rfid.json")
+PTL_COMANDO_URL = FIREBASE_URL.replace("maestro_articulos.json", "almacen/comando.json")
+PTL_CONFIRM_URL = FIREBASE_URL.replace("maestro_articulos.json", "almacen/confirmacion.json")
 
 # ── Seguridad ─────────────────────────────────────────────────
-_uids_raw        = get_secret("UIDS_AUTORIZADOS", "06:7F:04:07,92:D1:10:06,07:A5:FF:06")
+_uids_raw        = get_secret("UIDS_AUTORIZADOS", "06:7F:04:07,92:D1:10:06")
 UIDS_AUTORIZADOS = set(u.strip().upper() for u in _uids_raw.split(",") if u.strip())
 PASSWORD_ACCESO  = get_secret("PASSWORD_ACCESO", "1234567890")  # Operador
 PASSWORD_ADMIN   = get_secret("PASSWORD_ADMIN",  "1020304050")  # Administrador
@@ -80,5 +71,5 @@ ZONA_A_RACK = {
 # ── Tokens de sesion ─────────────────────────────────────────
 import hashlib
 TOKEN_OPERADOR = hashlib.sha256(PASSWORD_ACCESO.encode()).hexdigest()[:16] + '_operador'
-TOKEN_ADMIN    = hashlib.sha256(PASSWORD_ACCESO.encode()).hexdigest()[:16] + '_admin'
+TOKEN_ADMIN    = hashlib.sha256(PASSWORD_ADMIN.encode()).hexdigest()[:16]  + '_admin'
 TOKEN_ADMIN_2  = hashlib.sha256(PASSWORD_ADMIN.encode()).hexdigest()[:16]  + '_admin'
