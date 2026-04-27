@@ -68,12 +68,45 @@ def render_escaner():
             with _qr_col:
                 qr_code = qrcode_scanner(key='qrcode_mobile')
 
-            # Inyecta <style> en el <head> del iframe del scanner para ocultar
-            # el canvas de overlay. CSS en <head> sobrevive re-renders de React;
-            # inline style no lo hace. MutationObserver cubre recreaciones del iframe.
             _stc.html("""<script>
 (function(){
     var patched=new WeakSet();
+    var CSS=`
+        *{box-sizing:border-box!important;}
+        body{margin:0!important;background:#000!important;overflow:hidden!important;}
+        video{
+            position:fixed!important;top:0!important;left:0!important;
+            width:100%!important;height:100%!important;
+            object-fit:cover!important;display:block!important;z-index:1!important;
+        }
+        canvas,svg{opacity:0!important;pointer-events:none!important;}
+        #_qr_ov{
+            position:fixed!important;inset:0!important;z-index:10!important;
+            display:flex!important;align-items:center!important;justify-content:center!important;
+            pointer-events:none!important;
+        }
+        #_qr_fr{
+            width:62%!important;aspect-ratio:1!important;
+            position:relative!important;
+        }
+        #_qr_fr::before,#_qr_fr::after,#_qr_fr>span::before,#_qr_fr>span::after{
+            content:''!important;position:absolute!important;
+            width:22px!important;height:22px!important;
+            border-color:#38bdf8!important;border-style:solid!important;
+        }
+        #_qr_fr::before{top:0!important;left:0!important;border-width:3px 0 0 3px!important;border-radius:4px 0 0 0!important;}
+        #_qr_fr::after {top:0!important;right:0!important;border-width:3px 3px 0 0!important;border-radius:0 4px 0 0!important;}
+        #_qr_fr>span::before{bottom:0!important;left:0!important;border-width:0 0 3px 3px!important;border-radius:0 0 0 4px!important;}
+        #_qr_fr>span::after {bottom:0!important;right:0!important;border-width:0 3px 3px 0!important;border-radius:0 0 4px 0!important;}
+        #_qr_sl{
+            position:absolute!important;left:8%!important;width:84%!important;
+            height:2px!important;top:10%!important;
+            background:linear-gradient(90deg,transparent,#38bdf8,transparent)!important;
+            box-shadow:0 0 8px #38bdf8!important;
+            animation:_qr_scan 1.8s ease-in-out infinite!important;
+        }
+        @keyframes _qr_scan{0%{top:10%}50%{top:88%}100%{top:10%}}
+    `;
     function inject(f){
         if(patched.has(f))return;
         try{
@@ -81,8 +114,14 @@ def render_escaner():
             if(!doc||!doc.querySelector('video'))return;
             patched.add(f);
             var s=doc.createElement('style');
-            s.textContent='canvas,svg{opacity:0!important;pointer-events:none!important;}';
+            s.textContent=CSS;
             (doc.head||doc.body||doc.documentElement).appendChild(s);
+            if(!doc.getElementById('_qr_ov')){
+                var ov=doc.createElement('div');
+                ov.id='_qr_ov';
+                ov.innerHTML='<div id="_qr_fr"><span></span><div id="_qr_sl"></div></div>';
+                doc.body.appendChild(ov);
+            }
         }catch(e){}
     }
     function sweep(){
