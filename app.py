@@ -101,7 +101,7 @@ with st.sidebar:
     st.markdown("<h2 style='margin:0;padding:0;'>UMAD WMS</h2>", unsafe_allow_html=True)
     
     _rol = st.session_state.get('rol', 'operador')
-    _color = '#22c55e' if _rol == 'admin' else '#8892b0'
+    _color = '#94B4C1' if _rol == 'admin' else '#547792'
     st.markdown(
         f"<div style='font-size:16px;color:{_color};margin-bottom:8px;margin-top:4px;'>"
         f"Rol: <b>{'Administrador' if _rol == 'admin' else 'Operador'}</b></div>",
@@ -118,12 +118,16 @@ with st.sidebar:
         and v.get('estado') == 'ACTIVO'
     ]
     if _alertas_s:
-        st.markdown(
-            f"<div style='background:#7f1d1d;border-radius:8px;padding:8px 12px;"
-            f"margin-bottom:8px;font-size:12px;color:#fca5a5;'>"
-            f"<b>Reorden:</b> {len(_alertas_s)} articulo(s)</div>",
-            unsafe_allow_html=True
-        )
+        with st.expander(f"Reorden — {len(_alertas_s)} art.", expanded=False):
+            for _k, _v in _alertas_s:
+                st.markdown(
+                    f"**{_v.get('nombre','N/A')}**  \n"
+                    f"SKU: `{_v.get('sku_base','N/A')}` · "
+                    f"Stock: **{_v.get('cantidad',1)}** / Mín: {_v.get('stock_minimo',0)}  \n"
+                    f"Rack: {_v.get('rack','')} · P{_v.get('piso','')} · "
+                    f"N{_v.get('fila','')} · C{_v.get('columna','')}"
+                )
+                st.divider()
 
     if st.button("Cerrar sesion", use_container_width=True):
         st.session_state.autenticado = False
@@ -149,6 +153,97 @@ with st.sidebar:
 # ── CSS global ────────────────────────────────────────────────
 st.markdown("""
 <style>
+/* ── Paleta global ───────────────────────────────────── */
+[data-testid="stAppViewContainer"],
+[data-testid="stAppViewContainer"] > div:first-child {
+    background-color: #1a2535 !important;
+}
+[data-testid="stSidebar"] {
+    background-color: #213448 !important;
+    border-right: 1px solid rgba(84,119,146,0.35) !important;
+}
+[data-testid="stSidebar"] * { color: #EAE0CF !important; }
+
+/* Tabs */
+[data-testid="stTabs"] [data-baseweb="tab-list"] {
+    background-color: #213448 !important;
+    border-bottom: 1px solid #547792 !important;
+    gap: 2px !important;
+}
+[data-testid="stTabs"] [data-baseweb="tab"] {
+    color: #94B4C1 !important;
+    background-color: transparent !important;
+}
+[data-testid="stTabs"] [aria-selected="true"] {
+    color: #EAE0CF !important;
+    border-bottom: 2px solid #547792 !important;
+    background-color: rgba(84,119,146,0.12) !important;
+}
+
+/* Botones */
+[data-testid="stButton"] > button {
+    background-color: #213448 !important;
+    color: #EAE0CF !important;
+    border: 1px solid #547792 !important;
+    border-radius: 8px !important;
+    transition: background 0.2s, border-color 0.2s !important;
+}
+[data-testid="stButton"] > button:hover {
+    background-color: #547792 !important;
+    border-color: #94B4C1 !important;
+}
+[data-testid="stButton"] > button[kind="primary"] {
+    background-color: #547792 !important;
+    border-color: #547792 !important;
+}
+[data-testid="stButton"] > button[kind="primary"]:hover {
+    background-color: #94B4C1 !important;
+    color: #213448 !important;
+}
+
+/* Inputs de texto y número */
+[data-testid="stTextInput"] input,
+[data-testid="stNumberInput"] input {
+    background-color: #213448 !important;
+    color: #EAE0CF !important;
+    border-color: #547792 !important;
+    border-radius: 8px !important;
+}
+[data-testid="stTextInput"] input::placeholder,
+[data-testid="stNumberInput"] input::placeholder { color: #94B4C1 !important; }
+[data-testid="stTextInput"] label,
+[data-testid="stNumberInput"] label { color: #94B4C1 !important; }
+
+/* Selectbox */
+[data-testid="stSelectbox"] [data-baseweb="select"] > div {
+    background-color: #213448 !important;
+    border-color: #547792 !important;
+    border-radius: 8px !important;
+}
+[data-testid="stSelectbox"] label { color: #94B4C1 !important; }
+
+/* Métricas */
+[data-testid="stMetric"] label      { color: #94B4C1 !important; }
+[data-testid="stMetricValue"]        { color: #EAE0CF !important; }
+[data-testid="stMetricDelta"]        { color: #94B4C1 !important; }
+
+/* Captions y texto secundario */
+[data-testid="stCaptionContainer"] p { color: #94B4C1 !important; }
+
+/* Expander */
+[data-testid="stExpander"] summary   { color: #94B4C1 !important; }
+[data-testid="stExpander"] summary svg { fill: #94B4C1 !important; }
+
+/* Divider */
+hr { border-color: rgba(84,119,146,0.35) !important; }
+
+/* DataFrame */
+[data-testid="stDataFrame"] {
+    border: 1px solid rgba(84,119,146,0.4) !important;
+    border-radius: 8px !important;
+}
+
+/* ── Rack layout helpers ─────────────────────────────── */
 div[data-testid="column"] > div { padding: 0 !important; }
 .rack-row > div[data-testid="stHorizontalBlock"] { gap: 6px !important; }
 .rack-row { margin-bottom: 6px !important; }
@@ -169,21 +264,10 @@ div[data-testid="stSelectbox"] [data-baseweb="select"] * { cursor: pointer !impo
 
 # ── Título ────────────────────────────────────────────────────
 st.markdown(
-    "<h1 style='text-align:center;color:#FF4B4B;margin-bottom:4px;'>"
+    "<h1 style='text-align:center;color:#EAE0CF;margin-bottom:4px;letter-spacing:1px;'>"
     "UMAD Warehouse Management System</h1>",
     unsafe_allow_html=True
 )
-
-# ── Alertas de reorden (banner) ───────────────────────────────
-if _alertas_s:
-    with st.expander(f"ALERTA DE REORDEN — {len(_alertas_s)} articulo(s) bajo mínimo", expanded=True):
-        for _k, _v in _alertas_s:
-            st.warning(
-                f"{_v.get('nombre','N/A')} | SKU: {_v.get('sku_base','N/A')} | "
-                f"Stock: {_v.get('cantidad',1)} pzas | Mín: {_v.get('stock_minimo',0)} pzas | "
-                f"Rack: {_v.get('rack','')} Piso {_v.get('piso','')} Niv {_v.get('fila','')} Col {_v.get('columna','')}"
-            )
-
 
 
 # ── Detección automática de dispositivo ──────────────────────
