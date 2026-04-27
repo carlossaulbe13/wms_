@@ -49,7 +49,10 @@ def leer_uid_cloud():
         ts  = data.get('ts', 0)
         print(f"[LOGIN] uid='{uid}' ts={ts}")
         if uid:
-            requests.delete(RFID_URL, timeout=3)  # DELETE correcto en lugar de PUT vacío
+            try:
+                requests.delete(RFID_URL, timeout=3)
+            except Exception:
+                pass
             return uid
         print("[LOGIN] UID descartado — campo uid vacio")
     except Exception as e:
@@ -304,7 +307,9 @@ def pantalla_login(token_secreto, token_admin_pwd):
 
     # ── Máquina de estados ────────────────────────────────────
     if state == 'idle':
-        uid = leer_uid_cloud() if ES_CLOUD else leer_uid_local()
+        uid = leer_uid_cloud()
+        if not uid and not ES_CLOUD:
+            uid = leer_uid_local()
         if uid:
             if uid in UIDS_AUTORIZADOS:
                 st.session_state.rfid_state       = 'authorized'
