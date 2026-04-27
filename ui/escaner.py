@@ -68,32 +68,34 @@ def render_escaner():
             with _qr_col:
                 qr_code = qrcode_scanner(key='qrcode_mobile')
 
-            # Oculta el canvas de overlay del componente (encuadre blanco)
-            # opacity:0 lo hace invisible sin romper la lectura de píxeles
+            # Inyecta <style> en el <head> del iframe del scanner para ocultar
+            # el canvas de overlay. CSS en <head> sobrevive re-renders de React;
+            # inline style no lo hace. MutationObserver cubre recreaciones del iframe.
             _stc.html("""<script>
 (function(){
-    function patch(){
-        var iframes=window.parent.document.querySelectorAll('iframe');
-        for(var i=0;i<iframes.length;i++){
-            var f=iframes[i];
-            if(f._qrPatched) continue;
-            try{
-                var doc=f.contentDocument||f.contentWindow.document;
-                if(!doc) continue;
-                if(doc.querySelector('video')){
-                    var canvases=doc.querySelectorAll('canvas');
-                    canvases.forEach(function(c){
-                        c.style.opacity='0';
-                        c.style.pointerEvents='none';
-                    });
-                    f._qrPatched=true;
-                }
-            }catch(e){}
-        }
+    var patched=new WeakSet();
+    function inject(f){
+        if(patched.has(f))return;
+        try{
+            var doc=f.contentDocument||f.contentWindow.document;
+            if(!doc||!doc.querySelector('video'))return;
+            patched.add(f);
+            var s=doc.createElement('style');
+            s.textContent='canvas,svg{opacity:0!important;pointer-events:none!important;}';
+            (doc.head||doc.body||doc.documentElement).appendChild(s);
+        }catch(e){}
     }
-    setTimeout(patch,600);
-    setTimeout(patch,1400);
-    setTimeout(patch,2500);
+    function sweep(){
+        var all=window.parent.document.querySelectorAll('iframe');
+        for(var i=0;i<all.length;i++)inject(all[i]);
+    }
+    try{
+        new MutationObserver(sweep).observe(
+            window.parent.document.documentElement,
+            {childList:true,subtree:true}
+        );
+    }catch(e){}
+    [100,400,900,1800,3500].forEach(function(t){setTimeout(sweep,t);});
 })();
 </script>""", height=0)
 
