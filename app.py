@@ -230,9 +230,22 @@ st.markdown("""
 /* Captions y texto secundario */
 [data-testid="stCaptionContainer"] p { color: #94B4C1 !important; }
 
-/* Expander */
+/* Expander general */
 [data-testid="stExpander"] summary   { color: #94B4C1 !important; }
 [data-testid="stExpander"] summary svg { fill: #94B4C1 !important; }
+
+/* Expander de reorden en sidebar — ámbar */
+[data-testid="stSidebar"] [data-testid="stExpander"] {
+    background: rgba(245,158,11,0.08) !important;
+    border: 1px solid rgba(245,158,11,0.35) !important;
+    border-radius: 8px !important;
+}
+[data-testid="stSidebar"] [data-testid="stExpander"] summary {
+    color: #fbbf24 !important;
+}
+[data-testid="stSidebar"] [data-testid="stExpander"] summary svg {
+    fill: #fbbf24 !important;
+}
 
 /* Divider */
 hr { border-color: rgba(84,119,146,0.35) !important; }
