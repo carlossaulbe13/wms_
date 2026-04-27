@@ -2,12 +2,12 @@
 ui/maestro.py — Maestro de articulos: tabla, edicion e historial.
 """
 import os
-import datetime
 import streamlit as st
 import pandas as pd
 import requests
 from config import TIPOS_EMBALAJE, HISTORIAL_URL
-from firebase import cargar_db, guardar_db, registrar_movimiento, cargar_historial, limpiar_historial
+from firebase import (cargar_db, guardar_db, registrar_movimiento,
+                      dar_de_baja_pallet, eliminar_pallet)
 from logica import registrar_pallet, asignar_rack_por_peso_vol
 
 def render():
@@ -169,23 +169,20 @@ def render():
                             st.rerun()
                     with ba2:
                         if st.button("DAR DE BAJA", use_container_width=True):
-                            db_actual[uid_sel]['estado'] = 'BAJA'
-                            db_actual[uid_sel]['fecha_baja'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-                            guardar_db(db_actual)
-                            registrar_movimiento('BAJA', uid_sel,
-                                f"{db_actual[uid_sel].get('nombre','')} | {db_actual[uid_sel].get('rack','')}")
-                            st.warning(f"Pallet {uid_sel} dado de baja.")
-                            st.rerun()
+                            _nom_b = datos.get('nombre', '')
+                            _rack_b = datos.get('rack', '')
+                            if dar_de_baja_pallet(uid_sel):
+                                registrar_movimiento('BAJA', uid_sel, f"{_nom_b} | {_rack_b}")
+                                st.warning(f"Pallet {uid_sel} dado de baja.")
+                                st.rerun()
                     with ba3:
                         if st.button("ELIMINAR PERMANENTE", use_container_width=True):
-                            _nom_eli  = db_actual[uid_sel].get('nombre','')
-                            _rack_eli = db_actual[uid_sel].get('rack','')
-                            registrar_movimiento('ELIMINACION', uid_sel,
-                                f"{_nom_eli} | {_rack_eli}")
-                            del db_actual[uid_sel]
-                            guardar_db(db_actual)
-                            st.error("Pallet eliminado permanentemente.")
-                            st.rerun()
+                            _nom_eli  = datos.get('nombre', '')
+                            _rack_eli = datos.get('rack', '')
+                            if eliminar_pallet(uid_sel):
+                                registrar_movimiento('ELIMINACION', uid_sel, f"{_nom_eli} | {_rack_eli}")
+                                st.error("Pallet eliminado permanentemente.")
+                                st.rerun()
                 else:
                     st.markdown(
                         "<div style='background:#1e2130;border:1px solid #3a3f55;border-radius:8px;"
