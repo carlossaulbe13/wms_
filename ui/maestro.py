@@ -64,12 +64,14 @@ def render():
             if f_estado != "TODOS":
                 df_f = df_f[df_f["ESTADO"] == f_estado]
 
-            st.caption(f"{len(df_f)} de {len(df_full)} articulos")
+            st.caption(f"{len(df_f)} de {len(df_full)} articulos" + (" — selecciona filas para eliminación grupal" if _es_admin_m else ""))
 
-            st.dataframe(
+            _df_event = st.dataframe(
                 df_f,
                 use_container_width=True,
                 height=44 + len(df_f) * 36,
+                on_select="rerun" if _es_admin_m else "ignore",
+                selection_mode="multi-row",
                 column_config={
                     "MATRICULA (QR)": st.column_config.TextColumn("Matricula QR", width="medium"),
                     "NOMBRE":         st.column_config.TextColumn("Nombre",       width="large"),
@@ -87,6 +89,26 @@ def render():
                 },
                 hide_index=True,
             )
+
+            # ── Eliminación grupal (solo admin) ───────────────────
+            if _es_admin_m:
+                _sel_idx = _df_event.selection.rows if hasattr(_df_event, 'selection') else []
+                if _sel_idx:
+                    _sel_mats = [df_f.iloc[i]["MATRICULA (QR)"] for i in _sel_idx]
+                    _bc1, _bc2 = st.columns([3, 1])
+                    with _bc1:
+                        st.warning(f"{len(_sel_mats)} artículo(s) seleccionados: {', '.join(_sel_mats[:5])}{'...' if len(_sel_mats)>5 else ''}")
+                    with _bc2:
+                        if st.button(f"ELIMINAR {len(_sel_mats)} SELEC.", use_container_width=True, type="secondary"):
+                            _db_del = cargar_db()
+                            for _mat in _sel_mats:
+                                if _mat in _db_del:
+                                    registrar_movimiento('ELIMINACION', _mat,
+                                        f"{_db_del[_mat].get('nombre','')} | BAJA MASIVA")
+                                    del _db_del[_mat]
+                            guardar_db(_db_del)
+                            st.success(f"{len(_sel_mats)} artículo(s) eliminados permanentemente.")
+                            st.rerun()
 
             st.divider()
 
@@ -288,6 +310,7 @@ def render():
                         st.warning(av)
                     if ok:
                         st.success(msg)
+                        st.session_state.navigate_to_gemelo = True
                         st.rerun()
                     else:
                         st.error(msg)
