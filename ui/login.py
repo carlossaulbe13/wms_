@@ -11,7 +11,7 @@ ES_CLOUD = not os.path.exists('serial_rfid_bridge.py')
 
 _CSS = """
 <style>
-/* ── Fondo gradiente ───────────────────── */
+/* ── Fondo gradiente full-screen ───────── */
 [data-testid="stAppViewContainer"] > div:first-child {
     background: linear-gradient(145deg, #213448 0%, #547792 65%, #94B4C1 100%);
     min-height: 100vh;
@@ -27,18 +27,16 @@ footer, #MainMenu { display: none !important; }
     max-width: 100% !important;
 }
 
-/* ── Card columna central ──────────────── */
+/* ── Card — ocupa el ancho disponible de la columna ── */
 .login-card {
-    background: rgba(33, 52, 72, 0.72);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    border: 1px solid rgba(148, 180, 193, 0.25);
-    border-radius: 20px;
-    padding: 52px 36px 36px 36px;
-    max-width: 400px;
-    margin: 72px auto 0 auto;
-    box-shadow: 0 12px 40px rgba(0,0,0,0.45);
-    position: relative;
+    background: rgba(33, 52, 72, 0.75);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(148, 180, 193, 0.28);
+    border-radius: 24px;
+    padding: 56px 48px 48px 48px;
+    margin: 6vh auto 0 auto;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.5);
 }
 
 /* ── Input fields ──────────────────────── */
@@ -48,17 +46,18 @@ div[data-testid="stForm"] {
     padding: 0 !important;
 }
 div[data-testid="stTextInput"] input {
-    background: rgba(33, 52, 72, 0.80) !important;
+    background: rgba(33, 52, 72, 0.85) !important;
     border: 1px solid #547792 !important;
-    border-radius: 8px !important;
+    border-radius: 10px !important;
     color: #EAE0CF !important;
-    font-size: 14px !important;
-    padding: 10px 14px !important;
+    font-size: 15px !important;
+    padding: 14px 16px !important;
+    height: 52px !important;
     caret-color: #EAE0CF !important;
 }
 div[data-testid="stTextInput"] input:focus {
     border-color: #94B4C1 !important;
-    box-shadow: 0 0 0 2px rgba(148,180,193,0.25) !important;
+    box-shadow: 0 0 0 3px rgba(148,180,193,0.22) !important;
 }
 div[data-testid="stTextInput"] input::placeholder { color: #547792 !important; }
 div[data-testid="stTextInput"] label { display: none !important; }
@@ -76,13 +75,14 @@ div[data-testid="stFormSubmitButton"] > button {
     background: #547792 !important;
     color: #EAE0CF !important;
     border: none !important;
-    border-radius: 8px !important;
+    border-radius: 10px !important;
     font-weight: 700 !important;
-    letter-spacing: 3px !important;
-    font-size: 13px !important;
+    letter-spacing: 4px !important;
+    font-size: 14px !important;
     width: 100% !important;
-    padding: 12px !important;
-    margin-top: 6px !important;
+    padding: 16px !important;
+    height: 52px !important;
+    margin-top: 12px !important;
     transition: background 0.2s, color 0.2s !important;
 }
 div[data-testid="stFormSubmitButton"] > button:hover {
@@ -92,9 +92,9 @@ div[data-testid="stFormSubmitButton"] > button:hover {
 
 /* ── Mensajes error/success ────────────── */
 div[data-testid="stAlert"] {
-    border-radius: 8px !important;
+    border-radius: 10px !important;
     font-size: 13px !important;
-    margin-bottom: 10px !important;
+    margin-bottom: 14px !important;
 }
 </style>
 """
@@ -165,23 +165,22 @@ def pantalla_login(token_secreto, token_admin_pwd):
         else:
             _rfid_err = f"UID no autorizado: {uid}"
 
-    # Layout: columna central estrecha
-    _, col, _ = st.columns([1.8, 1, 1.8])
+    # Layout: columna central amplia
+    _, col, _ = st.columns([0.6, 1, 0.6])
     with col:
         # Avatar + encabezado
         st.markdown(
             f"<div class='login-card'>"
-            f"<div style='text-align:center; margin-bottom:28px;'>"
-            f"  <div style='width:72px;height:72px;background:#213448;"
+            f"<div style='text-align:center; margin-bottom:36px;'>"
+            f"  <div style='width:88px;height:88px;background:#213448;"
             f"       border:2.5px solid #547792;border-radius:50%;"
-            f"       margin:0 auto 16px auto;display:flex;align-items:center;"
-            f"       justify-content:center;box-shadow:0 4px 18px rgba(0,0,0,0.5);'>"
+            f"       margin:0 auto 24px auto;display:flex;align-items:center;"
+            f"       justify-content:center;box-shadow:0 6px 22px rgba(0,0,0,0.55);'>"
             f"    {_AVATAR_SVG}"
             f"  </div>"
-            f"  <div style='color:#EAE0CF;font-size:22px;font-weight:700;"
-            f"       letter-spacing:3px;margin-bottom:4px;'>UMAD WMS</div>"
-            f"  <div style='color:#94B4C1;font-size:11px;letter-spacing:2px;'>"
-            f"    WAREHOUSE MANAGEMENT SYSTEM</div>"
+            f"  <div style='color:#EAE0CF;font-size:16px;font-weight:600;"
+            f"       letter-spacing:3px;line-height:1.5;'>"
+            f"    UMAD WAREHOUSE<br>MANAGEMENT SYSTEM</div>"
             f"</div>",
             unsafe_allow_html=True,
         )
@@ -189,11 +188,11 @@ def pantalla_login(token_secreto, token_admin_pwd):
         # Indicador RFID
         st.markdown(
             "<div style='background:rgba(84,119,146,0.18);border:1px solid #547792;"
-            "border-radius:8px;padding:8px 14px;margin-bottom:18px;"
-            "display:flex;align-items:center;gap:10px;'>"
-            "<div style='width:7px;height:7px;border-radius:50%;background:#94B4C1;"
-            "box-shadow:0 0 7px #94B4C1;flex-shrink:0;'></div>"
-            "<span style='color:#94B4C1;font-size:12px;'>Pasa tu tarjeta RFID para acceso rápido</span>"
+            "border-radius:10px;padding:12px 18px;margin-bottom:24px;"
+            "display:flex;align-items:center;gap:12px;'>"
+            "<div style='width:8px;height:8px;border-radius:50%;background:#94B4C1;"
+            "box-shadow:0 0 8px #94B4C1;flex-shrink:0;'></div>"
+            "<span style='color:#94B4C1;font-size:13px;'>Pasa tu tarjeta RFID para acceso rápido</span>"
             "</div>",
             unsafe_allow_html=True,
         )
