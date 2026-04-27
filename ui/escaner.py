@@ -20,20 +20,6 @@ def render_escaner():
     st.title(" Escáner Móvil")
     st.caption("Escanea códigos QR o busca pallets manualmente")
     
-    # Banner de confirmación pendiente (igual que en desktop)
-    if st.session_state.get('confirmacion_pendiente'):
-        rack_pendiente = st.session_state.confirmacion_pendiente
-        st.warning(f"ALERTA: **ACCIÓN REQUERIDA:** LED del Rack {rack_pendiente} ENCENDIDO")
-        
-        if st.button(f" CONFIRMAR — APAGAR LED DE {rack_pendiente}",
-                     use_container_width=True, type="primary", key="confirmar_led_mobile"):
-            st.session_state.confirmacion_pendiente = None
-            st.success("✓ Confirmación registrada")
-            time.sleep(1)
-            st.rerun()
-        
-        st.divider()
-    
     # CSS: aplica al elemento <iframe> del componente (en el DOM del padre)
     st.markdown("""
     <style>
@@ -78,8 +64,14 @@ def render_escaner():
             position:fixed!important;top:0!important;left:0!important;
             width:100%!important;height:100%!important;
             object-fit:cover!important;display:block!important;z-index:1!important;
+            -webkit-user-select:none!important;user-select:none!important;
+            pointer-events:none!important;
         }
         canvas,svg{opacity:0!important;pointer-events:none!important;}
+        /* Ocultar overlay de Live Text / OCR del navegador */
+        *[data-visualcompletion],*[aria-label*="translate"],
+        *[class*="live-text"],*[class*="livetext"],
+        img-analysis-result,translate-button{display:none!important;}
         #_qr_ov{
             position:fixed!important;inset:0!important;z-index:10!important;
             display:flex!important;align-items:center!important;justify-content:center!important;
@@ -116,6 +108,14 @@ def render_escaner():
             var s=doc.createElement('style');
             s.textContent=CSS;
             (doc.head||doc.body||doc.documentElement).appendChild(s);
+            var vid=doc.querySelector('video');
+            if(vid){
+                vid.setAttribute('translate','no');
+                vid.setAttribute('x-apple-disable-message-reformatting','');
+                vid.setAttribute('autocorrect','off');
+                vid.setAttribute('autocomplete','off');
+                vid.setAttribute('spellcheck','false');
+            }
             if(!doc.getElementById('_qr_ov')){
                 var ov=doc.createElement('div');
                 ov.id='_qr_ov';
