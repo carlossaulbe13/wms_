@@ -2,7 +2,6 @@
 ui/login.py — Login profesional con animacion RFID
 """
 import streamlit as st
-import streamlit.components.v1 as components
 from streamlit_autorefresh import st_autorefresh
 from config import UIDS_AUTORIZADOS, PASSWORD_ACCESO, PASSWORD_ADMIN
 import json
@@ -102,13 +101,10 @@ def _card_html(state: str, denied_uid: str = '') -> str:
 
     ripple_html = '<div class="ripple"></div>' if show_ripple else ''
 
-    return f"""<!DOCTYPE html>
-<html>
-<head>
+    return f"""
 <style>
-  * {{ box-sizing:border-box; margin:0; padding:0; }}
-  body {{
-    background:transparent;
+  .rfid-root {{
+    box-sizing:border-box;
     display:flex; flex-direction:column;
     align-items:center; justify-content:center;
     height:200px;
@@ -116,7 +112,7 @@ def _card_html(state: str, denied_uid: str = '') -> str:
     overflow:hidden;
   }}
 
-  .wrapper {{
+  .rfid-root .wrapper {{
     position:relative;
     width:200px; height:126px;
     margin-bottom:14px;
@@ -273,8 +269,7 @@ def _card_html(state: str, denied_uid: str = '') -> str:
     to   {{ opacity:1; transform:translateY(0); }}
   }}
 </style>
-</head>
-<body>
+<div class="rfid-root">
   <div class="wrapper {anim_class}">
     <div class="card">
       <div class="chip"></div>
@@ -287,8 +282,7 @@ def _card_html(state: str, denied_uid: str = '') -> str:
     {ripple_html}
   </div>
   <div class="status {anim_class}">{status_text}</div>
-</body>
-</html>"""
+</div>"""
 
 
 # ── Pantalla principal ────────────────────────────────────────
@@ -421,7 +415,7 @@ def pantalla_login(token_secreto, token_admin_pwd):
 
     # ── Tarjeta animada ───────────────────────────────────────
     denied_uid = st.session_state.get('rfid_denied_uid', '')
-    components.html(_card_html(state, denied_uid), height=200)
+    st.html(_card_html(state, denied_uid))
 
     # ── Divisor ───────────────────────────────────────────────
     st.markdown("""
@@ -440,7 +434,7 @@ def pantalla_login(token_secreto, token_admin_pwd):
     # ── Formulario ────────────────────────────────────────────
     with st.form("login_form", clear_on_submit=True):
         pwd = st.text_input(
-            "", placeholder="Contraseña de acceso",
+            "Contraseña", placeholder="Contraseña de acceso",
             type="password", label_visibility="collapsed"
         )
         submit = st.form_submit_button(
