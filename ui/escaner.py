@@ -2,6 +2,7 @@
 ui/escaner.py — Interfaz móvil para escaneo QR y registro de material.
 """
 import streamlit as st
+import streamlit.components.v1 as _stc
 import json
 import time
 import sys
@@ -66,7 +67,36 @@ def render_escaner():
             _pad1, _qr_col, _pad2 = st.columns([1, 4, 1])
             with _qr_col:
                 qr_code = qrcode_scanner(key='qrcode_mobile')
-            
+
+            # Oculta el canvas de overlay del componente (encuadre blanco)
+            # opacity:0 lo hace invisible sin romper la lectura de píxeles
+            _stc.html("""<script>
+(function(){
+    function patch(){
+        var iframes=window.parent.document.querySelectorAll('iframe');
+        for(var i=0;i<iframes.length;i++){
+            var f=iframes[i];
+            if(f._qrPatched) continue;
+            try{
+                var doc=f.contentDocument||f.contentWindow.document;
+                if(!doc) continue;
+                if(doc.querySelector('video')){
+                    var canvases=doc.querySelectorAll('canvas');
+                    canvases.forEach(function(c){
+                        c.style.opacity='0';
+                        c.style.pointerEvents='none';
+                    });
+                    f._qrPatched=true;
+                }
+            }catch(e){}
+        }
+    }
+    setTimeout(patch,600);
+    setTimeout(patch,1400);
+    setTimeout(patch,2500);
+})();
+</script>""", height=0)
+
             if qr_code:
                 try:
                     # Intentar parsear como JSON
