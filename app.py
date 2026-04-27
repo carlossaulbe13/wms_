@@ -51,9 +51,12 @@ if st.session_state.get("confirmacion_pendiente"):
     try:
         from config import PTL_CONFIRM_URL
         _r = _req_ptl.get(PTL_CONFIRM_URL, timeout=2)
-        _data = _r.json() if _r.status_code == 200 and _r.json() else None
-        if _data and isinstance(_data, dict):
-            _rack_conf = _data.get("rack", "").strip()
+        try:
+            _data = _r.json() if _r.status_code == 200 else None
+        except Exception:
+            _data = None
+        if isinstance(_data, str) and _data.endswith("_OFF"):
+            _rack_conf = _data.replace("_OFF", "")
             if _rack_conf and _rack_conf == st.session_state.confirmacion_pendiente:
                 # Limpiar todo - boton fisico presionado
                 st.session_state.confirmacion_pendiente = None
