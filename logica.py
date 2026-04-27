@@ -178,7 +178,7 @@ def registrar_pallet(uid, sku_base, nombre, peso, cantidad,
             "nombre": nombre,
             "peso": peso,
             "pzas": cantidad,
-            "alto_cm": alto_cm * 100,  # Convertir metros a cm
+            "alto_cm": alto_cm,
             "embalaje": embalaje,
             "rack": r,
             "ubicacion": {
@@ -207,11 +207,7 @@ def registrar_pallet(uid, sku_base, nombre, peso, cantidad,
     try:
         import requests as _req
         from config import PTL_COMANDO_URL
-        _req.put(PTL_COMANDO_URL, json={
-            "rack": r,
-            "accion": "ON",
-            "ts": time.time()
-        }, timeout=3)
+        _req.put(PTL_COMANDO_URL, json=f"{r}_ON", timeout=3)
         print(f"[PTL] Comando enviado a Firebase: {r}_ON")
     except Exception as e:
         print(f"[PTL] Error escribiendo comando PTL: {e}")
