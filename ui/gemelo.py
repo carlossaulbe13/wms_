@@ -6,14 +6,29 @@ import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 import pandas as pd
 from config import ZONA_A_RACK, NUM_PISOS, NUM_NIVELES, NUM_COLS
-from firebase import cargar_db
+from firebase import cargar_db, leer_sensores
 from logica import rack_stats
 import hashlib as _hashlib
 
 def render(_TOK_ACTIVO):
     """Renderiza el gemelo digital completo."""
     st_autorefresh(interval=4000, key="twin_refresh")
-    db = cargar_db(forzar=True)  # refrescar desde Firebase en cada tick
+    db = cargar_db(forzar=True)
+
+    # Cargar estados de sensores CNY70 y construir lookup (rack_id, nivel, col) → estado
+    _sensores_raw = leer_sensores()
+    sensor_estado = {}  # {("POS_1", 1, 1): "ocupado"|"libre"}
+    for _lbl, _sdata in (_sensores_raw or {}).items():
+        try:
+            _p = _lbl.split('-')
+            _r = int(_p[0][1:])
+            _n = int(_p[1][1:])
+            _c = int(_p[2][1:])
+            sensor_estado[(f"POS_{_r}", _n, _c)] = (
+                _sdata.get('estado', 'libre') if isinstance(_sdata, dict) else 'libre'
+            )
+        except Exception:
+            pass
 
     # Calculos (necesarios para el layout y los KPIs) - Excluir artículos de BAJA
     db_activos = {k: v for k, v in db.items() if v.get('estado') != 'BAJA'}
@@ -79,6 +94,16 @@ def render(_TOK_ACTIVO):
             es_res = res_activo and rack_res == rack_id
             clase  = 'fila-res' if es_res else ''
             borde  = '#facc15' if es_res else '#4a5080'
+            # Sensores: contar cuántos están ocupados en esta fila
+            _sens_total   = sum(1 for (r, n, cc) in sensor_estado if r == rack_id)
+            _sens_ocupados = sum(1 for (r, n, cc), e in sensor_estado.items()
+                                 if r == rack_id and e == 'ocupado')
+            _badge_sens = (
+                f"<span style='background:#ef4444;color:#fff;font-size:9px;"
+                f"border-radius:4px;padding:1px 5px;margin-left:6px;'>"
+                f"{_sens_ocupados}/{_sens_total} sensor{'es' if _sens_total!=1 else ''}</span>"
+                if _sens_total > 0 else ""
+            )
             filas_html += (
                 f"<a href='?zona=ALMACENAJE&fila={fenc}&_s={_TOK_ACTIVO}' target='_self' "
                 f"style='text-decoration:none;display:block;margin-bottom:8px;'>"
@@ -89,7 +114,7 @@ def render(_TOK_ACTIVO):
                 f"font-size:12px;font-weight:600;cursor:pointer;'>{fila_label}{tag}</div>"
                 f"<div style='flex:1;'>"
                 f"<div style='font-size:10px;color:#8892b0;margin-bottom:3px;'>"
-                f"{t} pallets — {pct_act}% activos · {pct_cong}% congelados</div>"
+                f"{t} pallets — {pct_act}% activos · {pct_cong}% congelados{_badge_sens}</div>"
                 f"<div style='background:#2a2f45;border-radius:4px;height:8px;"
                 f"display:flex;overflow:hidden;'>"
                 f"<div style='background:#22c55e;width:{pct_act}%;height:8px;flex-shrink:0;'></div>"
@@ -207,7 +232,7 @@ def render(_TOK_ACTIVO):
         TOTAL_CELDAS = NUM_NIVELES * NUM_COLS  # 9 por rack
 
         # SVG de rack como estructura
-        def svg_rack_resumen(rack_num, items_rack_local, rack_id_local):
+        def svg_rack_resumen(rack_num, items_rack_local, rack_id_local, sensor_est=None):
             ocupadas = {}
             for k, v in items_rack_local.items():
                 if v.get('piso') == rack_num:
@@ -308,13 +333,23 @@ def render(_TOK_ACTIVO):
                     if sc:
                         svg += caja_carton(cx, cy, cw, ch, sc)
 
+                    # Dot de sensor (solo piso 1 tiene sensores físicos)
+                    if rack_num == 1 and sensor_est:
+                        _s = sensor_est.get((rack_id_local, nivel, col))
+                        if _s is not None:
+                            _dc = '#ef4444' if _s == 'ocupado' else '#22c55e'
+                            svg += (
+                                f"<circle cx='{cx+cw-4}' cy='{cy+4}' r='3' "
+                                f"fill='{_dc}' opacity='0.95'/>"
+                            )
+
             svg += "</svg>"
             return svg, total_occ, occ_pct
 
         # Renderizar los 5 racks — el SVG completo es el enlace
         racks_grid = "<div style='display:grid;grid-template-columns:repeat(5,1fr);gap:10px;'>"
         for rack_num in range(1, NUM_RACKS + 1):
-            svg_r, occ_n, occ_p = svg_rack_resumen(rack_num, items_rack, rack_id)
+            svg_r, occ_n, occ_p = svg_rack_resumen(rack_num, items_rack, rack_id, sensor_estado)
             fila_enc = fila_sel.replace(' ', '+')
             url = f"?zona=ALMACENAJE&fila={fila_enc}&rack={rack_num}&_s={_TOK_ACTIVO}"
             racks_grid += (
@@ -371,7 +406,14 @@ def render(_TOK_ACTIVO):
             "Buscado</span>"
             "<span><span style='display:inline-block;width:10px;height:10px;"
             "background:#1e2130;border:1px solid #3a3f55;border-radius:2px;margin-right:4px;'></span>"
-            "Disponible</span></div>",
+            "Disponible</span>"
+            "<span style='color:#8892b0;margin-left:16px;'>·</span>"
+            "<span style='margin-left:12px;'><span style='display:inline-block;width:10px;height:10px;"
+            "background:#22c55e;border-radius:50%;margin-right:4px;'></span>Sensor libre</span>"
+            "<span style='margin-left:8px;'><span style='display:inline-block;width:10px;height:10px;"
+            "background:#ef4444;border-radius:50%;margin-right:4px;'></span>Sensor ocupado</span>"
+            "<span style='color:#8892b0;font-size:10px;margin-left:6px;'>(solo rack 1)</span>"
+            "</div>",
             unsafe_allow_html=True
         )
 
@@ -477,6 +519,19 @@ def render(_TOK_ACTIVO):
                         f"<text x='{x + cw//2}' y='{y + ch//2 + 4}' text-anchor='middle' "
                         f"font-size='10' fill='#4a5080' font-family='sans-serif'>LIBRE</text>"
                     )
+
+                # Dot de sensor CNY70 — solo piso 1 tiene sensores físicos
+                if rack_sel == 1:
+                    _s = sensor_estado.get((rack_id, nivel, col))
+                    if _s is not None:
+                        _dc  = '#ef4444' if _s == 'ocupado' else '#22c55e'
+                        _txt = 'OC' if _s == 'ocupado' else 'LB'
+                        svg += (
+                            f"<circle cx='{x+cw-8}' cy='{y+8}' r='7' fill='{_dc}' opacity='0.9'/>"
+                            f"<text x='{x+cw-8}' y='{y+12}' text-anchor='middle' "
+                            f"font-size='6' font-weight='700' fill='white' font-family='sans-serif'>"
+                            f"{_txt}</text>"
+                        )
 
         svg += "</svg>"
         st.markdown(
