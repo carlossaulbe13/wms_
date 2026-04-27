@@ -258,7 +258,7 @@ def render(_TOK_ACTIVO):
 
             svg = (
                 f"<svg width='{W}' height='{H}' viewBox='0 0 {W} {H}' "
-                f"xmlns='http://www.w3.org/2000/svg' style='display:block;'>"
+                f"xmlns='http://www.w3.org/2000/svg' style='display:block;margin:0 auto;'>"
                 # Columnas estructurales
                 f"<rect x='{pad_l-col_w-2}' y='{pad_top-2}' width='{col_w}' height='{H-pad_top-8}' fill='#3a3f55'/>"
                 f"<rect x='{pad_l+area_w+2}' y='{pad_top-2}' width='{col_w}' height='{H-pad_top-8}' fill='#3a3f55'/>"
