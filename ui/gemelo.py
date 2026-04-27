@@ -62,7 +62,8 @@ def render(_TOK_ACTIVO):
 
         # Resaltado: activo mientras haya confirmacion pendiente (hasta boton fisico)
         rack_res   = st.session_state.get('rack_resaltado')
-        res_activo = rack_res is not None and st.session_state.get('confirmacion_pendiente') is not None
+        _res_ts    = st.session_state.get('rack_resaltado_ts', 0)
+        res_activo = rack_res is not None and (time.time() - _res_ts) < 15
 
         if not res_activo and rack_res is not None:
             st.session_state.rack_resaltado = None
@@ -614,7 +615,7 @@ def render(_TOK_ACTIVO):
             f"</div>"
             f"<div style='display:flex;height:10px;border-radius:6px;overflow:hidden;"
             f"background:#1d2e3e;'>"
-            f"<div style='width:{pct_activos}%;background:#547792;transition:width 0.4s;'></div>"
+            f"<div style='width:{pct_activos}%;background:#22c55e;transition:width 0.4s;'></div>"
             f"<div style='width:{pct_congelados}%;background:#ef4444;transition:width 0.4s;'></div>"
             f"</div></div>",
             unsafe_allow_html=True
@@ -655,7 +656,7 @@ def render(_TOK_ACTIVO):
                 f"</div>"
                 f"<div style='display:flex;height:10px;border-radius:6px;overflow:hidden;"
                 f"background:#1d2e3e;'>"
-                f"<div style='width:{pct_act}%;background:#547792;transition:width 0.4s;'></div>"
+                f"<div style='width:{pct_act}%;background:#22c55e;transition:width 0.4s;'></div>"
                 f"<div style='width:{pct_cong}%;background:#ef4444;transition:width 0.4s;'></div>"
                 f"</div></div>",
                 unsafe_allow_html=True
