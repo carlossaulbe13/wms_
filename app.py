@@ -16,7 +16,7 @@ from config import PASSWORD_ACCESO, PASSWORD_ADMIN
 from firebase import cargar_db
 
 # ── Configuracion de pagina ───────────────────────────────────
-st.set_page_config(page_title="UMAD WMS Cloud", layout="wide")
+st.set_page_config(page_title="WMS Cloud", layout="wide")
 
 # ── Defaults de session_state ─────────────────────────────────
 _defaults = {
@@ -99,7 +99,7 @@ _TOK_ACTIVO = st.session_state.get('session_token') or (_TOKEN_BASE + '_operador
 
 # ── Sidebar ───────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("<h2 style='margin:0;padding:0;'>UMAD WMS</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='margin:0;padding:0;'>WMS</h2>", unsafe_allow_html=True)
     
     _rol = st.session_state.get('rol', 'operador')
     _color = '#94B4C1' if _rol == 'admin' else '#547792'
@@ -279,27 +279,17 @@ div[data-testid="stSelectbox"] [data-baseweb="select"] * { cursor: pointer !impo
 # ── Título ────────────────────────────────────────────────────
 st.markdown(
     "<h1 style='text-align:center;color:#EAE0CF;margin-bottom:4px;letter-spacing:1px;'>"
-    "UMAD Warehouse Management System</h1>",
+    "Warehouse Management System</h1>",
     unsafe_allow_html=True
 )
 
 
 # ── Detección automática de dispositivo ──────────────────────
+import re as _re
 if 'movil' not in st.query_params:
-    _components.html("""
-    <script>
-    const esMov = window.screen.width < 768 ||
-                  /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-    const url = new URL(window.parent.location.href);
-    if (esMov && url.searchParams.get('movil') !== '1') {
-        url.searchParams.set('movil', '1');
-        window.parent.location.href = url.toString();
-    } else if (!esMov && url.searchParams.get('movil') !== '0') {
-        url.searchParams.set('movil', '0');
-        window.parent.location.href = url.toString();
-    }
-    </script>
-    """, height=0)
+    _ua = st.context.headers.get('User-Agent', '')
+    _auto_movil = bool(_re.search(r'Android|iPhone|iPad|iPod|Mobile', _ua, _re.IGNORECASE))
+    st.query_params['movil'] = '1' if _auto_movil else '0'
 
 _es_movil = st.query_params.get('movil', '0') == '1'
 st.session_state.es_movil = _es_movil
@@ -370,7 +360,7 @@ setTimeout(function(){
 
 # ── Renderizar según dispositivo ──────────────────────────────
 if not _es_movil:
-    tabs = st.tabs(['GEMELO DIGITAL', 'MAESTRO DE ARTICULOS'])
+    tabs = st.tabs(['RASTREO Y UBICACIÓN', 'MAESTRO DE ARTICULOS'])
     with tabs[0]:
         from ui.gemelo import render as render_gemelo
         render_gemelo(_TOK_ACTIVO)
