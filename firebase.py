@@ -5,7 +5,7 @@ Usa cache de session_state para minimizar llamadas HTTP.
 import requests
 import datetime
 import streamlit as st
-from config import FIREBASE_URL, HISTORIAL_URL, RFID_URL
+from config import FIREBASE_URL, HISTORIAL_URL, RFID_URL, SENSORES_URL
 
 # ── Base de datos principal ───────────────────────────────────
 
@@ -77,6 +77,22 @@ def limpiar_historial():
         pass
 
 # ── RFID pendiente ────────────────────────────────────────────
+
+@st.cache_data(ttl=2, show_spinner=False)
+def _fetch_sensores():
+    try:
+        res = requests.get(SENSORES_URL, timeout=3)
+        if res.status_code == 200 and res.json() is not None:
+            return res.json()
+    except Exception:
+        pass
+    return {}
+
+
+def leer_sensores():
+    """Lee /almacen/sensores. Retorna {label: {estado, ts}}. Cache 2s."""
+    return _fetch_sensores()
+
 
 def leer_rfid_pendiente():
     """
