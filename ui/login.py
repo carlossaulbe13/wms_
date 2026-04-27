@@ -146,7 +146,7 @@ def pantalla_login(token_secreto, token_admin_pwd):
     with st.expander(" Debug Completo"):
         st.write(f"**Modo:** {'CLOUD' if ES_CLOUD else 'LOCAL'}")
         st.write(f"**Último UID:** {uid or 'Ninguno'}")
-        st.write(f"**UIDs válidos:** {UIDS_AUTORIZADOS}")
+        st.write(f"**UIDs autorizados:** {len(UIDS_AUTORIZADOS)} configurados")
     
     st.info(" Pasa tu tarjeta RFID")
     
