@@ -33,46 +33,39 @@ def render_escaner():
         
         st.divider()
     
+    # CSS: aplica al elemento <iframe> del componente (en el DOM del padre)
     st.markdown("""
     <style>
-    video {
+    iframe:not([height="0"]) {
+        height: 360px !important;
         width: 100% !important;
-        height: auto !important;
-        aspect-ratio: 4/3 !important;
-        border-radius: 10px !important;
-        box-shadow: 0 4px 16px rgba(0,0,0,0.4) !important;
-        display: block !important;
-    }
-    canvas {
-        width: 100% !important;
-        height: auto !important;
-        aspect-ratio: 4/3 !important;
         border-radius: 10px !important;
         display: block !important;
+        border: 1.5px solid #547792 !important;
     }
     </style>
     """, unsafe_allow_html=True)
-    
+
     # Intentar importar el escáner QR
     try:
         from streamlit_qrcode_scanner import qrcode_scanner
         tiene_qr = True
     except ImportError:
         tiene_qr = False
-    
+
     # Tabs para diferentes modos
     if tiene_qr:
         tab1, tab2, tab3 = st.tabs([" Escáner QR", " Buscar Pallet", " Entrada Manual"])
     else:
         tab1, tab2 = st.tabs([" Buscar Pallet", " Entrada Manual"])
-    
+
     # TAB 1: Escáner QR (solo si está instalado)
     if tiene_qr:
         with tab1:
-            st.subheader(" Escáner de Código QR")
-            
-            # Escáner QR
-            qr_code = qrcode_scanner(key='qrcode_mobile')
+            # Columna centrada para limitar el ancho del iframe del componente
+            _pad1, _qr_col, _pad2 = st.columns([1, 4, 1])
+            with _qr_col:
+                qr_code = qrcode_scanner(key='qrcode_mobile')
             
             if qr_code:
                 try:
