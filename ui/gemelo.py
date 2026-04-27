@@ -64,18 +64,21 @@ def render(_TOK_ACTIVO):
             </style>""", unsafe_allow_html=True)
 
 
+        CAP_FILA = 45  # 5 racks × 3 niveles × 3 cols
         filas_html = ''
         for fila_label, rack_id in [
             ('FILA A','POS_1'),('FILA B','POS_2'),('FILA C','POS_3'),('FILA D','POS_4')
         ]:
             t, c = rack_stats(db, rack_id)
-            occ = min(int(t / 60 * 100), 100)
-            cb  = '#dc3545' if occ > 80 else ('#ffc107' if occ > 50 else '#28a745')
-            tag = (' — LLENO' if occ >= 100 else '')
+            a    = t - c  # activos (no congelados)
+            occ  = min(round(t / CAP_FILA * 100), 100)
+            pct_act  = min(round(a / CAP_FILA * 100), 100)
+            pct_cong = min(round(c / CAP_FILA * 100), 100 - pct_act)
+            tag  = (' — LLENO' if occ >= 100 else '')
             fenc = fila_label.replace(' ', '+')
-            es_res   = res_activo and rack_res == rack_id
-            clase    = 'fila-res' if es_res else ''
-            borde    = '#facc15' if es_res else '#4a5080'
+            es_res = res_activo and rack_res == rack_id
+            clase  = 'fila-res' if es_res else ''
+            borde  = '#facc15' if es_res else '#4a5080'
             filas_html += (
                 f"<a href='?zona=ALMACENAJE&fila={fenc}&_s={_TOK_ACTIVO}' target='_self' "
                 f"style='text-decoration:none;display:block;margin-bottom:8px;'>"
@@ -85,9 +88,12 @@ def render(_TOK_ACTIVO):
                 f"border-radius:8px;padding:11px 8px;text-align:center;color:#cdd3ea;"
                 f"font-size:12px;font-weight:600;cursor:pointer;'>{fila_label}{tag}</div>"
                 f"<div style='flex:1;'>"
-                f"<div style='font-size:10px;color:#8892b0;margin-bottom:3px;'>{t} pallets — {occ}% ocup.</div>"
-                f"<div style='background:#2a2f45;border-radius:4px;height:8px;'>"
-                f"<div style='background:{cb};width:{max(occ,1)}%;height:8px;border-radius:4px;'></div>"
+                f"<div style='font-size:10px;color:#8892b0;margin-bottom:3px;'>"
+                f"{t} pallets — {pct_act}% activos · {pct_cong}% congelados</div>"
+                f"<div style='background:#2a2f45;border-radius:4px;height:8px;"
+                f"display:flex;overflow:hidden;'>"
+                f"<div style='background:#22c55e;width:{pct_act}%;height:8px;flex-shrink:0;'></div>"
+                f"<div style='background:#ef4444;width:{pct_cong}%;height:8px;flex-shrink:0;'></div>"
                 f"</div></div></div></a>"
             )
 
