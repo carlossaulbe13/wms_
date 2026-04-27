@@ -28,6 +28,7 @@ _defaults = {
     'twin_rack': None,
     'rack_resaltado': None,
     'rack_resaltado_ts': 0.0,
+    'navigate_to_gemelo': False,
     'es_movil': False,
     'autenticado': False,
     'rol': 'operador',
@@ -347,7 +348,7 @@ if st.session_state.confirmacion_pendiente:
         f"<b>{_ub.get('nombre','') if _ub else ''}</b>"
         f"{'  |  SKU: ' + _ub.get('sku','') if _ub and _ub.get('sku') else ''}"
         f"</div>"
-        f"<div style='color:#8892b0;font-size:11px;margin-top:4px;'>LED encendido en panel — El sensor confirmará automáticamente al detectar el pallet</div>"
+        f"<div style='color:#8892b0;font-size:11px;margin-top:4px;'>{'Dirígete a la ubicación indicada y deposita el pallet — el sistema confirmará automáticamente.' if _es_movil else 'LED encendido en panel — El sensor confirmará automáticamente al detectar el pallet.'}</div>"
         f"</div>",
         unsafe_allow_html=True
     )
@@ -356,6 +357,16 @@ if st.session_state.confirmacion_pendiente:
         st.session_state.rack_resaltado = None
         st.rerun()
     st.divider()
+
+# ── Navegación post-registro ──────────────────────────────────
+if st.session_state.get('navigate_to_gemelo'):
+    st.session_state.navigate_to_gemelo = False
+    _components.html("""<script>
+setTimeout(function(){
+    var tabs=window.parent.document.querySelectorAll('[data-baseweb="tab"]');
+    if(tabs.length>0) tabs[0].click();
+},350);
+</script>""", height=0)
 
 # ── Renderizar según dispositivo ──────────────────────────────
 if not _es_movil:
