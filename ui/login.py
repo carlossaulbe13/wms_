@@ -35,7 +35,7 @@ footer, #MainMenu { display: none !important; }
     border: 1px solid rgba(148, 180, 193, 0.28);
     border-radius: 24px;
     padding: 56px 48px 48px 48px;
-    margin: 6vh auto 0 auto;
+    margin: 0 auto 0 auto;
     box-shadow: 0 16px 48px rgba(0,0,0,0.5);
 }
 
@@ -168,19 +168,25 @@ def pantalla_login(token_secreto, token_admin_pwd):
     # Layout: columna central amplia
     _, col, _ = st.columns([1.2, 1, 1.2])
     with col:
-        # Avatar + encabezado
+        # Título centrado fuera del card
+        st.markdown(
+            "<div style='text-align:center;margin-top:6vh;margin-bottom:24px;'>"
+            "<span style='color:#EAE0CF;font-size:14px;font-weight:600;"
+            "letter-spacing:2.5px;'>WAREHOUSE MANAGEMENT SYSTEM</span>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+        # Card con solo el avatar
         st.markdown(
             f"<div class='login-card'>"
-            f"<div style='text-align:center; margin-bottom:36px;'>"
+            f"<div style='text-align:center; margin-bottom:28px;'>"
             f"  <div style='width:88px;height:88px;background:#213448;"
             f"       border:2.5px solid #547792;border-radius:50%;"
-            f"       margin:0 auto 24px auto;display:flex;align-items:center;"
+            f"       margin:0 auto 0 auto;display:flex;align-items:center;"
             f"       justify-content:center;box-shadow:0 6px 22px rgba(0,0,0,0.55);'>"
             f"    {_AVATAR_SVG}"
             f"  </div>"
-            f"  <div style='color:#EAE0CF;font-size:14px;font-weight:600;"
-            f"       letter-spacing:2.5px;line-height:1.5;'>"
-            f"    WAREHOUSE MANAGEMENT SYSTEM</div>"
             f"</div>",
             unsafe_allow_html=True,
         )
