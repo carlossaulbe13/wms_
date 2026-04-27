@@ -82,7 +82,7 @@ div[data-testid="stFormSubmitButton"] > button {
     width: 100% !important;
     padding: 16px !important;
     height: 52px !important;
-    margin-top: 12px !important;
+    margin-top: 4px !important;
     transition: background 0.2s, color 0.2s !important;
 }
 div[data-testid="stFormSubmitButton"] > button:hover {
@@ -166,7 +166,7 @@ def pantalla_login(token_secreto, token_admin_pwd):
             _rfid_err = f"UID no autorizado: {uid}"
 
     # Layout: columna central amplia
-    _, col, _ = st.columns([0.6, 1, 0.6])
+    _, col, _ = st.columns([1.2, 1, 1.2])
     with col:
         # Avatar + encabezado
         st.markdown(
@@ -188,7 +188,7 @@ def pantalla_login(token_secreto, token_admin_pwd):
         # Indicador RFID
         st.markdown(
             "<div style='background:rgba(84,119,146,0.18);border:1px solid #547792;"
-            "border-radius:10px;padding:12px 18px;margin-bottom:24px;"
+            "border-radius:10px;padding:12px 18px;margin-bottom:40px;"
             "display:flex;align-items:center;gap:12px;'>"
             "<div style='width:8px;height:8px;border-radius:50%;background:#94B4C1;"
             "box-shadow:0 0 8px #94B4C1;flex-shrink:0;'></div>"
