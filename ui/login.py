@@ -28,56 +28,44 @@ def leer_uid_local():
     return None
 
 def leer_uid_cloud():
-    """Lectura cloud desde Firebase"""
-    print("\n" + "="*50)
-    print("[LOGIN CLOUD] Iniciando lectura Firebase...")
-    
+    """Lectura cloud desde Firebase con dedup por session_state"""
     try:
-        # Importar y obtener URL
-        from firebase import leer_rfid_pendiente
         from config import RFID_URL
-        import requests
-        
-        print(f"[LOGIN CLOUD] URL: {RFID_URL}")
-        
-        # Request directo para debug
+        res = requests.get(RFID_URL, timeout=5)
+        print(f"[LOGIN] Firebase status={res.status_code} body={res.text[:120]}")
+        if res.status_code != 200:
+            return None
         try:
-            res = requests.get(RFID_URL, timeout=5)
-            print(f"[LOGIN CLOUD] Status: {res.status_code}")
-            print(f"[LOGIN CLOUD] Raw response: {res.text}")
-            
-            if res.status_code == 200:
-                data = res.json() if res.text and res.text != 'null' else None
-                print(f"[LOGIN CLOUD] Parsed data: {data}")
-                
-                if data:
-                    uid_raw = data.get('uid', '')
-                    ts_raw = data.get('ts', 0)
-                    print(f"[LOGIN CLOUD] UID raw: '{uid_raw}' (type: {type(uid_raw)})")
-                    print(f"[LOGIN CLOUD] TS raw: {ts_raw}")
-                    
-                    if uid_raw:
-                        edad = time.time() - ts_raw
-                        print(f"[LOGIN CLOUD] Edad: {edad:.1f}s")
-                        print(f"[LOGIN CLOUD] Valido?: {edad < 10}")
-                        
-        except Exception as e:
-            print(f"[LOGIN CLOUD] Error request directo: {e}")
-        
-        # Usar función oficial
-        print(f"[LOGIN CLOUD] Llamando leer_rfid_pendiente()...")
-        uid = leer_rfid_pendiente()
-        print(f"[LOGIN CLOUD] Resultado: '{uid}' (type: {type(uid)})")
-        print("="*50 + "\n")
-        
+            data = res.json()
+        except Exception as je:
+            print(f"[LOGIN] JSON parse error: {je}")
+            return None
+        if not data or not isinstance(data, dict):
+            print("[LOGIN] Firebase vacio o null")
+            return None
+        uid = data.get('uid', '').strip().upper()
+        print(f"[LOGIN] uid='{uid}'")
+        if not uid:
+            return None
+
+        # Dedup: ignorar si ya procesamos este UID en los ultimos 8s
+        last_uid = st.session_state.get('_rfid_last_uid', '')
+        last_ts  = st.session_state.get('_rfid_last_ts', 0)
+        if uid == last_uid and (time.time() - last_ts) < 8:
+            print(f"[LOGIN] UID repetido en session_state — cooldown activo")
+            return None
+
+        # Marcar como procesado y borrar nodo Firebase
+        st.session_state['_rfid_last_uid'] = uid
+        st.session_state['_rfid_last_ts']  = time.time()
+        try:
+            requests.delete(RFID_URL, timeout=3)
+        except Exception:
+            pass
         return uid
-        
+
     except Exception as e:
-        print(f"[LOGIN CLOUD] ERROR: {e}")
-        import traceback
-        traceback.print_exc()
-        print("="*50 + "\n")
-    
+        print(f"[LOGIN] Error Firebase: {e}")
     return None
 
 def pantalla_login(token_secreto, token_admin_pwd):
@@ -120,30 +108,7 @@ def pantalla_login(token_secreto, token_admin_pwd):
     st.title("UMAD WMS")
     st.subheader("Login")
     
-    # Diagnóstico SIEMPRE VISIBLE en Cloud
-    if ES_CLOUD:
-        st.warning("MODO CLOUD - Leyendo desde Firebase")
-        st.write(f"**Último UID:** {uid or 'Ninguno'}")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button(" PROBAR FIREBASE AHORA", type="primary"):
-                with st.spinner("Leyendo Firebase..."):
-                    test_uid = leer_uid_cloud()
-                    if test_uid:
-                        st.success(f"✓ UID: {test_uid}")
-                    else:
-                        st.error("✗ Firebase vacío o UID expirado")
-        with col2:
-            # Mostrar URL de Firebase
-            try:
-                from config import RFID_URL
-                st.caption(f"`{RFID_URL}`")
-            except:
-                pass
-    
-    # Diagnóstico local
-    with st.expander(" Debug Completo"):
+    with st.expander("Debug"):
         st.write(f"**Modo:** {'CLOUD' if ES_CLOUD else 'LOCAL'}")
         st.write(f"**Último UID:** {uid or 'Ninguno'}")
         st.write(f"**UIDs autorizados:** {len(UIDS_AUTORIZADOS)} configurados")
