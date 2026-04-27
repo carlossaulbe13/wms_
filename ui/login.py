@@ -178,9 +178,9 @@ def pantalla_login(token_secreto, token_admin_pwd):
             f"       justify-content:center;box-shadow:0 6px 22px rgba(0,0,0,0.55);'>"
             f"    {_AVATAR_SVG}"
             f"  </div>"
-            f"  <div style='color:#EAE0CF;font-size:16px;font-weight:600;"
-            f"       letter-spacing:3px;line-height:1.5;'>"
-            f"    UMAD WAREHOUSE<br>MANAGEMENT SYSTEM</div>"
+            f"  <div style='color:#EAE0CF;font-size:14px;font-weight:600;"
+            f"       letter-spacing:2.5px;line-height:1.5;'>"
+            f"    WAREHOUSE MANAGEMENT SYSTEM</div>"
             f"</div>",
             unsafe_allow_html=True,
         )
@@ -188,12 +188,13 @@ def pantalla_login(token_secreto, token_admin_pwd):
         # Indicador RFID
         st.markdown(
             "<div style='background:rgba(84,119,146,0.18);border:1px solid #547792;"
-            "border-radius:10px;padding:12px 18px;margin-bottom:40px;"
+            "border-radius:10px;padding:12px 18px;"
             "display:flex;align-items:center;gap:12px;'>"
             "<div style='width:8px;height:8px;border-radius:50%;background:#94B4C1;"
             "box-shadow:0 0 8px #94B4C1;flex-shrink:0;'></div>"
             "<span style='color:#94B4C1;font-size:13px;'>Pasa tu tarjeta RFID para acceso rápido</span>"
-            "</div>",
+            "</div>"
+            "<div style='height:36px;'></div>",
             unsafe_allow_html=True,
         )
 
