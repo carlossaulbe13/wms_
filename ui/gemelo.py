@@ -58,7 +58,7 @@ def render(_TOK_ACTIVO):
             st.rerun()
 
         t5, c5 = rack_stats(db, 'POS_5')
-        badge5 = '#dc3545' if c5 > 0 else '#3a3f55'  # solo rojo si hay congelados, neutro si no
+        badge5 = '#dc3545' if c5 > 0 else '#2d4060'  # solo rojo si hay congelados, neutro si no
 
         # Resaltado: activo mientras haya confirmacion pendiente (hasta boton fisico)
         rack_res   = st.session_state.get('rack_resaltado')
@@ -71,7 +71,7 @@ def render(_TOK_ACTIVO):
             st.markdown("""
             <style>
             @keyframes pulso_amarillo {
-                0%,100% { background:#2e3550; border-color:#4a5080; box-shadow:none; }
+                0%,100% { background:#213448; border-color:#547792; box-shadow:none; }
                 50%     { background:#713f12; border-color:#facc15;
                           box-shadow:0 0 18px 4px rgba(250,204,21,0.55); }
             }
@@ -93,7 +93,7 @@ def render(_TOK_ACTIVO):
             fenc = fila_label.replace(' ', '+')
             es_res = res_activo and rack_res == rack_id
             clase  = 'fila-res' if es_res else ''
-            borde  = '#facc15' if es_res else '#4a5080'
+            borde  = '#facc15' if es_res else '#547792'
             # Sensores: contar cuántos están ocupados en esta fila
             _sens_total   = sum(1 for (r, n, cc) in sensor_estado if r == rack_id)
             _sens_ocupados = sum(1 for (r, n, cc), e in sensor_estado.items()
@@ -108,14 +108,14 @@ def render(_TOK_ACTIVO):
                 f"<a href='?zona=ALMACENAJE&fila={fenc}&_s={_TOK_ACTIVO}' target='_self' "
                 f"style='text-decoration:none;display:block;margin-bottom:8px;'>"
                 f"<div style='display:flex;align-items:center;gap:10px;'>"
-                f"<div class='{clase}' style='flex:0 0 150px;background:#2e3550;"
+                f"<div class='{clase}' style='flex:0 0 150px;background:#213448;"
                 f"border:1.5px solid {borde};"
-                f"border-radius:8px;padding:11px 8px;text-align:center;color:#cdd3ea;"
+                f"border-radius:8px;padding:11px 8px;text-align:center;color:#EAE0CF;"
                 f"font-size:12px;font-weight:600;cursor:pointer;'>{fila_label}{tag}</div>"
                 f"<div style='flex:1;'>"
-                f"<div style='font-size:10px;color:#8892b0;margin-bottom:3px;'>"
+                f"<div style='font-size:10px;color:#94B4C1;margin-bottom:3px;'>"
                 f"{t} pallets — {pct_act}% activos · {pct_cong}% congelados{_badge_sens}</div>"
-                f"<div style='background:#2a2f45;border-radius:4px;height:8px;"
+                f"<div style='background:#1d2e3e;border-radius:4px;height:8px;"
                 f"display:flex;overflow:hidden;'>"
                 f"<div style='background:#22c55e;width:{pct_act}%;height:8px;flex-shrink:0;'></div>"
                 f"<div style='background:#ef4444;width:{pct_cong}%;height:8px;flex-shrink:0;'></div>"
@@ -124,45 +124,45 @@ def render(_TOK_ACTIVO):
 
         # Clase y borde del botón sobredimensiones
         clase_sobre = 'fila-res' if (res_activo and rack_res == 'POS_5') else ''
-        borde_sobre = '#facc15'  if (res_activo and rack_res == 'POS_5') else '#4a5080'
+        borde_sobre = '#facc15'  if (res_activo and rack_res == 'POS_5') else '#547792'
 
         nave_html = (
             '<div style="display:grid;grid-template-columns:1fr 1fr 3fr 1fr;gap:8px;align-items:stretch;">'
 
-            '<div style="background:#2a2f45;border:2px solid #3a3f55;border-radius:10px;'
-            'padding:16px 10px;text-align:center;color:#cdd3ea;'
+            '<div style="background:#1d2e3e;border:2px solid #2d4060;border-radius:10px;'
+            'padding:16px 10px;text-align:center;color:#EAE0CF;'
             'display:flex;flex-direction:column;align-items:center;justify-content:center;">'
-            '<div style="font-size:10px;letter-spacing:2px;color:#8892b0;margin-bottom:10px;">RECEPCION</div>'
-            '<div style="font-size:12px;color:#8892b0;">Zona de entrada</div>'
+            '<div style="font-size:10px;letter-spacing:2px;color:#94B4C1;margin-bottom:10px;">RECEPCION</div>'
+            '<div style="font-size:12px;color:#94B4C1;">Zona de entrada</div>'
             '</div>'
 
             f'<div style="display:flex;flex-direction:column;gap:6px;">'
             f'<a href="?zona=SOBREDIMENSIONES&_s={_TOK_ACTIVO}" target="_self" style="text-decoration:none;flex:1;display:flex;">'
             f'<div class="{clase_sobre}" '
-            f'style="flex:1;background:#2e3550;border:1.5px solid {borde_sobre};'
-            'border-radius:10px;padding:14px 10px;text-align:center;color:#cdd3ea;cursor:pointer;'
+            f'style="flex:1;background:#213448;border:1.5px solid {borde_sobre};'
+            'border-radius:10px;padding:14px 10px;text-align:center;color:#EAE0CF;cursor:pointer;'
             'display:flex;flex-direction:column;align-items:center;justify-content:center;'
             'font-size:12px;font-weight:600;">'
             f'SOBREDIMENSIONES<br><span style="font-size:22px;font-weight:300;margin-top:8px;">{t5}</span>'
-            '<span style="font-size:10px;color:#8892b0;margin-top:2px;">pallets</span>'
+            '<span style="font-size:10px;color:#94B4C1;margin-top:2px;">pallets</span>'
             '</div></a>'
-            f'<div style="background:#2a2f45;border:1.5px solid {badge5};border-radius:8px;'
-            f'padding:7px;text-align:center;color:#cdd3ea;font-size:11px;">'
+            f'<div style="background:#1d2e3e;border:1.5px solid {badge5};border-radius:8px;'
+            f'padding:7px;text-align:center;color:#EAE0CF;font-size:11px;">'
             f'{t5} pallets &nbsp;&middot;&nbsp; {c5} congelados</div>'
             '</div>'
 
-            f'<div style="background:#1e2130;border:2px dashed #3a3f55;border-radius:10px;'
+            f'<div style="background:#1a2535;border:2px dashed #2d4060;border-radius:10px;'
             'padding:12px 14px;box-sizing:border-box;">'
-            '<div style="text-align:center;color:#8892b0;font-size:10px;'
+            '<div style="text-align:center;color:#94B4C1;font-size:10px;'
             'letter-spacing:2px;margin-bottom:12px;">ALMACENAJE</div>'
             f'{filas_html}'
             '</div>'
 
-            '<div style="background:#2a2f45;border:2px solid #3a3f55;border-radius:10px;'
-            'padding:16px 10px;text-align:center;color:#cdd3ea;'
+            '<div style="background:#1d2e3e;border:2px solid #2d4060;border-radius:10px;'
+            'padding:16px 10px;text-align:center;color:#EAE0CF;'
             'display:flex;flex-direction:column;align-items:center;justify-content:center;">'
-            '<div style="font-size:10px;letter-spacing:2px;color:#8892b0;margin-bottom:10px;">RETORNO</div>'
-            '<div style="font-size:12px;color:#8892b0;">Devoluciones</div>'
+            '<div style="font-size:10px;letter-spacing:2px;color:#94B4C1;margin-bottom:10px;">RETORNO</div>'
+            '<div style="font-size:12px;color:#94B4C1;">Devoluciones</div>'
             '</div>'
 
             '</div>'
@@ -211,15 +211,15 @@ def render(_TOK_ACTIVO):
         items_rack = {k: v for k, v in db.items() if v.get('rack') == rack_id}
 
         st.markdown(
-            "<div style='display:flex;gap:20px;margin-bottom:14px;font-size:12px;color:#cdd3ea;'>"
+            "<div style='display:flex;gap:20px;margin-bottom:14px;font-size:12px;color:#EAE0CF;'>"
             "<span><span style='display:inline-block;width:10px;height:10px;"
             "background:#1a472a;border-radius:2px;margin-right:4px;'></span>Ocupado</span>"
             "<span><span style='display:inline-block;width:10px;height:10px;"
             "background:#7f1d1d;border-radius:2px;margin-right:4px;'></span>Congelado</span>"
             "<span><span style='display:inline-block;width:10px;height:10px;"
-            "background:#1e2130;border:1px solid #3a3f55;border-radius:2px;margin-right:4px;'></span>"
+            "background:#1a2535;border:1px solid #2d4060;border-radius:2px;margin-right:4px;'></span>"
             "Disponible</span>"
-            "<span style='color:#8892b0;'>— Haz clic en un rack para ver el detalle</span>"
+            "<span style='color:#94B4C1;'>— Haz clic en un rack para ver el detalle</span>"
             "</div>",
             unsafe_allow_html=True
         )
@@ -289,15 +289,15 @@ def render(_TOK_ACTIVO):
                 f"<svg width='{W}' height='{H}' viewBox='0 0 {W} {H}' "
                 f"xmlns='http://www.w3.org/2000/svg' style='display:block;margin:0 auto;'>"
                 # Columnas estructurales
-                f"<rect x='{pad_l-col_w-2}' y='{pad_top-2}' width='{col_w}' height='{H-pad_top-8}' fill='#3a3f55'/>"
-                f"<rect x='{pad_l+area_w+2}' y='{pad_top-2}' width='{col_w}' height='{H-pad_top-8}' fill='#3a3f55'/>"
+                f"<rect x='{pad_l-col_w-2}' y='{pad_top-2}' width='{col_w}' height='{H-pad_top-8}' fill='#2d4060'/>"
+                f"<rect x='{pad_l+area_w+2}' y='{pad_top-2}' width='{col_w}' height='{H-pad_top-8}' fill='#2d4060'/>"
                 # Piso
-                f"<rect x='{pad_l-col_w-2}' y='{H-12}' width='{area_w+col_w*2+4}' height='5' fill='#3a3f55' rx='1'/>"
+                f"<rect x='{pad_l-col_w-2}' y='{H-12}' width='{area_w+col_w*2+4}' height='5' fill='#2d4060' rx='1'/>"
                 # Labels
                 f"<text x='{W//2}' y='16' text-anchor='middle' font-size='10' "
-                f"font-weight='600' fill='#cdd3ea' font-family='sans-serif'>RACK {rack_num}</text>"
+                f"font-weight='600' fill='#EAE0CF' font-family='sans-serif'>RACK {rack_num}</text>"
                 f"<text x='{W//2}' y='28' text-anchor='middle' font-size='7' "
-                f"fill='#8892b0' font-family='sans-serif'>{total_occ}/{TOTAL_CELDAS} · {occ_pct}%</text>"
+                f"fill='#94B4C1' font-family='sans-serif'>{total_occ}/{TOTAL_CELDAS} · {occ_pct}%</text>"
             )
 
             for ni, nivel in enumerate(range(NUM_NIVELES, 0, -1)):
@@ -306,7 +306,7 @@ def render(_TOK_ACTIVO):
                 svg += (
                     f"<line x1='{pad_l-col_w-2}' y1='{y_base + est_h - 3}' "
                     f"x2='{pad_l+area_w+col_w+2}' y2='{y_base + est_h - 3}' "
-                    f"stroke='#3a3f55' stroke-width='2.5'/>"
+                    f"stroke='#2d4060' stroke-width='2.5'/>"
                 )
                 for ci, col in enumerate(range(1, NUM_COLS + 1)):
                     cx = pad_l + ci * cel_w
@@ -334,7 +334,7 @@ def render(_TOK_ACTIVO):
                             else:
                                 bg = '#1a2a1a'; bord = '#22c55e'; sc = '#4ade80'
                     else:
-                        bg = '#16192a'; bord = '#2a2f45'; sc = None
+                        bg = '#1a2535'; bord = '#1d2e3e'; sc = None
 
                     svg += (
                         f"<rect x='{cx}' y='{cy}' width='{cw}' height='{ch}' "
@@ -364,11 +364,11 @@ def render(_TOK_ACTIVO):
             url = f"?zona=ALMACENAJE&fila={fila_enc}&rack={rack_num}&_s={_TOK_ACTIVO}"
             racks_grid += (
                 f"<a href='{url}' target='_self' style='text-decoration:none;cursor:pointer;'>"
-                f"<div style='background:#16192a;border:1.5px solid #3a3f55;"
+                f"<div style='background:#1a2535;border:1.5px solid #2d4060;"
                 f"border-radius:10px;padding:8px 4px;text-align:center;"
                 f"transition:border-color 0.15s;'"
-                f"onmouseover=\"this.style.borderColor='#7f8ac0'\""
-                f"onmouseout=\"this.style.borderColor='#3a3f55'\">"
+                f"onmouseover=\"this.style.borderColor='#94B4C1'\""
+                f"onmouseout=\"this.style.borderColor='#2d4060'\">"
                 f"{svg_r}</div></a>"
             )
         racks_grid += "</div>"
@@ -404,7 +404,7 @@ def render(_TOK_ACTIVO):
             busq = st.text_input("Buscar en este rack:", "").strip().upper()
 
         st.markdown(
-            "<div style='display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px;font-size:12px;color:#cdd3ea;'>"
+            "<div style='display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px;font-size:12px;color:#EAE0CF;'>"
             "<span><span style='display:inline-block;width:10px;height:10px;"
             "background:#1a472a;border:1px solid #22c55e;border-radius:2px;margin-right:4px;'></span>Confirmado (virtual+físico)</span>"
             "<span><span style='display:inline-block;width:10px;height:10px;"
@@ -415,14 +415,14 @@ def render(_TOK_ACTIVO):
             "background:#0c3559;border:1px solid #3b9edd;border-radius:2px;margin-right:4px;'></span>"
             "Buscado</span>"
             "<span><span style='display:inline-block;width:10px;height:10px;"
-            "background:#1e2130;border:1px solid #3a3f55;border-radius:2px;margin-right:4px;'></span>"
+            "background:#1a2535;border:1px solid #2d4060;border-radius:2px;margin-right:4px;'></span>"
             "Disponible</span>"
-            "<span style='color:#8892b0;margin-left:8px;'>·</span>"
+            "<span style='color:#94B4C1;margin-left:8px;'>·</span>"
             "<span style='margin-left:8px;'><span style='display:inline-block;width:10px;height:10px;"
             "background:#22c55e;border-radius:50%;margin-right:4px;'></span>Sensor libre</span>"
             "<span><span style='display:inline-block;width:10px;height:10px;"
             "background:#ef4444;border-radius:50%;margin-right:4px;'></span>Sensor ocupado</span>"
-            "<span style='color:#8892b0;font-size:10px;margin-left:4px;'>(solo rack 1)</span>"
+            "<span style='color:#94B4C1;font-size:10px;margin-left:4px;'>(solo rack 1)</span>"
             "</div>",
             unsafe_allow_html=True
         )
@@ -445,13 +445,13 @@ def render(_TOK_ACTIVO):
             f"style='display:block;max-width:340px;margin:0 auto;'>"
             # Titulo
             f"<text x='{W//2}' y='24' text-anchor='middle' font-size='16' "
-            f"font-weight='600' fill='#cdd3ea' font-family='sans-serif'>"
+            f"font-weight='600' fill='#EAE0CF' font-family='sans-serif'>"
             f"RACK {rack_sel} — {fila_sel}</text>"
             # Columnas estructurales
-            f"<rect x='{pad_l-col_w_d-2}' y='{pad_top}' width='{col_w_d}' height='{H-pad_top-8}' fill='#3a3f55' rx='2'/>"
-            f"<rect x='{pad_l+area_w+2}' y='{pad_top}' width='{col_w_d}' height='{H-pad_top-8}' fill='#3a3f55' rx='2'/>"
+            f"<rect x='{pad_l-col_w_d-2}' y='{pad_top}' width='{col_w_d}' height='{H-pad_top-8}' fill='#2d4060' rx='2'/>"
+            f"<rect x='{pad_l+area_w+2}' y='{pad_top}' width='{col_w_d}' height='{H-pad_top-8}' fill='#2d4060' rx='2'/>"
             # Piso
-            f"<rect x='{pad_l-col_w_d-2}' y='{H-12}' width='{area_w+col_w_d*2+4}' height='6' fill='#3a3f55' rx='3'/>"
+            f"<rect x='{pad_l-col_w_d-2}' y='{H-12}' width='{area_w+col_w_d*2+4}' height='6' fill='#2d4060' rx='3'/>"
         )
 
         for ni, nivel in enumerate(range(NUM_NIVELES, 0, -1)):
@@ -459,14 +459,14 @@ def render(_TOK_ACTIVO):
             # Etiqueta del nivel
             svg += (
                 f"<text x='{pad_l-14}' y='{y_base + est_h//2 + 4}' "
-                f"text-anchor='end' font-size='9' fill='#8892b0' font-family='sans-serif'>"
+                f"text-anchor='end' font-size='9' fill='#94B4C1' font-family='sans-serif'>"
                 f"N{nivel}</text>"
             )
             # Linea del estante
             svg += (
                 f"<line x1='{pad_l-col_w_d-2}' y1='{y_base + est_h - 3}' "
                 f"x2='{pad_l+area_w+col_w_d+2}' y2='{y_base + est_h - 3}' "
-                f"stroke='#3a3f55' stroke-width='4'/>"
+                f"stroke='#2d4060' stroke-width='4'/>"
             )
             for ci, col in enumerate(range(1, NUM_COLS + 1)):
                 x   = pad_l + (ci) * cel_w
@@ -507,7 +507,7 @@ def render(_TOK_ACTIVO):
                         else:
                             color = '#1a472a'; bord = '#22c55e'
                 else:
-                    color = '#16192a'; bord = '#2a2f45'
+                    color = '#1a2535'; bord = '#1d2e3e'
 
                 svg += (
                     f"<rect x='{x}' y='{y}' width='{cw}' height='{ch}' "
@@ -517,7 +517,7 @@ def render(_TOK_ACTIVO):
                 # Etiqueta de posición
                 svg += (
                     f"<text x='{x + cw//2}' y='{y_base + 16}' text-anchor='middle' "
-                    f"font-size='8' fill='#8892b0' font-family='sans-serif'>P{col}</text>"
+                    f"font-size='8' fill='#94B4C1' font-family='sans-serif'>P{col}</text>"
                 )
 
                 if item:
@@ -547,7 +547,7 @@ def render(_TOK_ACTIVO):
                 else:
                     svg += (
                         f"<text x='{x + cw//2}' y='{y + ch//2 + 4}' text-anchor='middle' "
-                        f"font-size='10' fill='#4a5080' font-family='sans-serif'>LIBRE</text>"
+                        f"font-size='10' fill='#94B4C1' font-family='sans-serif'>LIBRE</text>"
                     )
 
                 if _has_sensor:
@@ -562,7 +562,7 @@ def render(_TOK_ACTIVO):
 
         svg += "</svg>"
         st.markdown(
-            f"<div style='background:#16192a;border:1.5px solid #3a3f55;"
+            f"<div style='background:#1a2535;border:1.5px solid #2d4060;"
             f"border-radius:12px;padding:16px;'>{svg}</div>",
             unsafe_allow_html=True
         )
@@ -608,13 +608,13 @@ def render(_TOK_ACTIVO):
         st.markdown(
             f"<div style='margin-top:6px;'>"
             f"<div style='display:flex;justify-content:space-between;font-size:11px;"
-            f"color:#8892b0;margin-bottom:4px;'>"
+            f"color:#94B4C1;margin-bottom:4px;'>"
             f"<span>Activos {pct_activos}%</span>"
             f"<span>Congelados {pct_congelados}%</span>"
             f"</div>"
             f"<div style='display:flex;height:10px;border-radius:6px;overflow:hidden;"
-            f"background:#2a2f45;'>"
-            f"<div style='width:{pct_activos}%;background:#22c55e;transition:width 0.4s;'></div>"
+            f"background:#1d2e3e;'>"
+            f"<div style='width:{pct_activos}%;background:#547792;transition:width 0.4s;'></div>"
             f"<div style='width:{pct_congelados}%;background:#ef4444;transition:width 0.4s;'></div>"
             f"</div></div>",
             unsafe_allow_html=True
@@ -649,13 +649,13 @@ def render(_TOK_ACTIVO):
             st.markdown(
                 f"<div style='margin-top:6px;'>"
                 f"<div style='display:flex;justify-content:space-between;font-size:11px;"
-                f"color:#8892b0;margin-bottom:4px;'>"
+                f"color:#94B4C1;margin-bottom:4px;'>"
                 f"<span>Activos {pct_act}%</span>"
                 f"<span>Congelados {pct_cong}%</span>"
                 f"</div>"
                 f"<div style='display:flex;height:10px;border-radius:6px;overflow:hidden;"
-                f"background:#2a2f45;'>"
-                f"<div style='width:{pct_act}%;background:#22c55e;transition:width 0.4s;'></div>"
+                f"background:#1d2e3e;'>"
+                f"<div style='width:{pct_act}%;background:#547792;transition:width 0.4s;'></div>"
                 f"<div style='width:{pct_cong}%;background:#ef4444;transition:width 0.4s;'></div>"
                 f"</div></div>",
                 unsafe_allow_html=True
