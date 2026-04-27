@@ -32,10 +32,31 @@ def leer_uid_local():
 
 def leer_uid_cloud():
     try:
-        from firebase import leer_rfid_pendiente
-        return leer_rfid_pendiente()
+        from config import RFID_URL
+        import requests, time
+        res = requests.get(RFID_URL, timeout=5)
+        print(f"[LOGIN] Firebase status={res.status_code} body={res.text[:120]}")
+        if res.status_code != 200:
+            return None
+        data = None
+        try:
+            data = res.json()
+        except Exception as je:
+            print(f"[LOGIN] JSON parse error: {je}")
+            return None
+        if not data or not isinstance(data, dict):
+            print("[LOGIN] Firebase vacio o null")
+            return None
+        uid = data.get('uid', '').strip().upper()
+        ts  = data.get('ts', 0)
+        edad = time.time() - ts
+        print(f"[LOGIN] uid='{uid}' ts={ts} edad={edad:.1f}s")
+        if uid and edad < 10:
+            requests.put(RFID_URL, json=None, timeout=3)
+            return uid
+        print(f"[LOGIN] UID descartado — vacio={not uid} expirado={edad>=10}")
     except Exception as e:
-        print(f"[LOGIN] Firebase read error: {e}")
+        print(f"[LOGIN] Error Firebase: {e}")
     return None
 
 
