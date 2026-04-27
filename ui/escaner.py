@@ -33,68 +33,22 @@ def render_escaner():
         
         st.divider()
     
-    # CSS para ajustar el tamaño del escáner QR
     st.markdown("""
     <style>
-    /* Contenedor principal del escáner */
-    [data-testid="stImage"], 
-    [data-testid="stImage"] > div,
-    section[data-testid="stVerticalBlock"] > div {
-        display: flex !important;
-        justify-content: center !important;
-        align-items: center !important;
-    }
-    
-    /* Video de la cámara */
     video {
-        max-width: 100% !important;
-        width: 100% !important;
-        height: auto !important;
-        object-fit: cover !important;
-        border-radius: 12px !important;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
-    }
-    
-    /* Canvas del escáner (recuadro de detección) */
-    canvas {
-        max-width: 100% !important;
-        width: 100% !important;
-        height: auto !important;
-        border-radius: 12px !important;
-    }
-    
-    /* Ajustar contenedor del componente QR */
-    .streamlit-qrcode-scanner {
-        width: 100% !important;
-        max-width: 640px !important;
-        margin: 0 auto !important;
-    }
-    
-    /* Asegurar que video y canvas tengan el mismo tamaño */
-    .streamlit-qrcode-scanner video,
-    .streamlit-qrcode-scanner canvas {
         width: 100% !important;
         height: auto !important;
         aspect-ratio: 4/3 !important;
+        border-radius: 10px !important;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.4) !important;
+        display: block !important;
     }
-    
-    /* Ajustes específicos para móvil */
-    @media (max-width: 768px) {
-        video, canvas {
-            max-height: 480px !important;
-            aspect-ratio: 4/3 !important;
-        }
-        
-        .streamlit-qrcode-scanner {
-            max-width: 100% !important;
-        }
-    }
-    
-    /* Centrar todo el contenido del escáner */
-    div[data-testid="column"] {
-        display: flex !important;
-        flex-direction: column !important;
-        align-items: center !important;
+    canvas {
+        width: 100% !important;
+        height: auto !important;
+        aspect-ratio: 4/3 !important;
+        border-radius: 10px !important;
+        display: block !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -139,14 +93,7 @@ def render_escaner():
                         st.error(f" Código QR inválido o vacío")
                         st.caption("El código debe ser un JSON válido con los datos del pallet")
             else:
-                st.info("""
-                ** Instrucciones:**
-                
-                1. Centra el código QR en el recuadro verde
-                2. Espera a que se detecte automáticamente
-                3. Revisa los detalles del pallet
-                4. Presiona **REGISTRAR ESCANEO** para confirmar
-                """)
+                st.caption("Apunta la cámara al código QR del pallet")
     
     # TAB: Buscar Pallet (siempre disponible)
     tab_buscar = tab2 if tiene_qr else tab1
@@ -401,18 +348,42 @@ def registrar_entrada_manual(datos):
 
 def render_alta():
     """Renderiza la interfaz de alta de material (móvil)."""
-    st.title("➕ Alta de Material")
-    st.caption("Registra un nuevo pallet desde tu móvil")
-    
-    # Redirigir a la pestaña de entrada manual del escáner
-    st.info("""
-    ** Tip:**
-    
-    Para dar de alta un nuevo pallet, usa la pestaña **" Entrada Manual"** 
-    en la sección de Escáner Móvil.
-    
-    O usa la versión de escritorio en **Maestro de Artículos** para 
-    funcionalidades avanzadas.
-    """)
-    
-    st.info("Navega a la pestaña **ESCANER DE CAMPO** y selecciona ' Entrada Manual'.")
+    st.title("Alta de Material")
+    st.caption("Registra un nuevo pallet desde el dispositivo móvil")
+
+    from logica import registrar_pallet
+    from config import TIPOS_EMBALAJE
+    import datetime
+
+    with st.form("form_alta_movil"):
+        st.markdown("**Identificación**")
+        c1, c2 = st.columns(2)
+        with c1:
+            new_uid  = st.text_input("ID único (ej. PALLET-010)").upper()
+            new_sku  = st.text_input("SKU / Número de parte")
+        with c2:
+            new_nom  = st.text_input("Descripción del material")
+            embalaje = st.selectbox("Tipo de embalaje", TIPOS_EMBALAJE)
+
+        st.markdown("**Peso y dimensiones**")
+        c3, c4, c5 = st.columns(3)
+        with c3: peso    = st.number_input("Peso total (kg)", min_value=0.0, step=1.0)
+        with c4: alto_cm = st.number_input("Alto (cm)", min_value=0.0, step=1.0)
+        with c5: cant    = st.number_input("Piezas", min_value=1, value=1)
+
+        submitted = st.form_submit_button("REGISTRAR", use_container_width=True, type="primary")
+
+        if submitted:
+            ok, msg, avisos = registrar_pallet(
+                uid=new_uid, sku_base=new_sku, nombre=new_nom,
+                peso=peso, cantidad=cant, alto_cm=alto_cm,
+                embalaje=embalaje, embalaje_obs='', generar_qr=False
+            )
+            for av in avisos:
+                st.warning(av)
+            if ok:
+                st.success(msg)
+                st.session_state.navigate_to_gemelo = True
+                st.rerun()
+            else:
+                st.error(msg)
