@@ -24,14 +24,8 @@ def render_escaner():
         rack_pendiente = st.session_state.confirmacion_pendiente
         st.warning(f"ALERTA: **ACCIÓN REQUERIDA:** LED del Rack {rack_pendiente} ENCENDIDO")
         
-        if st.button(f" CONFIRMAR — APAGAR LED DE {rack_pendiente}", 
+        if st.button(f" CONFIRMAR — APAGAR LED DE {rack_pendiente}",
                      use_container_width=True, type="primary", key="confirmar_led_mobile"):
-            try:
-                from mqtt_client import publicar
-                publicar(rack_pendiente, "OFF")
-            except:
-                print(f"[ESCANER] MQTT no disponible")
-            
             st.session_state.confirmacion_pendiente = None
             st.success("✓ Confirmación registrada")
             time.sleep(1)
@@ -421,5 +415,4 @@ def render_alta():
     funcionalidades avanzadas.
     """)
     
-    if st.button(" Ir a Entrada Manual", use_container_width=True, type="primary"):
-        st.switch_page("pages/escaner.py")
+    st.info("Navega a la pestaña **ESCANER DE CAMPO** y selecciona ' Entrada Manual'.")
