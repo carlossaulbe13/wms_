@@ -44,30 +44,32 @@ for k, v in _defaults.items():
 if st.session_state.db is None:
     cargar_db(forzar=True)
 
-# ── Polling confirmacion PTL (autorefresh cuando hay pendiente) ──
+# ── Polling confirmacion PTL — auto-confirm via sensor CNY70 ──────
+# Los botones físicos fueron reemplazados por sensores CNY70.
+# Cuando cualquier sensor del rack pendiente reporta "ocupado",
+# se confirma automáticamente el depósito.
+_SENSOR_RACK_MAP = {'POS_1': 'R1', 'POS_2': 'R2', 'POS_3': 'R3', 'POS_4': 'R4'}
+
 if st.session_state.get("confirmacion_pendiente"):
     from streamlit_autorefresh import st_autorefresh
     st_autorefresh(interval=2000, key="ptl_confirm_refresh")
     try:
-        from config import PTL_CONFIRM_URL
-        _r = _req_ptl.get(PTL_CONFIRM_URL, timeout=2)
-        try:
-            _data = _r.json() if _r.status_code == 200 else None
-        except Exception:
-            _data = None
-        if isinstance(_data, str) and _data.endswith("_OFF"):
-            _rack_conf = _data.replace("_OFF", "")
-            if _rack_conf and _rack_conf == st.session_state.confirmacion_pendiente:
-                # Limpiar todo - boton fisico presionado
-                st.session_state.confirmacion_pendiente = None
-                st.session_state.rack_resaltado = None
-                st.session_state.ultima_ubicacion = None
-                # Limpiar nodo en Firebase para no re-procesar
-                _req_ptl.put(PTL_CONFIRM_URL, json=None, timeout=2)
-                print(f"[PTL] Confirmacion fisica recibida: {_rack_conf}")
-                st.rerun()
+        from firebase import leer_sensores
+        _sensores = leer_sensores()
+        _rack_pend = st.session_state.confirmacion_pendiente
+        _prefijo   = _SENSOR_RACK_MAP.get(_rack_pend)
+        if _prefijo and _sensores:
+            for _lbl, _sdata in _sensores.items():
+                if _lbl.startswith(_prefijo) and isinstance(_sdata, dict):
+                    if _sdata.get('estado') == 'ocupado':
+                        st.session_state.confirmacion_pendiente = None
+                        st.session_state.rack_resaltado         = None
+                        st.session_state.ultima_ubicacion       = None
+                        print(f"[SENSOR] Auto-confirmado por {_lbl}")
+                        st.rerun()
+                        break
     except Exception as _e:
-        print(f"[PTL] Error leyendo confirmacion: {_e}")
+        print(f"[SENSOR] Error en auto-confirm: {_e}")
 
 # ── Tokens de sesion ─────────────────────────────────────────
 _TOKEN_BASE = hashlib.sha256(PASSWORD_ACCESO.encode()).hexdigest()[:16]
@@ -248,11 +250,11 @@ if st.session_state.confirmacion_pendiente:
         f"<b>{_ub.get('nombre','') if _ub else ''}</b>"
         f"{'  |  SKU: ' + _ub.get('sku','') if _ub and _ub.get('sku') else ''}"
         f"</div>"
-        f"<div style='color:#8892b0;font-size:11px;margin-top:4px;'>LED encendido en panel — Confirma depositando el material</div>"
+        f"<div style='color:#8892b0;font-size:11px;margin-top:4px;'>LED encendido en panel — El sensor confirmará automáticamente al detectar el pallet</div>"
         f"</div>",
         unsafe_allow_html=True
     )
-    if st.button(f"CONFIRMAR DEPOSITO — APAGAR LED {_fila}", type="primary", use_container_width=True):
+    if st.button(f"CONFIRMAR MANUALMENTE — {_fila}", type="secondary", use_container_width=True):
         st.session_state.confirmacion_pendiente = None
         st.session_state.rack_resaltado = None
         st.rerun()
