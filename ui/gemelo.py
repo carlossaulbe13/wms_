@@ -208,9 +208,7 @@ def render(_TOK_ACTIVO):
             st.rerun()
 
         rack_id    = ZONA_A_RACK.get(fila_sel, "POS_1")
-        # Filtrar artículos de BAJA - solo mostrar ACTIVO y CONGELADO
-        items_rack = {k: v for k, v in db.items() 
-                      if v.get('rack') == rack_id and v.get('estado') != 'BAJA'}
+        items_rack = {k: v for k, v in db.items() if v.get('rack') == rack_id}
 
         st.markdown(
             "<div style='display:flex;gap:20px;margin-bottom:14px;font-size:12px;color:#cdd3ea;'>"
@@ -318,11 +316,23 @@ def render(_TOK_ACTIVO):
                     pos = (nivel, col)
 
                     if pos in ocupadas:
-                        item_v = ocupadas[pos]
-                        cong   = item_v.get('estado') == 'CONGELADO'
-                        bg     = '#1a2a1a' if not cong else '#2a1010'
-                        bord   = '#22c55e' if not cong else '#ef4444'
-                        sc     = '#4ade80' if not cong else '#f87171'
+                        item_v  = ocupadas[pos]
+                        _est_v  = item_v.get('estado', 'ACTIVO')
+                        _sv     = (sensor_est.get((rack_id_local, nivel, col))
+                                   if rack_num == 1 and sensor_est else None)
+                        _hs_v   = _sv is not None
+                        if _est_v == 'BAJA':
+                            if _sv == 'ocupado':
+                                bg = '#2a1010'; bord = '#ef4444'; sc = '#f87171'
+                            else:
+                                bg = '#2d1a00'; bord = '#f59e0b'; sc = '#fbbf24'
+                        elif _est_v == 'CONGELADO':
+                            bg = '#2a1010'; bord = '#ef4444'; sc = '#f87171'
+                        else:
+                            if _hs_v and _sv != 'ocupado':
+                                bg = '#2d1a00'; bord = '#f59e0b'; sc = '#fbbf24'
+                            else:
+                                bg = '#1a2a1a'; bord = '#22c55e'; sc = '#4ade80'
                     else:
                         bg = '#16192a'; bord = '#2a2f45'; sc = None
 
@@ -380,9 +390,7 @@ def render(_TOK_ACTIVO):
     # ── NIVEL 4: Rack seleccionado en detalle ────────────────────
     else:
         rack_id    = ZONA_A_RACK.get(fila_sel, "POS_1")
-        # Filtrar artículos de BAJA - solo mostrar ACTIVO y CONGELADO
-        items_rack = {k: v for k, v in db.items() 
-                      if v.get('rack') == rack_id and v.get('estado') != 'BAJA'}
+        items_rack = {k: v for k, v in db.items() if v.get('rack') == rack_id}
 
         crumbs = ["Nave principal", zona_sel, fila_sel, f"Rack {rack_sel}"]
         st.markdown("  ›  ".join(f"**{c}**" for c in crumbs))
@@ -396,23 +404,25 @@ def render(_TOK_ACTIVO):
             busq = st.text_input("Buscar en este rack:", "").strip().upper()
 
         st.markdown(
-            "<div style='display:flex;gap:20px;margin-bottom:12px;font-size:12px;color:#cdd3ea;'>"
+            "<div style='display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px;font-size:12px;color:#cdd3ea;'>"
             "<span><span style='display:inline-block;width:10px;height:10px;"
-            "background:#1a472a;border-radius:2px;margin-right:4px;'></span>Ocupado</span>"
+            "background:#1a472a;border:1px solid #22c55e;border-radius:2px;margin-right:4px;'></span>Confirmado (virtual+físico)</span>"
             "<span><span style='display:inline-block;width:10px;height:10px;"
-            "background:#7f1d1d;border-radius:2px;margin-right:4px;'></span>Congelado</span>"
+            "background:#3d2700;border:1px solid #f59e0b;border-radius:2px;margin-right:4px;'></span>Virtual sin sensor</span>"
+            "<span><span style='display:inline-block;width:10px;height:10px;"
+            "background:#7f1d1d;border:1px solid #ef4444;border-radius:2px;margin-right:4px;'></span>Congelado / BAJA+físico</span>"
             "<span><span style='display:inline-block;width:10px;height:10px;"
             "background:#0c3559;border:1px solid #3b9edd;border-radius:2px;margin-right:4px;'></span>"
             "Buscado</span>"
             "<span><span style='display:inline-block;width:10px;height:10px;"
             "background:#1e2130;border:1px solid #3a3f55;border-radius:2px;margin-right:4px;'></span>"
             "Disponible</span>"
-            "<span style='color:#8892b0;margin-left:16px;'>·</span>"
-            "<span style='margin-left:12px;'><span style='display:inline-block;width:10px;height:10px;"
-            "background:#22c55e;border-radius:50%;margin-right:4px;'></span>Sensor libre</span>"
+            "<span style='color:#8892b0;margin-left:8px;'>·</span>"
             "<span style='margin-left:8px;'><span style='display:inline-block;width:10px;height:10px;"
+            "background:#22c55e;border-radius:50%;margin-right:4px;'></span>Sensor libre</span>"
+            "<span><span style='display:inline-block;width:10px;height:10px;"
             "background:#ef4444;border-radius:50%;margin-right:4px;'></span>Sensor ocupado</span>"
-            "<span style='color:#8892b0;font-size:10px;margin-left:6px;'>(solo rack 1)</span>"
+            "<span style='color:#8892b0;font-size:10px;margin-left:4px;'>(solo rack 1)</span>"
             "</div>",
             unsafe_allow_html=True
         )
@@ -477,12 +487,25 @@ def render(_TOK_ACTIVO):
                     (item_key and busq in item_key.upper())
                 )
 
+                _sensor_val = sensor_estado.get((rack_id, nivel, col)) if rack_sel == 1 else None
+                _has_sensor = _sensor_val is not None
+
                 if buscado:
                     color = '#0c3559'; bord = '#3b9edd'
                 elif item:
-                    cong  = item.get('estado') == 'CONGELADO'
-                    color = '#7f1d1d' if cong else '#1a472a'
-                    bord  = '#ef4444' if cong else '#22c55e'
+                    _estado = item.get('estado', 'ACTIVO')
+                    if _estado == 'BAJA':
+                        if _sensor_val == 'ocupado':
+                            color = '#7f1d1d'; bord = '#ef4444'
+                        else:
+                            color = '#3d2700'; bord = '#f59e0b'
+                    elif _estado == 'CONGELADO':
+                        color = '#7f1d1d'; bord = '#ef4444'
+                    else:
+                        if _has_sensor and _sensor_val != 'ocupado':
+                            color = '#3d2700'; bord = '#f59e0b'
+                        else:
+                            color = '#1a472a'; bord = '#22c55e'
                 else:
                     color = '#16192a'; bord = '#2a2f45'
 
@@ -501,7 +524,7 @@ def render(_TOK_ACTIVO):
                     nom = item.get('nombre','')
                     sku = item.get('sku_base','N/A')
                     pzs = item.get('cantidad', 1)
-                    # Nombre (truncado)
+                    _es_baja = item.get('estado') == 'BAJA'
                     nom_c = (nom[:14] + '…') if len(nom) > 14 else nom
                     svg += (
                         f"<text x='{x + cw//2}' y='{y + ch//2 - 14}' text-anchor='middle' "
@@ -514,24 +537,28 @@ def render(_TOK_ACTIVO):
                         f"font-size='9' fill='rgba(255,255,255,0.6)' font-family='sans-serif'>"
                         f"{pzs} pzas</text>"
                     )
+                    if _es_baja:
+                        svg += (
+                            f"<rect x='{x+2}' y='{y+2}' width='22' height='9' rx='2' fill='#92400e'/>"
+                            f"<text x='{x+13}' y='{y+9}' text-anchor='middle' "
+                            f"font-size='6' font-weight='700' fill='#fde68a' font-family='sans-serif'>"
+                            f"BAJA</text>"
+                        )
                 else:
                     svg += (
                         f"<text x='{x + cw//2}' y='{y + ch//2 + 4}' text-anchor='middle' "
                         f"font-size='10' fill='#4a5080' font-family='sans-serif'>LIBRE</text>"
                     )
 
-                # Dot de sensor CNY70 — solo piso 1 tiene sensores físicos
-                if rack_sel == 1:
-                    _s = sensor_estado.get((rack_id, nivel, col))
-                    if _s is not None:
-                        _dc  = '#ef4444' if _s == 'ocupado' else '#22c55e'
-                        _txt = 'OC' if _s == 'ocupado' else 'LB'
-                        svg += (
-                            f"<circle cx='{x+cw-8}' cy='{y+8}' r='7' fill='{_dc}' opacity='0.9'/>"
-                            f"<text x='{x+cw-8}' y='{y+12}' text-anchor='middle' "
-                            f"font-size='6' font-weight='700' fill='white' font-family='sans-serif'>"
-                            f"{_txt}</text>"
-                        )
+                if _has_sensor:
+                    _dc  = '#ef4444' if _sensor_val == 'ocupado' else '#22c55e'
+                    _txt = 'OC' if _sensor_val == 'ocupado' else 'LB'
+                    svg += (
+                        f"<circle cx='{x+cw-8}' cy='{y+8}' r='7' fill='{_dc}' opacity='0.9'/>"
+                        f"<text x='{x+cw-8}' y='{y+12}' text-anchor='middle' "
+                        f"font-size='6' font-weight='700' fill='white' font-family='sans-serif'>"
+                        f"{_txt}</text>"
+                    )
 
         svg += "</svg>"
         st.markdown(
