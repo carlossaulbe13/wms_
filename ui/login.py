@@ -27,7 +27,7 @@ _CSS = """
     75%     { transform: translateX(-4px); }
     90%     { transform: translateX(4px); }
 }
-.avatar-glow  { animation: rfid-glow  3s ease-out forwards; }
+.avatar-glow  { animation: rfid-glow  5s ease-out forwards; }
 .avatar-shake { animation: rfid-shake 0.65s ease-in-out; }
 
 /* ── Fondo gradiente full-screen ───────── */
@@ -184,7 +184,7 @@ def _preparar_auth(token_secreto, token_admin_pwd, rol, empleado=None):
 
 
 def pantalla_login(token_secreto, token_admin_pwd):
-    st_autorefresh(interval=2000, key='login_refresh')
+    st_autorefresh(interval=6000, key='login_refresh')
     st.markdown(_CSS, unsafe_allow_html=True)
 
     # ── 1. Flags de animación de contraseña (leídos ANTES del render) ──
