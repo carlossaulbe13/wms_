@@ -176,13 +176,21 @@ def pantalla_login(token_secreto, token_admin_pwd):
     _rfid_err   = None
     _rfid_glow  = False
     _rfid_shake = False
+    _empleado   = None
     if uid:
         if uid in UIDS_AUTORIZADOS:
             _rfid_glow = True
-            st.session_state.autenticado   = True
-            st.session_state.rol           = 'admin'
-            st.session_state.session_token = token_secreto + '_admin'
-            st.query_params['_s']          = token_secreto + '_admin'
+            # Buscar empleado registrado para el saludo
+            try:
+                from firebase import buscar_empleado_por_uid
+                _empleado = buscar_empleado_por_uid(uid)
+            except Exception:
+                pass
+            st.session_state.autenticado      = True
+            st.session_state.rol              = (_empleado or {}).get('rol', 'admin')
+            st.session_state.session_token    = token_secreto + '_admin'
+            st.session_state._empleado_activo = _empleado
+            st.query_params['_s']             = token_secreto + '_admin'
             # No rerun — el glow se muestra en este render;
             # el autorefresh (2 s) redirigirá ya con autenticado=True
         else:
@@ -201,7 +209,7 @@ def pantalla_login(token_secreto, token_admin_pwd):
             unsafe_allow_html=True,
         )
 
-        # Card con solo el avatar
+        # Card
         _anim_class = "avatar-glow" if _rfid_glow else ("avatar-shake" if _rfid_shake else "")
         st.markdown(
             f"<div class='login-card'>"
@@ -216,41 +224,69 @@ def pantalla_login(token_secreto, token_admin_pwd):
             unsafe_allow_html=True,
         )
 
-        # Indicador RFID
-        st.markdown(
-            "<div style='background:rgba(84,119,146,0.18);border:1px solid #547792;"
-            "border-radius:10px;padding:12px 18px;"
-            "display:flex;align-items:center;gap:12px;'>"
-            "<div style='width:8px;height:8px;border-radius:50%;background:#94B4C1;"
-            "box-shadow:0 0 8px #94B4C1;flex-shrink:0;'></div>"
-            "<span style='color:#94B4C1;font-size:13px;'>Pasa tu tarjeta RFID para acceso rápido</span>"
-            "</div>"
-            "<div style='height:36px;'></div>",
-            unsafe_allow_html=True,
-        )
+        if _rfid_glow:
+            # ── Pantalla de bienvenida RFID ───────────────────
+            if _empleado:
+                hon  = _empleado.get('honorifico', '')
+                nom  = _empleado.get('nombre', '')
+                pues = _empleado.get('puesto', '')
+                saludo_nombre = f"{hon} {nom}".strip() if hon else nom
+            else:
+                saludo_nombre = "Administrador"
+                pues          = ""
 
-        if _rfid_err:
-            st.error(_rfid_err)
+            st.markdown(
+                f"<div style='text-align:center;padding:8px 0 20px;'>"
+                f"  <div style='color:#94B4C1;font-size:12px;letter-spacing:2px;margin-bottom:6px;'>"
+                f"    ACCESO CONCEDIDO</div>"
+                f"  <div style='color:#EAE0CF;font-size:22px;font-weight:700;'>"
+                f"    Bienvenido de vuelta</div>"
+                f"  <div style='color:#94B4C1;font-size:20px;font-weight:600;margin-top:4px;'>"
+                f"    {saludo_nombre}</div>"
+                + (f"  <div style='color:#547792;font-size:13px;margin-top:6px;'>{pues}</div>" if pues else "")
+                + f"</div>",
+                unsafe_allow_html=True,
+            )
 
-        # Formulario contraseña
-        with st.form("login_form"):
-            pwd    = st.text_input("pwd", type="password", placeholder="Contraseña", label_visibility="collapsed")
-            submit = st.form_submit_button("ENTRAR", use_container_width=True)
-            if submit:
-                if pwd == PASSWORD_ADMIN:
-                    st.session_state.autenticado   = True
-                    st.session_state.rol           = 'admin'
-                    st.session_state.session_token = token_admin_pwd + '_admin'
-                    st.query_params['_s']          = token_admin_pwd + '_admin'
-                    st.rerun()
-                elif pwd == PASSWORD_ACCESO:
-                    st.session_state.autenticado   = True
-                    st.session_state.rol           = 'operador'
-                    st.session_state.session_token = token_secreto + '_operador'
-                    st.query_params['_s']          = token_secreto + '_operador'
-                    st.rerun()
-                else:
-                    st.error("Contraseña incorrecta")
+        else:
+            # ── Indicador RFID + formulario ───────────────────
+            st.markdown(
+                "<div style='background:rgba(84,119,146,0.18);border:1px solid #547792;"
+                "border-radius:10px;padding:12px 18px;"
+                "display:flex;align-items:center;gap:12px;'>"
+                "<div style='width:8px;height:8px;border-radius:50%;background:#94B4C1;"
+                "box-shadow:0 0 8px #94B4C1;flex-shrink:0;'></div>"
+                "<span style='color:#94B4C1;font-size:13px;'>Pasa tu tarjeta RFID para acceso rápido</span>"
+                "</div>"
+                "<div style='height:36px;'></div>",
+                unsafe_allow_html=True,
+            )
+
+            if _rfid_err:
+                st.error(_rfid_err)
+
+            with st.form("login_form"):
+                pwd    = st.text_input("pwd", type="password", placeholder="Contraseña", label_visibility="collapsed")
+                submit = st.form_submit_button("ENTRAR", use_container_width=True)
+                if submit:
+                    if pwd == PASSWORD_ADMIN:
+                        st.session_state.autenticado      = True
+                        st.session_state.rol              = 'admin'
+                        st.session_state.session_token    = token_admin_pwd + '_admin'
+                        st.session_state._empleado_activo = None
+                        st.session_state._pwd_bienvenido  = 'admin'
+                        st.query_params['_s']             = token_admin_pwd + '_admin'
+                        st.rerun()
+                    elif pwd == PASSWORD_ACCESO:
+                        st.session_state.autenticado      = True
+                        st.session_state.rol              = 'operador'
+                        st.session_state.session_token    = token_secreto + '_operador'
+                        st.session_state._empleado_activo = None
+                        st.session_state._pwd_bienvenido  = 'operador'
+                        st.query_params['_s']             = token_secreto + '_operador'
+                        st.rerun()
+                    else:
+                        st.error("Contraseña incorrecta")
 
         # Cierre del div card
         st.markdown("</div>", unsafe_allow_html=True)
