@@ -43,19 +43,7 @@ def nivel_acepta_altura(nivel, alto_m):
         return alto_m <= ALTO_MAX_N3
     return False
 
-def asignar_rack_por_peso_vol(peso, vol):
-    """Determina el rack objetivo según peso y volumen."""
-    if peso > PESO_SOBRE:
-        return "RACK_5"
-    if peso >= 100:
-        return "RACK_4"
-    if vol > 1.5:
-        return "RACK_5"
-    if peso >= 50:
-        return "RACK_3"
-    if peso >= 20:
-        return "RACK_2"
-    return "RACK_1"
+_RACKS_NORMALES = ["RACK_1", "RACK_2", "RACK_3", "RACK_4"]
 
 def obtener_coordenada_libre(db, rack_objetivo, peso_nuevo=0, alto_m=0):
     """
@@ -118,29 +106,29 @@ def registrar_pallet(uid, sku_base, nombre, peso, cantidad,
     alto_m = alto_cm / 100.0
     avisos = []
 
-    # Discriminante de altura
+    # Sobredimensiones forzadas por altura o peso extremo
+    forzar_sobre = False
     if alto_m > ALTO_MAX_N3:
         avisos.append(f"Alto {alto_cm:.0f} cm > 180 cm — asignado a SOBREDIMENSIONES.")
-        r = "RACK_5"
-    elif alto_m > ALTO_MAX_N1_N2:
-        avisos.append(f"Alto {alto_cm:.0f} cm > 150 cm — solo nivel 3.")
-        r = asignar_rack_por_peso_vol(peso, 0.0)
-    else:
-        r = asignar_rack_por_peso_vol(peso, 0.0)
-
-    # Discriminante de peso
+        forzar_sobre = True
     if peso > PESO_SOBRE:
         avisos.append(f"Peso {peso:.0f} kg > {PESO_SOBRE:.0f} kg — asignado a SOBREDIMENSIONES.")
-        r = "RACK_5"
+        forzar_sobre = True
+    if alto_m > ALTO_MAX_N1_N2 and not forzar_sobre:
+        avisos.append(f"Alto {alto_cm:.0f} cm > 150 cm — solo nivel 3 disponible.")
 
-    # Coordenada libre con fallback a sobredimensiones
-    piso, nivel, col = obtener_coordenada_libre(db, r, peso_nuevo=peso, alto_m=alto_m)
-    if piso is None and r != "RACK_5":
-        r = "RACK_5"
-        avisos.append("Rack asignado lleno — redirigido a SOBREDIMENSIONES.")
-        piso, nivel, col = obtener_coordenada_libre(db, r, peso_nuevo=peso, alto_m=alto_m)
+    # Llenado secuencial: RACK_1 → RACK_2 → RACK_3 → RACK_4 → RACK_5
+    racks_a_intentar = ["RACK_5"] if forzar_sobre else _RACKS_NORMALES + ["RACK_5"]
+    r = piso = nivel = col = None
+    for rack in racks_a_intentar:
+        piso, nivel, col = obtener_coordenada_libre(db, rack, peso_nuevo=peso, alto_m=alto_m)
+        if piso is not None:
+            r = rack
+            if rack == "RACK_5" and not forzar_sobre:
+                avisos.append("Racks A-D llenos — redirigido a SOBREDIMENSIONES.")
+            break
 
-    if piso is None:
+    if r is None:
         return False, "Sin espacio disponible en ningun rack. Reorganiza el almacen.", avisos
 
     # Guardar en Firebase
@@ -150,7 +138,6 @@ def registrar_pallet(uid, sku_base, nombre, peso, cantidad,
         "nombre":        nombre,
         "peso":          peso,
         "cantidad":      cantidad,
-        "volumen":       0.0,
         "alto_m":        round(alto_m, 2),
         "rack":          r,
         "piso":          piso,
