@@ -62,11 +62,11 @@ TIPOS_EMBALAJE = [
 ]
 
 ZONA_A_RACK = {
-    "FILA A": "POS_1",
-    "FILA B": "POS_2",
-    "FILA C": "POS_3",
-    "FILA D": "POS_4",
-    "SOBREDIMENSIONES": "POS_5",
+    "FILA A": "RACK_1",
+    "FILA B": "RACK_2",
+    "FILA C": "RACK_3",
+    "FILA D": "RACK_4",
+    "SOBREDIMENSIONES": "RACK_5",
 }
 
 # ── Tokens de sesion ─────────────────────────────────────────
