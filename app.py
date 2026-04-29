@@ -360,11 +360,6 @@ setTimeout(function(){
 
 # ── Renderizar según dispositivo ──────────────────────────────
 if not _es_movil:
-    # Limpiar barra móvil si quedó en DOM
-    _components.html("""<script>
-(function(){ var n=window.parent.document.getElementById('wms-bnav');
-if(n){ n.remove(); var s=window.parent.document.getElementById('wms-bnav-style'); if(s) s.remove(); } })();
-</script>""", height=0)
     tabs = st.tabs(['RASTREO Y UBICACIÓN', 'MAESTRO DE ARTICULOS'])
     with tabs[0]:
         from ui.gemelo import render as render_gemelo
@@ -375,6 +370,9 @@ if(n){ n.remove(); var s=window.parent.document.getElementById('wms-bnav-style')
 else:
     _movil_page = st.query_params.get('page', 'escaner')
 
+    st.markdown("<style>.main .block-container{padding-bottom:90px!important}</style>",
+                unsafe_allow_html=True)
+
     if _movil_page == 'alta':
         from ui.escaner import render_alta
         render_alta()
@@ -382,76 +380,25 @@ else:
         from ui.escaner import render_escaner
         render_escaner()
 
-    _components.html(f"""<script>
-(function(){{
-    var cur = '{_movil_page}';
-    var tok = '{_TOK_ACTIVO}';
+    _e_style = "background:rgba(84,119,146,0.22);border:1px solid #547792;color:#EAE0CF" \
+               if _movil_page == 'escaner' else \
+               "background:transparent;border:1px solid transparent;color:#94B4C1"
+    _a_style = "background:rgba(84,119,146,0.22);border:1px solid #547792;color:#EAE0CF" \
+               if _movil_page == 'alta' else \
+               "background:transparent;border:1px solid transparent;color:#94B4C1"
 
-    // Actualizar activo si la barra ya existe
-    var existing = window.parent.document.getElementById('wms-bnav');
-    if (existing) {{
-        existing.querySelectorAll('button').forEach(function(b) {{
-            b.classList.toggle('active', b.dataset.page === cur);
-        }});
-        return;
-    }}
-
-    // Inyectar estilos una sola vez
-    var s = window.parent.document.createElement('style');
-    s.id = 'wms-bnav-style';
-    s.textContent = `
-        #wms-bnav {{
-            position: fixed;
-            bottom: 0; left: 0; right: 0;
-            z-index: 9999;
-            background: #213448;
-            border-top: 1px solid rgba(84,119,146,0.45);
-            display: flex;
-            padding: 6px 12px env(safe-area-inset-bottom, 8px);
-            gap: 8px;
-            box-shadow: 0 -4px 20px rgba(0,0,0,0.4);
-        }}
-        #wms-bnav button {{
-            flex: 1;
-            background: transparent;
-            border: 1px solid transparent;
-            border-radius: 10px;
-            color: #94B4C1;
-            font-size: 13px;
-            font-weight: 700;
-            padding: 12px 4px;
-            cursor: pointer;
-            letter-spacing: 0.8px;
-            transition: background 0.15s, color 0.15s, border-color 0.15s;
-        }}
-        #wms-bnav button.active {{
-            background: rgba(84,119,146,0.22);
-            border-color: #547792;
-            color: #EAE0CF;
-        }}
-        .main .block-container {{
-            padding-bottom: 90px !important;
-        }}
-    `;
-    window.parent.document.head.appendChild(s);
-
-    // Crear barra
-    var nav = window.parent.document.createElement('div');
-    nav.id = 'wms-bnav';
-    ['escaner', 'alta'].forEach(function(page) {{
-        var b = window.parent.document.createElement('button');
-        b.dataset.page = page;
-        b.textContent = page === 'escaner' ? 'ESCÁNER' : 'ALTA';
-        if (page === cur) b.classList.add('active');
-        b.onclick = function() {{
-            var p = new URLSearchParams();
-            p.set('_s', tok);
-            p.set('movil', '1');
-            p.set('page', page);
-            window.parent.location.search = '?' + p.toString();
-        }};
-        nav.appendChild(b);
-    }});
-    window.parent.document.body.appendChild(nav);
-}})();
-</script>""", height=0)
+    st.markdown(f"""
+<div style="position:fixed;bottom:0;left:0;right:0;z-index:9999;
+     background:#213448;border-top:1px solid rgba(84,119,146,0.45);
+     display:flex;padding:6px 12px env(safe-area-inset-bottom,8px);gap:8px;
+     box-shadow:0 -4px 20px rgba(0,0,0,0.4);">
+  <a href="?_s={_TOK_ACTIVO}&movil=1&page=escaner"
+     style="flex:1;display:block;text-align:center;padding:12px 4px;
+            border-radius:10px;text-decoration:none;font-weight:700;
+            font-size:13px;letter-spacing:0.8px;{_e_style}">ESCÁNER</a>
+  <a href="?_s={_TOK_ACTIVO}&movil=1&page=alta"
+     style="flex:1;display:block;text-align:center;padding:12px 4px;
+            border-radius:10px;text-decoration:none;font-weight:700;
+            font-size:13px;letter-spacing:0.8px;{_a_style}">ALTA</a>
+</div>
+""", unsafe_allow_html=True)
