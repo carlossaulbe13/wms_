@@ -72,32 +72,6 @@ def render_escaner():
         *[data-visualcompletion],*[aria-label*="translate"],
         *[class*="live-text"],*[class*="livetext"],
         img-analysis-result,translate-button{display:none!important;}
-        #_qr_ov{
-            position:fixed!important;inset:0!important;z-index:10!important;
-            display:flex!important;align-items:center!important;justify-content:center!important;
-            pointer-events:none!important;
-        }
-        #_qr_fr{
-            width:62%!important;aspect-ratio:1!important;
-            position:relative!important;
-        }
-        #_qr_fr::before,#_qr_fr::after,#_qr_fr>span::before,#_qr_fr>span::after{
-            content:''!important;position:absolute!important;
-            width:22px!important;height:22px!important;
-            border-color:#38bdf8!important;border-style:solid!important;
-        }
-        #_qr_fr::before{top:0!important;left:0!important;border-width:3px 0 0 3px!important;border-radius:4px 0 0 0!important;}
-        #_qr_fr::after {top:0!important;right:0!important;border-width:3px 3px 0 0!important;border-radius:0 4px 0 0!important;}
-        #_qr_fr>span::before{bottom:0!important;left:0!important;border-width:0 0 3px 3px!important;border-radius:0 0 0 4px!important;}
-        #_qr_fr>span::after {bottom:0!important;right:0!important;border-width:0 3px 3px 0!important;border-radius:0 0 4px 0!important;}
-        #_qr_sl{
-            position:absolute!important;left:8%!important;width:84%!important;
-            height:2px!important;top:10%!important;
-            background:linear-gradient(90deg,transparent,#38bdf8,transparent)!important;
-            box-shadow:0 0 8px #38bdf8!important;
-            animation:_qr_scan 1.8s ease-in-out infinite!important;
-        }
-        @keyframes _qr_scan{0%{top:10%}50%{top:88%}100%{top:10%}}
     `;
     function inject(f){
         if(patched.has(f))return;
@@ -115,12 +89,6 @@ def render_escaner():
                 vid.setAttribute('autocorrect','off');
                 vid.setAttribute('autocomplete','off');
                 vid.setAttribute('spellcheck','false');
-            }
-            if(!doc.getElementById('_qr_ov')){
-                var ov=doc.createElement('div');
-                ov.id='_qr_ov';
-                ov.innerHTML='<div id="_qr_fr"><span></span><div id="_qr_sl"></div></div>';
-                doc.body.appendChild(ov);
             }
         }catch(e){}
     }
@@ -191,7 +159,7 @@ def render_escaner():
                 peso = st.number_input("Peso (kg)", min_value=0.0, value=0.0, step=0.1)
             
             with col2:
-                rack = st.selectbox("Rack", ["POS_1", "POS_2", "POS_3", "POS_4", "POS_5"])
+                rack = st.selectbox("Rack", ["RACK_1", "RACK_2", "RACK_3", "RACK_4", "RACK_5"])
                 estado = st.selectbox("Estado", ["ACTIVO", "CONGELADO"])
             
             if st.form_submit_button(" Guardar", use_container_width=True, type="primary"):
@@ -206,7 +174,6 @@ def render_escaner():
                     }
                     registrar_entrada_manual(datos)
                     st.success(f" Pallet {matricula} registrado!")
-                    st.balloons()
                 else:
                     st.error(" Matrícula y SKU son obligatorios")
     
@@ -246,30 +213,30 @@ def mostrar_detalle_pallet(data, mostrar_boton_registro=True):
     embalaje = data.get('embalaje') or data.get('tipo_pallet', 'N/A')
     alto_cm = data.get('alto_cm', 0)
     
-    # Obtener ubicación
-    ubicacion = data.get('ubicacion', {})
-    if not ubicacion or not isinstance(ubicacion, dict):
-        ubicacion = {}
-    
+    # Ubicación — Firebase guarda piso/fila/columna como campos directos
+    piso_v   = data.get('piso',    '-')
+    nivel_v  = data.get('fila',    '-')
+    col_v    = data.get('columna', '-')
+
     st.success(f" Pallet: **{matricula}**")
-    
+
     # Mostrar detalles
     col1, col2 = st.columns(2)
-    
+
     with col1:
         st.metric("SKU", sku)
         st.metric("Piezas", pzas)
         st.metric("Rack", rack)
         st.metric("Embalaje", embalaje)
-    
+
     with col2:
         st.metric("Nombre", nombre if len(str(nombre)) < 20 else str(nombre)[:17] + "...")
         st.metric("Peso (kg)", peso)
         st.metric("Estado", estado)
         st.metric("Alto (cm)", alto_cm)
-        
+
     # Ubicación
-    pos = f"P{ubicacion.get('piso','-')}N{ubicacion.get('nivel','-')}C{ubicacion.get('columna','-')}"
+    pos = f"P{piso_v} N{nivel_v} C{col_v}"
     st.caption(f" Ubicación: {pos}")
     
     # Detalles completos
@@ -298,7 +265,7 @@ def mostrar_detalle_pallet(data, mostrar_boton_registro=True):
                 registrar_escaneo(datos_normalizados)
             
             st.success(" Pallet registrado y ubicación asignada!")
-            
+
             # Recargar datos para mostrar la ubicación asignada
             from firebase import cargar_db
             db = cargar_db(forzar=True)
@@ -307,11 +274,9 @@ def mostrar_detalle_pallet(data, mostrar_boton_registro=True):
                 rack_asignado = pallet_actualizado.get('rack', 'N/A')
                 piso = pallet_actualizado.get('piso', '-')
                 nivel = pallet_actualizado.get('fila', '-')
-                col = pallet_actualizado.get('columna', '-')
-                
-                st.info(f" **Ubicación asignada:** {rack_asignado} → Piso {piso}, Nivel {nivel}, Columna {col}")
-            
-            st.balloons()
+                col_a = pallet_actualizado.get('columna', '-')
+                st.info(f" **Ubicación asignada:** {rack_asignado} → Piso {piso}, Nivel {nivel}, Columna {col_a}")
+
             time.sleep(2)
             st.rerun()
 
