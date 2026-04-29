@@ -80,9 +80,7 @@ RACK_A_FILA = {
 # ── Empleados ────────────────────────────────────────────────
 EMPLEADOS_URL = get_secret("EMPLEADOS_URL", "").strip()
 if not EMPLEADOS_URL:
-    _base = get_secret("FIREBASE_URL",
-        "https://umad-wms-default-rtdb.firebaseio.com/maestro_articulos.json")
-    EMPLEADOS_URL = _base.replace("maestro_articulos.json", "empleados.json")
+    EMPLEADOS_URL = FIREBASE_URL.replace("maestro_articulos.json", "empleados.json")
 
 HONORIFICOS = ["(ninguno)", "Ing.", "Lic.", "Dr.", "M.C.", "Mtro.", "Arq.", "C.P.", "Téc.", "Sr.", "Sra."]
 
