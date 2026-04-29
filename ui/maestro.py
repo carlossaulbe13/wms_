@@ -7,7 +7,8 @@ import pandas as pd
 import requests
 from config import TIPOS_EMBALAJE, HISTORIAL_URL
 from firebase import (cargar_db, guardar_db, registrar_movimiento,
-                      dar_de_baja_pallet, eliminar_pallet)
+                      dar_de_baja_pallet, eliminar_pallet,
+                      eliminar_pallets, vaciar_inventario)
 from logica import registrar_pallet, asignar_rack_por_peso_vol
 
 def render():
@@ -64,7 +65,11 @@ def render():
             if f_estado != "TODOS":
                 df_f = df_f[df_f["ESTADO"] == f_estado]
 
-            st.caption(f"{len(df_f)} de {len(df_full)} articulos" + (" — selecciona filas para eliminación grupal" if _es_admin_m else ""))
+            _cap_col, _chk_col = st.columns([3, 1])
+            with _cap_col:
+                st.caption(f"{len(df_f)} de {len(df_full)} articulos" + (" — selecciona filas para eliminación grupal" if _es_admin_m else ""))
+            with _chk_col:
+                _sel_todo = st.checkbox("Seleccionar todos", key="sel_todo_chk") if _es_admin_m else False
 
             _df_event = st.dataframe(
                 df_f,
@@ -93,8 +98,13 @@ def render():
             # ── Eliminación grupal (solo admin) ───────────────────
             if _es_admin_m:
                 _sel_idx = _df_event.selection.rows if hasattr(_df_event, 'selection') else []
-                if _sel_idx:
+                if _sel_todo:
+                    _sel_mats = list(df_f["MATRICULA (QR)"])
+                elif _sel_idx:
                     _sel_mats = [df_f.iloc[i]["MATRICULA (QR)"] for i in _sel_idx]
+                else:
+                    _sel_mats = []
+                if _sel_mats:
                     _bc1, _bc2 = st.columns([3, 1])
                     with _bc1:
                         st.warning(f"{len(_sel_mats)} artículo(s) seleccionados: {', '.join(_sel_mats[:5])}{'...' if len(_sel_mats)>5 else ''}")
