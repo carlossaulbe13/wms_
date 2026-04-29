@@ -77,6 +77,24 @@ RACK_A_FILA = {
     "RACK_5": "SOBREDIMENSIONES",
 }
 
+# ── Empleados ────────────────────────────────────────────────
+EMPLEADOS_URL = get_secret("EMPLEADOS_URL", "").strip()
+if not EMPLEADOS_URL:
+    _base = get_secret("FIREBASE_URL",
+        "https://umad-wms-default-rtdb.firebaseio.com/maestro_articulos.json")
+    EMPLEADOS_URL = _base.replace("maestro_articulos.json", "empleados.json")
+
+HONORIFICOS = ["(ninguno)", "Ing.", "Lic.", "Dr.", "M.C.", "Mtro.", "Arq.", "C.P.", "Téc.", "Sr.", "Sra."]
+
+PERMISOS_DISPONIBLES = [
+    "alta_material",
+    "baja_material",
+    "consulta_inventario",
+    "reportes",
+    "gestion_empleados",
+    "configuracion",
+]
+
 # ── MQTT / HiveMQ Cloud ──────────────────────────────────────
 MQTT_HOST     = get_secret("MQTT_HOST",     "d16db0c07bf441179f3f8d0c59c60267.s1.eu.hivemq.cloud")
 MQTT_PORT     = int(get_secret("MQTT_PORT", "8883"))
