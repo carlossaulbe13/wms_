@@ -2,7 +2,6 @@
 ui/escaner.py — Interfaz móvil para escaneo QR y registro de material.
 """
 import streamlit as st
-import streamlit.components.v1 as _stc
 import json
 import time
 import sys
@@ -14,6 +13,22 @@ if '/mount/src/wms_' not in sys.path:
 if os.path.dirname(os.path.dirname(__file__)) not in sys.path:
     sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
+def _decodificar_qr(img_file):
+    """Decodifica un QR desde un archivo de imagen. Retorna el texto o None."""
+    try:
+        import cv2
+        import numpy as np
+        from PIL import Image
+        img = Image.open(img_file).convert('RGB')
+        arr = np.array(img)
+        bgr = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
+        detector = cv2.QRCodeDetector()
+        texto, _, _ = detector.detectAndDecode(bgr)
+        return texto if texto else None
+    except Exception:
+        return None
+
+
 def render_escaner():
     """Renderiza la interfaz de escáner móvil con QR."""
     
@@ -21,124 +36,27 @@ def render_escaner():
     st.caption("Escanea códigos QR o busca pallets manualmente")
     
 
-    # Intentar importar el escáner QR
-    try:
-        from streamlit_qrcode_scanner import qrcode_scanner
-        tiene_qr = True
-    except ImportError:
-        tiene_qr = False
+    tab1, tab2, tab3 = st.tabs(["Escáner QR", "Buscar Pallet", "Entrada Manual"])
 
-    # Tabs para diferentes modos
-    if tiene_qr:
-        tab1, tab2, tab3 = st.tabs([" Escáner QR", " Buscar Pallet", " Entrada Manual"])
-    else:
-        tab1, tab2 = st.tabs([" Buscar Pallet", " Entrada Manual"])
+    # TAB 1: Escáner QR con captura manual
+    with tab1:
+        img_captura = st.camera_input("Apunta al código QR y captura")
 
-    # TAB 1: Escáner QR (solo si está instalado)
-    if tiene_qr:
-        with tab1:
-            # Columna centrada para limitar el ancho del iframe del componente
-            _pad1, _qr_col, _pad2 = st.columns([1, 4, 1])
-            with _qr_col:
-                qr_code = qrcode_scanner(key='qrcode_mobile')
-
-            _stc.html("""<script>
-(function(){
-    var patched=new WeakSet();
-    // CSS inyectado DENTRO del iframe del escaner
-    var INNER_CSS=`
-        html,body{margin:0!important;padding:0!important;
-            width:100%!important;height:100%!important;
-            background:#000!important;overflow:hidden!important;}
-        canvas{opacity:0!important;}
-        svg,img-analysis-result,translate-button{display:none!important;}
-        *[aria-label*="translate"]{display:none!important;}
-    `;
-    function applyFill(vid){
-        var s='position:absolute!important;top:0!important;left:0!important;'+
-              'width:100%!important;height:100%!important;'+
-              'object-fit:cover!important;display:block!important;z-index:0!important;';
-        vid.style.cssText=s;
-    }
-    function doInject(f,doc){
-        patched.add(f);
-        if(f._innerObs){f._innerObs.disconnect();delete f._innerObs;}
-        // Tamaño del iframe — solo al iframe que tiene video (el escaner real)
-        f.style.setProperty('width','100%','important');
-        f.style.setProperty('max-width','320px','important');
-        f.style.setProperty('height','320px','important');
-        f.style.setProperty('display','block','important');
-        f.style.setProperty('margin','0 auto','important');
-        f.style.setProperty('border-radius','12px','important');
-        f.style.setProperty('border','none','important');
-        f.style.setProperty('outline','1.5px solid #547792','important');
-        if(doc.getElementById('_umad_css'))return;
-        var s=doc.createElement('style');
-        s.id='_umad_css';s.textContent=INNER_CSS;
-        (doc.head||doc.body||doc.documentElement).appendChild(s);
-        var vid=doc.querySelector('video');
-        if(vid){
-            applyFill(vid);
-            vid.addEventListener('loadedmetadata',function(){applyFill(vid);},{once:true});
-            vid.addEventListener('play',function(){applyFill(vid);},{once:true});
-        }
-    }
-    function inject(f){
-        if(patched.has(f))return;
-        try{
-            var doc=f.contentDocument||f.contentWindow.document;
-            if(!doc)return;
-            if(!doc.querySelector('video')){
-                if(!f._innerObs){
-                    try{
-                        f._innerObs=new MutationObserver(function(){
-                            if(doc.querySelector('video'))doInject(f,doc);
-                        });
-                        f._innerObs.observe(doc.documentElement||doc.body,
-                            {childList:true,subtree:true});
-                    }catch(e){}
-                }
-                return;
-            }
-            doInject(f,doc);
-        }catch(e){}
-    }
-    function sweep(){
-        var all=window.parent.document.querySelectorAll('iframe');
-        for(var i=0;i<all.length;i++)inject(all[i]);
-    }
-    try{
-        new MutationObserver(sweep).observe(
-            window.parent.document.documentElement,{childList:true,subtree:true});
-    }catch(e){}
-    [100,400,900,1800,3500,7000,12000].forEach(function(t){setTimeout(sweep,t);});
-})();
-</script>""", height=0)
-
-            if qr_code:
+        if img_captura:
+            qr_texto = _decodificar_qr(img_captura)
+            if qr_texto:
                 try:
-                    # Intentar parsear como JSON
-                    data = json.loads(qr_code)
+                    data = json.loads(qr_texto)
                     mostrar_detalle_pallet(data, True)
-                    
                 except json.JSONDecodeError:
-                    # Si no es JSON, puede ser solo el UID (QR simple)
-                    if len(qr_code.strip()) > 0:
-                        st.warning(f"ALERTA: QR de texto simple detectado: `{qr_code}`")
-                        st.info("Este QR solo contiene un ID. Usa 'Buscar Pallet' para ver sus datos.")
-                        
-                        # Ofrecer buscar por ese UID
-                        if st.button(" Buscar este pallet", key="buscar_qr_simple"):
-                            buscar_y_mostrar_pallet(qr_code.strip().upper())
-                    else:
-                        st.error(f" Código QR inválido o vacío")
-                        st.caption("El código debe ser un JSON válido con los datos del pallet")
+                    uid = qr_texto.strip().upper()
+                    st.warning(f"QR de texto simple: `{uid}`")
+                    if st.button("Buscar este pallet", key="buscar_qr_simple"):
+                        buscar_y_mostrar_pallet(uid)
             else:
-                st.markdown('<p style="text-align:center;color:#888;font-size:0.82em;margin:6px 0 0">Apunta la cámara al código QR del pallet</p>', unsafe_allow_html=True)
+                st.error("No se detectó ningún código QR en la imagen. Intenta de nuevo.")
     
-    # TAB: Buscar Pallet (siempre disponible)
-    tab_buscar = tab2 if tiene_qr else tab1
-    with tab_buscar:
+    with tab2:
         st.subheader(" Buscar por Matrícula")
         
         matricula_buscar = st.text_input(
@@ -153,9 +71,7 @@ def render_escaner():
             else:
                 st.warning("ALERTA: Ingresa una matrícula")
     
-    # TAB: Entrada Manual
-    tab_manual = tab3 if tiene_qr else tab2
-    with tab_manual:
+    with tab3:
         st.subheader(" Ingreso Manual de Datos")
         
         with st.form("form_entrada_manual"):
@@ -185,19 +101,6 @@ def render_escaner():
                     st.success(f" Pallet {matricula} registrado!")
                 else:
                     st.error(" Matrícula y SKU son obligatorios")
-    
-    # Mensaje si no tiene QR instalado
-    if not tiene_qr:
-        st.divider()
-        st.info("""
-        ** ¿Quieres usar el escáner QR?**
-        
-        Instala la librería:
-        ```bash
-        pip install streamlit-qrcode-scanner
-        ```
-        Luego reinicia la aplicación.
-        """)
     
     # Mostrar historial reciente
     if 'historial_escaneos' in st.session_state and st.session_state.historial_escaneos:
