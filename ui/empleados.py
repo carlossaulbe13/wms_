@@ -26,7 +26,7 @@ def _key_para_empleado(uid_clean: str, nombre_clean: str) -> str:
 
 def render():
     st.markdown(
-        "<h3 style='color:#EAE0CF;margin-bottom:4px;'>Gestión de Empleados</h3>",
+        "<h3 style='color:#E5E5EA;margin-bottom:4px;'>Gestión de Empleados</h3>",
         unsafe_allow_html=True,
     )
 
@@ -57,7 +57,7 @@ def render():
             )
 
             st.markdown(
-                "<div style='color:#94B4C1;font-size:12px;margin:8px 0 4px;'>"
+                "<div style='color:#F59E0B;font-size:12px;margin:8px 0 4px;'>"
                 "Contraseña de acceso alternativa (opcional)</div>",
                 unsafe_allow_html=True,
             )
@@ -134,7 +134,7 @@ def render():
 
     st.markdown("---")
     st.markdown(
-        f"<div style='color:#94B4C1;font-size:13px;margin-bottom:12px;'>"
+        f"<div style='color:#F59E0B;font-size:13px;margin-bottom:12px;'>"
         f"{len(empleados)} empleado(s) registrado(s)</div>",
         unsafe_allow_html=True,
     )
@@ -153,34 +153,34 @@ def render():
 
         nombre_completo = f"{nom} {ape}".strip() or "—"
         nombre_display = f"{hon} {nombre_completo}".strip() if hon else nombre_completo
-        rol_color = "#94B4C1" if rol == "admin" else "#547792"
+        rol_color = "#F59E0B" if rol == "admin" else "#48484A"
 
         acceso_tags = ""
         if uid != "—":
-            acceso_tags += "<span style='background:rgba(84,119,146,0.25);color:#94B4C1;font-size:11px;padding:2px 8px;border-radius:4px;'>RFID</span> "
+            acceso_tags += "<span style='background:rgba(72,72,74,0.25);color:#F59E0B;font-size:11px;padding:2px 8px;border-radius:4px;'>RFID</span> "
         if tiene_pwd:
-            acceso_tags += "<span style='background:rgba(84,119,146,0.25);color:#94B4C1;font-size:11px;padding:2px 8px;border-radius:4px;'>Contraseña</span>"
+            acceso_tags += "<span style='background:rgba(72,72,74,0.25);color:#F59E0B;font-size:11px;padding:2px 8px;border-radius:4px;'>Contraseña</span>"
 
         with st.container():
             st.markdown(
-                f"<div style='background:#213448;border:1px solid rgba(84,119,146,0.4);"
+                f"<div style='background:#1C1C1E;border:1px solid rgba(72,72,74,0.4);"
                 f"border-radius:10px;padding:14px 18px;margin-bottom:8px;'>"
                 f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
                 f"<div>"
-                f"  <span style='color:#EAE0CF;font-size:15px;font-weight:700;'>{nombre_display}</span>"
-                f"  <span style='color:#94B4C1;font-size:12px;margin-left:10px;'>{pues}</span>"
+                f"  <span style='color:#E5E5EA;font-size:15px;font-weight:700;'>{nombre_display}</span>"
+                f"  <span style='color:#F59E0B;font-size:12px;margin-left:10px;'>{pues}</span>"
                 f"</div>"
                 f"<span style='color:{rol_color};font-size:11px;font-weight:700;"
-                f"background:rgba(84,119,146,0.15);padding:3px 10px;border-radius:6px;'>"
+                f"background:rgba(72,72,74,0.15);padding:3px 10px;border-radius:6px;'>"
                 f"{rol.upper()}</span>"
                 f"</div>"
-                f"<div style='color:#547792;font-size:12px;margin-top:6px;'>"
-                f"UID: <code style='color:#94B4C1;'>{uid}</code> &nbsp;·&nbsp; Alta: {fecha}"
+                f"<div style='color:#48484A;font-size:12px;margin-top:6px;'>"
+                f"UID: <code style='color:#F59E0B;'>{uid}</code> &nbsp;·&nbsp; Alta: {fecha}"
                 f"</div>"
                 f"<div style='margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;'>{acceso_tags}</div>"
                 f"<div style='margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;'>"
                 + "".join(
-                    f"<span style='background:rgba(84,119,146,0.2);color:#94B4C1;"
+                    f"<span style='background:rgba(72,72,74,0.2);color:#F59E0B;"
                     f"font-size:11px;padding:2px 8px;border-radius:4px;'>{p}</span>"
                     for p in perms
                 )
