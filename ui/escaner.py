@@ -67,7 +67,7 @@ def render_escaner():
             -webkit-user-select:none!important;user-select:none!important;
             pointer-events:none!important;
         }
-        canvas,svg{opacity:0!important;pointer-events:none!important;}
+        svg{opacity:0!important;pointer-events:none!important;}
         /* Ocultar overlay de Live Text / OCR del navegador */
         *[data-visualcompletion],*[aria-label*="translate"],
         *[class*="live-text"],*[class*="livetext"],
