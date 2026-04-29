@@ -77,6 +77,13 @@ RACK_A_FILA = {
     "RACK_5": "SOBREDIMENSIONES",
 }
 
+# ── MQTT / HiveMQ Cloud ──────────────────────────────────────
+MQTT_HOST     = get_secret("MQTT_HOST",     "d16db0c07bf441179f3f8d0c59c60267.s1.eu.hivemq.cloud")
+MQTT_PORT     = int(get_secret("MQTT_PORT", "8883"))
+MQTT_USER     = get_secret("MQTT_USER",     "umad_wms1")
+MQTT_PASS     = get_secret("MQTT_PASS",     "Logistica1")
+MQTT_TOPIC_RFID = get_secret("MQTT_TOPIC_RFID", "wms/rfid")
+
 # ── Tokens de sesion ─────────────────────────────────────────
 import hashlib
 TOKEN_OPERADOR = hashlib.sha256(PASSWORD_ACCESO.encode()).hexdigest()[:16] + '_operador'
