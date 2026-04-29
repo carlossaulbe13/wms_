@@ -104,7 +104,7 @@ with st.sidebar:
     st.markdown("<h2 style='margin:0;padding:0;'>WMS</h2>", unsafe_allow_html=True)
 
     _rol     = st.session_state.get('rol', 'operador')
-    _color   = '#94B4C1' if _rol == 'admin' else '#547792'
+    _color   = '#F59E0B' if _rol == 'admin' else '#48484A'
     _emp_sb  = st.session_state.get('_empleado_activo') or {}
     _hon_sb  = _emp_sb.get('honorifico', '')
     _ape_sb  = _emp_sb.get('apellido', '')
@@ -116,7 +116,7 @@ with st.sidebar:
 
     st.markdown(
         f"<div style='margin-top:6px;margin-bottom:2px;'>"
-        f"  <div style='color:#EAE0CF;font-size:15px;font-weight:700;line-height:1.3;'>{_saludo_sb}</div>"
+        f"  <div style='color:#E5E5EA;font-size:15px;font-weight:700;line-height:1.3;'>{_saludo_sb}</div>"
         f"  <div style='font-size:13px;color:{_color};margin-top:3px;'>"
         f"    Rol: <b>{'Administrador' if _rol == 'admin' else 'Operador'}</b>"
         f"  </div>"
@@ -172,83 +172,83 @@ st.markdown("""
 /* ── Paleta global ───────────────────────────────────── */
 [data-testid="stAppViewContainer"],
 [data-testid="stAppViewContainer"] > div:first-child {
-    background-color: #1a2535 !important;
+    background-color: #111113 !important;
 }
 [data-testid="stSidebar"] {
-    background-color: #213448 !important;
-    border-right: 1px solid rgba(84,119,146,0.35) !important;
+    background-color: #1C1C1E !important;
+    border-right: 1px solid rgba(72,72,74,0.35) !important;
 }
-[data-testid="stSidebar"] * { color: #EAE0CF !important; }
+[data-testid="stSidebar"] * { color: #E5E5EA !important; }
 
 /* Tabs */
 [data-testid="stTabs"] [data-baseweb="tab-list"] {
-    background-color: #213448 !important;
-    border-bottom: 1px solid #547792 !important;
+    background-color: #1C1C1E !important;
+    border-bottom: 1px solid #48484A !important;
     gap: 2px !important;
 }
 [data-testid="stTabs"] [data-baseweb="tab"] {
-    color: #94B4C1 !important;
+    color: #F59E0B !important;
     background-color: transparent !important;
 }
 [data-testid="stTabs"] [aria-selected="true"] {
-    color: #EAE0CF !important;
-    border-bottom: 2px solid #547792 !important;
-    background-color: rgba(84,119,146,0.12) !important;
+    color: #E5E5EA !important;
+    border-bottom: 2px solid #48484A !important;
+    background-color: rgba(72,72,74,0.12) !important;
 }
 
 /* Botones */
 [data-testid="stButton"] > button {
-    background-color: #213448 !important;
-    color: #EAE0CF !important;
-    border: 1px solid #547792 !important;
+    background-color: #1C1C1E !important;
+    color: #E5E5EA !important;
+    border: 1px solid #48484A !important;
     border-radius: 8px !important;
     transition: background 0.2s, border-color 0.2s !important;
 }
 [data-testid="stButton"] > button:hover {
-    background-color: #547792 !important;
-    border-color: #94B4C1 !important;
+    background-color: #48484A !important;
+    border-color: #F59E0B !important;
 }
 [data-testid="stButton"] > button[kind="primary"] {
-    background-color: #547792 !important;
-    border-color: #547792 !important;
+    background-color: #48484A !important;
+    border-color: #48484A !important;
 }
 [data-testid="stButton"] > button[kind="primary"]:hover {
-    background-color: #94B4C1 !important;
-    color: #213448 !important;
+    background-color: #F59E0B !important;
+    color: #1C1C1E !important;
 }
 
 /* Inputs de texto y número */
 [data-testid="stTextInput"] input,
 [data-testid="stNumberInput"] input {
-    background-color: #213448 !important;
-    color: #EAE0CF !important;
-    border-color: #547792 !important;
+    background-color: #1C1C1E !important;
+    color: #E5E5EA !important;
+    border-color: #48484A !important;
     border-radius: 8px !important;
 }
 [data-testid="stTextInput"] input::placeholder,
-[data-testid="stNumberInput"] input::placeholder { color: #94B4C1 !important; }
+[data-testid="stNumberInput"] input::placeholder { color: #F59E0B !important; }
 [data-testid="stTextInput"] label,
-[data-testid="stNumberInput"] label { color: #94B4C1 !important; }
+[data-testid="stNumberInput"] label { color: #F59E0B !important; }
 
 /* Selectbox */
 [data-testid="stSelectbox"] [data-baseweb="select"] > div {
-    background-color: #213448 !important;
-    border-color: #547792 !important;
+    background-color: #1C1C1E !important;
+    border-color: #48484A !important;
     border-radius: 8px !important;
 }
-[data-testid="stSelectbox"] label { color: #94B4C1 !important; }
+[data-testid="stSelectbox"] label { color: #F59E0B !important; }
 
 /* Métricas */
-[data-testid="stMetric"] label      { color: #94B4C1 !important; }
-[data-testid="stMetricValue"]        { color: #EAE0CF !important; }
-[data-testid="stMetricDelta"]        { color: #94B4C1 !important; }
+[data-testid="stMetric"] label      { color: #F59E0B !important; }
+[data-testid="stMetricValue"]        { color: #E5E5EA !important; }
+[data-testid="stMetricDelta"]        { color: #F59E0B !important; }
 
 /* Captions y texto secundario */
-[data-testid="stCaptionContainer"] p { color: #94B4C1 !important; }
+[data-testid="stCaptionContainer"] p { color: #F59E0B !important; }
 
 /* Expander general */
-[data-testid="stExpander"] summary   { color: #94B4C1 !important; }
-[data-testid="stExpander"] summary svg { fill: #94B4C1 !important; }
+[data-testid="stExpander"] summary   { color: #F59E0B !important; }
+[data-testid="stExpander"] summary svg { fill: #F59E0B !important; }
 
 /* Expander de reorden en sidebar — ámbar */
 [data-testid="stSidebar"] [data-testid="stExpander"] {
@@ -264,11 +264,11 @@ st.markdown("""
 }
 
 /* Divider */
-hr { border-color: rgba(84,119,146,0.35) !important; }
+hr { border-color: rgba(72,72,74,0.35) !important; }
 
 /* DataFrame */
 [data-testid="stDataFrame"] {
-    border: 1px solid rgba(84,119,146,0.4) !important;
+    border: 1px solid rgba(72,72,74,0.4) !important;
     border-radius: 8px !important;
 }
 
@@ -293,7 +293,7 @@ div[data-testid="stSelectbox"] [data-baseweb="select"] * { cursor: pointer !impo
 
 # ── Título ────────────────────────────────────────────────────
 st.markdown(
-    "<h1 style='text-align:center;color:#EAE0CF;margin-bottom:4px;letter-spacing:1px;'>"
+    "<h1 style='text-align:center;color:#E5E5EA;margin-bottom:4px;letter-spacing:1px;'>"
     "Warehouse Management System</h1>",
     unsafe_allow_html=True
 )
@@ -402,16 +402,16 @@ else:
         from ui.escaner import render_escaner
         render_escaner()
 
-    _e_style = "background:rgba(84,119,146,0.22);border:1px solid #547792;color:#EAE0CF" \
+    _e_style = "background:rgba(72,72,74,0.22);border:1px solid #48484A;color:#E5E5EA" \
                if _movil_page == 'escaner' else \
-               "background:transparent;border:1px solid transparent;color:#94B4C1"
-    _a_style = "background:rgba(84,119,146,0.22);border:1px solid #547792;color:#EAE0CF" \
+               "background:transparent;border:1px solid transparent;color:#F59E0B"
+    _a_style = "background:rgba(72,72,74,0.22);border:1px solid #48484A;color:#E5E5EA" \
                if _movil_page == 'alta' else \
-               "background:transparent;border:1px solid transparent;color:#94B4C1"
+               "background:transparent;border:1px solid transparent;color:#F59E0B"
 
     st.markdown(f"""
 <div style="position:fixed;bottom:0;left:0;right:0;z-index:9999;
-     background:#213448;border-top:1px solid rgba(84,119,146,0.45);
+     background:#1C1C1E;border-top:1px solid rgba(72,72,74,0.45);
      display:flex;padding:6px 12px env(safe-area-inset-bottom,8px);gap:8px;
      box-shadow:0 -4px 20px rgba(0,0,0,0.4);">
   <a href="?_s={_TOK_ACTIVO}&movil=1&page=escaner" target="_self"
