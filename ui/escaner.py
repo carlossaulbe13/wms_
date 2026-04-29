@@ -40,7 +40,54 @@ def render_escaner():
 
     # TAB 1: Escáner QR con captura manual
     with tab1:
-        img_captura = st.camera_input("Apunta al código QR y captura")
+        import streamlit.components.v1 as _stc
+        _stc.html("""<script>
+(function(){
+    // Cámara trasera
+    try {
+        var md = window.parent.navigator.mediaDevices;
+        if (md && !md._rearFixed) {
+            var orig = md.getUserMedia.bind(md);
+            md.getUserMedia = function(c) {
+                if (c && c.video) {
+                    c.video = (typeof c.video === 'boolean')
+                        ? { facingMode: { ideal: 'environment' } }
+                        : Object.assign({}, c.video, { facingMode: { ideal: 'environment' } });
+                }
+                return orig(c);
+            };
+            md._rearFixed = true;
+        }
+    } catch(e) {}
+    // CSS: cuadrado sin bordes
+    try {
+        if (!window.parent.document.getElementById('cam-sq-fix')) {
+            var s = window.parent.document.createElement('style');
+            s.id = 'cam-sq-fix';
+            s.textContent = [
+                '[data-testid="stCameraInput"] video,',
+                '[data-testid="stCameraInput"] img {',
+                '    aspect-ratio: 1/1 !important;',
+                '    object-fit: cover !important;',
+                '    width: 100% !important;',
+                '    border-radius: 6px !important;',
+                '    display: block !important;',
+                '}',
+                '[data-testid="stCameraInput"] > div {',
+                '    border: none !important;',
+                '    border-radius: 6px !important;',
+                '    overflow: hidden !important;',
+                '    padding: 0 !important;',
+                '    box-shadow: none !important;',
+                '}'
+            ].join('');
+            window.parent.document.head.appendChild(s);
+        }
+    } catch(e) {}
+})();
+</script>""", height=0)
+
+        img_captura = st.camera_input("", label_visibility="collapsed")
 
         if img_captura:
             qr_texto = _decodificar_qr(img_captura)
