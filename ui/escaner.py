@@ -396,9 +396,11 @@ def render_alta():
 
     from logica import registrar_pallet
     from config import TIPOS_EMBALAJE
-    import datetime
 
-    with st.form("form_alta_movil"):
+    if '_form_alta_movil_ver' not in st.session_state:
+        st.session_state._form_alta_movil_ver = 0
+
+    with st.form(f"form_alta_movil_{st.session_state._form_alta_movil_ver}"):
         st.markdown("**Identificación**")
         c1, c2 = st.columns(2)
         with c1:
@@ -427,6 +429,7 @@ def render_alta():
             if ok:
                 st.success(msg)
                 st.session_state.navigate_to_gemelo = True
+                st.session_state._form_alta_movil_ver += 1
                 st.rerun()
             else:
                 st.error(msg)
