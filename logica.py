@@ -51,9 +51,9 @@ def asignar_rack_por_peso_vol(peso, vol):
         return "RACK_4"
     if vol > 1.5:
         return "RACK_5"
-    if peso >= 50 or vol > 1.0:
+    if peso >= 50:
         return "RACK_3"
-    if peso >= 20 or vol > 0.5:
+    if peso >= 20:
         return "RACK_2"
     return "RACK_1"
 
