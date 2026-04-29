@@ -97,6 +97,20 @@ if not st.session_state.get('autenticado', False):
 # Token activo para navegación
 _TOK_ACTIVO = st.session_state.get('session_token') or (_TOKEN_BASE + '_operador')
 
+# ── Banner de bienvenida (login por contraseña) ───────────────
+if st.session_state.pop('_pwd_bienvenido', None):
+    _pwd_rol = st.session_state.get('rol', 'operador')
+    _pwd_label = 'Administrador' if _pwd_rol == 'admin' else 'Operador'
+    st.markdown(
+        f"<div style='background:rgba(84,119,146,0.18);border:1px solid #547792;"
+        f"border-radius:10px;padding:14px 20px;margin-bottom:12px;text-align:center;'>"
+        f"<span style='color:#94B4C1;font-size:12px;letter-spacing:2px;'>ACCESO CONCEDIDO &nbsp;·&nbsp; </span>"
+        f"<span style='color:#EAE0CF;font-size:15px;font-weight:700;'>"
+        f"Bienvenido de vuelta, {_pwd_label}</span>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
 # ── Sidebar ───────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("<h2 style='margin:0;padding:0;'>WMS</h2>", unsafe_allow_html=True)
@@ -360,13 +374,20 @@ setTimeout(function(){
 
 # ── Renderizar según dispositivo ──────────────────────────────
 if not _es_movil:
-    tabs = st.tabs(['RASTREO Y UBICACIÓN', 'MAESTRO DE ARTICULOS'])
+    _tab_labels = ['RASTREO Y UBICACIÓN', 'MAESTRO DE ARTICULOS']
+    if st.session_state.get('rol') == 'admin':
+        _tab_labels.append('EMPLEADOS')
+    tabs = st.tabs(_tab_labels)
     with tabs[0]:
         from ui.gemelo import render as render_gemelo
         render_gemelo(_TOK_ACTIVO)
     with tabs[1]:
         from ui.maestro import render as render_maestro
         render_maestro()
+    if len(tabs) > 2:
+        with tabs[2]:
+            from ui.empleados import render as render_empleados
+            render_empleados()
 else:
     _movil_page = st.query_params.get('page', 'escaner')
 
