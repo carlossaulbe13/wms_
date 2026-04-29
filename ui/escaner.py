@@ -84,6 +84,20 @@ def render_escaner():
             window.parent.document.head.appendChild(s);
         }
     } catch(e) {}
+    // Traducir botón "Take Photo"
+    try {
+        function _fixBtn() {
+            window.parent.document.querySelectorAll(
+                '[data-testid="stCameraInput"] button'
+            ).forEach(function(b) {
+                if (b.textContent.trim() === 'Take Photo') b.textContent = 'Capturar Foto';
+            });
+        }
+        _fixBtn();
+        new MutationObserver(_fixBtn).observe(
+            window.parent.document.body, { childList: true, subtree: true }
+        );
+    } catch(e) {}
 })();
 </script>""", height=0)
 
@@ -92,6 +106,23 @@ def render_escaner():
         if img_captura:
             qr_texto = _decodificar_qr(img_captura)
             if qr_texto:
+                _stc.html("""<script>
+(function(){
+    try { window.parent.navigator.vibrate([120, 40, 80]); } catch(e) {}
+    try {
+        var ctx = new (window.parent.AudioContext || window.parent.webkitAudioContext)();
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1100, ctx.currentTime + 0.12);
+        gain.gain.setValueAtTime(0.25, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+        osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.25);
+    } catch(e) {}
+})();
+</script>""", height=0)
                 try:
                     data = json.loads(qr_texto)
                     mostrar_detalle_pallet(data, True)
