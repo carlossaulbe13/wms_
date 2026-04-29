@@ -65,18 +65,13 @@ def render():
             if f_estado != "TODOS":
                 df_f = df_f[df_f["ESTADO"] == f_estado]
 
-            _cap_col, _chk_col = st.columns([3, 1])
-            with _cap_col:
-                st.caption(f"{len(df_f)} de {len(df_full)} articulos" + (" — selecciona filas para eliminación grupal" if _es_admin_m else ""))
-            with _chk_col:
-                _sel_todo = st.checkbox("Seleccionar todos", key="sel_todo_chk") if _es_admin_m else False
+            st.caption(f"{len(df_f)} de {len(df_full)} articulos")
 
-            _df_event = st.dataframe(
+            st.dataframe(
                 df_f,
                 use_container_width=True,
                 height=44 + len(df_f) * 36,
-                on_select="rerun" if _es_admin_m else "ignore",
-                selection_mode="multi-row",
+                on_select="ignore",
                 column_config={
                     "MATRICULA (QR)": st.column_config.TextColumn("Matricula QR", width="medium"),
                     "NOMBRE":         st.column_config.TextColumn("Nombre",       width="large"),
@@ -97,13 +92,18 @@ def render():
 
             # ── Eliminación grupal (solo admin) ───────────────────
             if _es_admin_m:
-                _sel_idx = _df_event.selection.rows if hasattr(_df_event, 'selection') else []
-                if _sel_todo:
-                    _sel_mats = list(df_f["MATRICULA (QR)"])
-                elif _sel_idx:
-                    _sel_mats = [df_f.iloc[i]["MATRICULA (QR)"] for i in _sel_idx]
-                else:
-                    _sel_mats = []
+                _opciones = list(df_f["MATRICULA (QR)"])
+                _sel_todo = st.checkbox("Seleccionar todos", key="sel_todo_chk")
+                _sel_mats = (
+                    _opciones if _sel_todo
+                    else st.multiselect(
+                        "Artículos a eliminar",
+                        options=_opciones,
+                        placeholder="Selecciona uno o más artículos...",
+                        key="sel_bulk_mats",
+                        label_visibility="collapsed",
+                    )
+                )
                 if _sel_mats:
                     _bc1, _bc2 = st.columns([3, 1])
                     with _bc1:
@@ -158,7 +158,7 @@ def render():
                                                           key="e_smin",
                                                           help="Alerta cuando la cantidad baje de este valor. 0 = sin alerta.")
 
-                    rack_actual = datos.get('rack', 'POS_1')
+                    rack_actual = datos.get('rack', 'RACK_1')
                     rack_ideal  = asignar_rack_por_peso_vol(nuevo_peso, nuevo_vol)
                     if rack_actual != rack_ideal:
                         st.warning(f"ALERTA: Por peso/volumen este material deberia estar en {rack_ideal} (actualmente {rack_actual}).")
