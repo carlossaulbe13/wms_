@@ -61,14 +61,22 @@ def render_escaner():
         *{box-sizing:border-box!important;}
         body{margin:0!important;background:#000!important;overflow:hidden!important;}
         video{
-            position:fixed!important;top:0!important;left:0!important;
-            width:100%!important;height:100%!important;
-            object-fit:cover!important;display:block!important;z-index:1!important;
-            -webkit-user-select:none!important;user-select:none!important;
-            pointer-events:none!important;
+            width:100vw!important;
+            height:100vh!important;
+            object-fit:cover!important;
+            display:block!important;
+            position:absolute!important;
+            top:0!important;left:0!important;
+            z-index:0!important;
+        }
+        canvas{
+            position:absolute!important;
+            top:0!important;left:0!important;
+            width:100vw!important;
+            height:100vh!important;
+            z-index:1!important;
         }
         svg{opacity:0!important;pointer-events:none!important;}
-        /* Ocultar overlay de Live Text / OCR del navegador */
         *[data-visualcompletion],*[aria-label*="translate"],
         *[class*="live-text"],*[class*="livetext"],
         img-analysis-result,translate-button{display:none!important;}
@@ -216,7 +224,7 @@ def mostrar_detalle_pallet(data, mostrar_boton_registro=True):
         fila_label = _rack_raw
     estado = data.get('estado', 'ACTIVO')
     embalaje = data.get('embalaje') or data.get('tipo_pallet', 'N/A')
-    alto_cm = data.get('alto_cm', 0)
+    alto_cm  = data.get('alto_cm', 0)
 
     # Ubicación — Firebase guarda piso/fila/columna como campos directos
     piso_v   = data.get('piso',    '-')
