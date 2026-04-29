@@ -208,11 +208,16 @@ def mostrar_detalle_pallet(data, mostrar_boton_registro=True):
     nombre = data.get('nombre') or data.get('descripcion', 'N/A')
     pzas = data.get('pzas') or data.get('cantidad') or data.get('cantidad_piezas', 1)
     peso = data.get('peso') or data.get('peso_kg', 0)
-    rack = data.get('rack', 'N/A')
+    _rack_raw = data.get('rack', 'N/A')
+    try:
+        from config import RACK_A_FILA
+        fila_label = RACK_A_FILA.get(_rack_raw, _rack_raw)
+    except Exception:
+        fila_label = _rack_raw
     estado = data.get('estado', 'ACTIVO')
     embalaje = data.get('embalaje') or data.get('tipo_pallet', 'N/A')
     alto_cm = data.get('alto_cm', 0)
-    
+
     # Ubicación — Firebase guarda piso/fila/columna como campos directos
     piso_v   = data.get('piso',    '-')
     nivel_v  = data.get('fila',    '-')
@@ -226,7 +231,7 @@ def mostrar_detalle_pallet(data, mostrar_boton_registro=True):
     with col1:
         st.metric("SKU", sku)
         st.metric("Piezas", pzas)
-        st.metric("Rack", rack)
+        st.metric("Fila", fila_label)
         st.metric("Embalaje", embalaje)
 
     with col2:
@@ -254,7 +259,7 @@ def mostrar_detalle_pallet(data, mostrar_boton_registro=True):
                 'nombre': nombre,
                 'pzas': int(pzas),
                 'peso': float(peso),
-                'rack': rack,
+                'rack': _rack_raw,
                 'estado': estado,
                 'embalaje': embalaje,
                 'alto_cm': float(alto_cm),
