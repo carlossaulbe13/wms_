@@ -215,6 +215,14 @@ def buscar_empleado_por_uid(uid_rfid: str) -> dict | None:
     key = _uid_a_key(uid_rfid)
     return empleados.get(key)
 
+def buscar_empleado_por_password(pwd_hash: str) -> tuple[str, dict] | None:
+    """Busca empleado por hash SHA-256 de contraseña. Retorna (key, datos) o None."""
+    empleados = cargar_empleados()
+    for key, emp in empleados.items():
+        if emp.get("password_hash") == pwd_hash:
+            return key, emp
+    return None
+
 def leer_rfid_pendiente():
     """
     Lee el nodo rfid_pendiente de Firebase.
