@@ -13,10 +13,10 @@ _CSS = """
 <style>
 /* ── Animaciones RFID ──────────────────── */
 @keyframes rfid-glow {
-    0%   { box-shadow: 0 6px 22px rgba(0,0,0,0.55); border-color: #547792; }
-    25%  { box-shadow: 0 0 0 10px rgba(148,180,193,0.38), 0 0 48px rgba(148,180,193,0.7); border-color: #94B4C1; }
-    60%  { box-shadow: 0 0 0 5px rgba(148,180,193,0.2), 0 0 24px rgba(148,180,193,0.45); border-color: #94B4C1; }
-    100% { box-shadow: 0 6px 22px rgba(0,0,0,0.55); border-color: #547792; }
+    0%   { box-shadow: 0 6px 22px rgba(0,0,0,0.6); border-color: #48484A; }
+    25%  { box-shadow: 0 0 0 10px rgba(245,158,11,0.35), 0 0 48px rgba(245,158,11,0.65); border-color: #F59E0B; }
+    60%  { box-shadow: 0 0 0 5px rgba(245,158,11,0.18), 0 0 24px rgba(245,158,11,0.4); border-color: #F59E0B; }
+    100% { box-shadow: 0 6px 22px rgba(0,0,0,0.6); border-color: #48484A; }
 }
 @keyframes rfid-shake {
     0%,100% { transform: translateX(0) rotate(0deg); }
@@ -32,7 +32,7 @@ _CSS = """
 
 /* ── Fondo gradiente full-screen ───────── */
 [data-testid="stAppViewContainer"] > div:first-child {
-    background: linear-gradient(145deg, #213448 0%, #547792 65%, #94B4C1 100%);
+    background: linear-gradient(145deg, #111113 0%, #1C1C1E 60%, #2C2C2E 100%);
     min-height: 100vh;
 }
 [data-testid="stHeader"],
@@ -46,16 +46,16 @@ footer, #MainMenu { display: none !important; }
     max-width: 100% !important;
 }
 
-/* ── Card — ocupa el ancho disponible de la columna ── */
+/* ── Card ──────────────────────────────── */
 .login-card {
-    background: rgba(33, 52, 72, 0.75);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(148, 180, 193, 0.28);
+    background: rgba(28, 28, 30, 0.82);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid rgba(72, 72, 74, 0.55);
     border-radius: 24px;
     padding: 56px 48px 48px 48px;
     margin: 0 auto 0 auto;
-    box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+    box-shadow: 0 16px 48px rgba(0,0,0,0.6);
 }
 
 /* ── Input fields ──────────────────────── */
@@ -65,20 +65,20 @@ div[data-testid="stForm"] {
     padding: 0 !important;
 }
 div[data-testid="stTextInput"] input {
-    background: rgba(33, 52, 72, 0.85) !important;
-    border: 1px solid #547792 !important;
+    background: rgba(28, 28, 30, 0.9) !important;
+    border: 1px solid #48484A !important;
     border-radius: 10px !important;
-    color: #EAE0CF !important;
+    color: #E5E5EA !important;
     font-size: 15px !important;
     padding: 14px 16px !important;
     height: 52px !important;
-    caret-color: #EAE0CF !important;
+    caret-color: #E5E5EA !important;
 }
 div[data-testid="stTextInput"] input:focus {
-    border-color: #94B4C1 !important;
-    box-shadow: 0 0 0 3px rgba(148,180,193,0.22) !important;
+    border-color: #F59E0B !important;
+    box-shadow: 0 0 0 3px rgba(245,158,11,0.2) !important;
 }
-div[data-testid="stTextInput"] input::placeholder { color: #547792 !important; }
+div[data-testid="stTextInput"] input::placeholder { color: #48484A !important; }
 div[data-testid="stTextInput"] label { display: none !important; }
 div[data-testid="stTextInput"] [data-testid="InputInstructions"] { display: none !important; }
 
@@ -86,13 +86,13 @@ div[data-testid="stTextInput"] [data-testid="InputInstructions"] { display: none
 div[data-testid="stTextInput"] button {
     background: transparent !important;
     border: none !important;
-    color: #94B4C1 !important;
+    color: #F59E0B !important;
 }
 
 /* ── Botón submit ──────────────────────── */
 div[data-testid="stFormSubmitButton"] > button {
-    background: #547792 !important;
-    color: #EAE0CF !important;
+    background: #F59E0B !important;
+    color: #111113 !important;
     border: none !important;
     border-radius: 10px !important;
     font-weight: 700 !important;
@@ -105,8 +105,8 @@ div[data-testid="stFormSubmitButton"] > button {
     transition: background 0.2s, color 0.2s !important;
 }
 div[data-testid="stFormSubmitButton"] > button:hover {
-    background: #94B4C1 !important;
-    color: #213448 !important;
+    background: #FBBF24 !important;
+    color: #111113 !important;
 }
 
 /* ── Mensajes error/success ────────────── */
@@ -121,9 +121,9 @@ div[data-testid="stAlert"] {
 _AVATAR_SVG = """
 <svg width="40" height="40" viewBox="0 0 24 24" fill="none"
      xmlns="http://www.w3.org/2000/svg">
-  <circle cx="12" cy="8" r="4" stroke="#EAE0CF" stroke-width="1.6" fill="none"/>
+  <circle cx="12" cy="8" r="4" stroke="#E5E5EA" stroke-width="1.6" fill="none"/>
   <path d="M4 20c0-4.4 3.6-8 8-8s8 3.6 8 8"
-        stroke="#EAE0CF" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+        stroke="#E5E5EA" stroke-width="1.6" stroke-linecap="round" fill="none"/>
 </svg>
 """
 
@@ -235,7 +235,7 @@ def pantalla_login(token_secreto, token_admin_pwd):
     with col:
         st.markdown(
             "<div style='text-align:center;margin-top:6vh;margin-bottom:24px;'>"
-            "<span style='color:#EAE0CF;font-size:14px;font-weight:600;"
+            "<span style='color:#E5E5EA;font-size:14px;font-weight:600;"
             "letter-spacing:2.5px;'>WAREHOUSE MANAGEMENT SYSTEM</span>"
             "</div>",
             unsafe_allow_html=True,
@@ -244,10 +244,10 @@ def pantalla_login(token_secreto, token_admin_pwd):
         st.markdown(
             f"<div class='login-card'>"
             f"<div style='text-align:center; margin-bottom:28px;'>"
-            f"  <div class='{_anim_class}' style='width:88px;height:88px;background:#213448;"
-            f"       border:2.5px solid #547792;border-radius:50%;"
+            f"  <div class='{_anim_class}' style='width:88px;height:88px;background:#1C1C1E;"
+            f"       border:2.5px solid #48484A;border-radius:50%;"
             f"       margin:0 auto 0 auto;display:flex;align-items:center;"
-            f"       justify-content:center;box-shadow:0 6px 22px rgba(0,0,0,0.55);'>"
+            f"       justify-content:center;box-shadow:0 6px 22px rgba(0,0,0,0.6);'>"
             f"    {_AVATAR_SVG}"
             f"  </div>"
             f"</div>",
@@ -270,13 +270,13 @@ def pantalla_login(token_secreto, token_admin_pwd):
 
             st.markdown(
                 f"<div style='text-align:center;padding:8px 0 20px;'>"
-                f"  <div style='color:#94B4C1;font-size:12px;letter-spacing:2px;margin-bottom:6px;'>"
+                f"  <div style='color:#F59E0B;font-size:12px;letter-spacing:2px;margin-bottom:6px;'>"
                 f"    ACCESO CONCEDIDO</div>"
-                f"  <div style='color:#EAE0CF;font-size:22px;font-weight:700;'>"
+                f"  <div style='color:#E5E5EA;font-size:22px;font-weight:700;'>"
                 f"    Bienvenido de vuelta</div>"
-                f"  <div style='color:#94B4C1;font-size:20px;font-weight:600;margin-top:4px;'>"
+                f"  <div style='color:#F59E0B;font-size:20px;font-weight:600;margin-top:4px;'>"
                 f"    {saludo_nombre}</div>"
-                + (f"  <div style='color:#547792;font-size:13px;margin-top:6px;'>{pues}</div>" if pues else "")
+                + (f"  <div style='color:#6B6B6E;font-size:13px;margin-top:6px;'>{pues}</div>" if pues else "")
                 + f"</div>",
                 unsafe_allow_html=True,
             )
@@ -284,12 +284,12 @@ def pantalla_login(token_secreto, token_admin_pwd):
         else:
             # ── Indicador RFID + formulario ───────────────────
             st.markdown(
-                "<div style='background:rgba(84,119,146,0.18);border:1px solid #547792;"
+                "<div style='background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.3);"
                 "border-radius:10px;padding:12px 18px;"
                 "display:flex;align-items:center;gap:12px;'>"
-                "<div style='width:8px;height:8px;border-radius:50%;background:#94B4C1;"
-                "box-shadow:0 0 8px #94B4C1;flex-shrink:0;'></div>"
-                "<span style='color:#94B4C1;font-size:13px;'>Pasa tu tarjeta RFID para acceso rápido</span>"
+                "<div style='width:8px;height:8px;border-radius:50%;background:#F59E0B;"
+                "box-shadow:0 0 8px #F59E0B;flex-shrink:0;'></div>"
+                "<span style='color:#F59E0B;font-size:13px;'>Pasa tu tarjeta RFID para acceso rápido</span>"
                 "</div>"
                 "<div style='height:36px;'></div>",
                 unsafe_allow_html=True,
