@@ -24,7 +24,7 @@ def render(_TOK_ACTIVO):
             _r = int(_p[0][1:])
             _n = int(_p[1][1:])
             _c = int(_p[2][1:])
-            sensor_estado[(f"POS_{_r}", _n, _c)] = (
+            sensor_estado[(f"RACK_{_r}", _n, _c)] = (
                 _sdata.get('estado', 'libre') if isinstance(_sdata, dict) else 'libre'
             )
         except Exception:
