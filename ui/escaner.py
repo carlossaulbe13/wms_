@@ -20,7 +20,7 @@ def render_escaner():
     st.title(" Escáner Móvil")
     st.caption("Escanea códigos QR o busca pallets manualmente")
     
-    # CSS: recuadro cuadrado fijo centrado — consistente en cualquier pantalla
+    # CSS: recuadro cuadrado fijo centrado — sin borde inferior
     st.markdown("""
     <style>
     iframe:not([height="0"]) {
@@ -30,7 +30,14 @@ def render_escaner():
         display: block !important;
         margin: 0 auto !important;
         border-radius: 12px !important;
-        border: 1.5px solid #547792 !important;
+        border: none !important;
+        outline: 1.5px solid #547792 !important;
+        outline-offset: -1px !important;
+    }
+    /* eliminar margen inferior del contenedor Streamlit del componente */
+    div[data-testid="stComponentContainer"] {
+        margin-bottom: 0 !important;
+        padding-bottom: 0 !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -65,18 +72,19 @@ def render_escaner():
             margin:0!important;padding:0!important;
             width:100%!important;height:100%!important;
             background:#000!important;overflow:hidden!important;
+            position:relative!important;
         }
         video{
-            position:fixed!important;
-            top:0!important;left:0!important;
+            position:absolute!important;
+            inset:0!important;
             width:100%!important;height:100%!important;
             object-fit:cover!important;
             display:block!important;
             z-index:0!important;
         }
         canvas{
-            position:fixed!important;
-            top:0!important;left:0!important;
+            position:absolute!important;
+            inset:0!important;
             width:100%!important;height:100%!important;
             z-index:1!important;
             opacity:0!important;
