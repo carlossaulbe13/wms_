@@ -20,14 +20,16 @@ def render_escaner():
     st.title(" Escáner Móvil")
     st.caption("Escanea códigos QR o busca pallets manualmente")
     
-    # CSS: aplica al elemento <iframe> del componente (en el DOM del padre)
+    # CSS: recuadro cuadrado fijo centrado — consistente en cualquier pantalla
     st.markdown("""
     <style>
     iframe:not([height="0"]) {
-        height: 360px !important;
         width: 100% !important;
-        border-radius: 10px !important;
+        max-width: 340px !important;
+        height: 340px !important;
         display: block !important;
+        margin: 0 auto !important;
+        border-radius: 12px !important;
         border: 1.5px solid #547792 !important;
     }
     </style>
@@ -59,21 +61,23 @@ def render_escaner():
     var patched=new WeakSet();
     var CSS=`
         *{box-sizing:border-box!important;}
-        body{margin:0!important;background:#000!important;overflow:hidden!important;}
+        html,body{
+            margin:0!important;padding:0!important;
+            width:100%!important;height:100%!important;
+            background:#000!important;overflow:hidden!important;
+        }
         video{
-            width:100vw!important;
-            height:100vh!important;
+            position:fixed!important;
+            top:0!important;left:0!important;
+            width:100%!important;height:100%!important;
             object-fit:cover!important;
             display:block!important;
-            position:absolute!important;
-            top:0!important;left:0!important;
             z-index:0!important;
         }
         canvas{
-            position:absolute!important;
+            position:fixed!important;
             top:0!important;left:0!important;
-            width:100vw!important;
-            height:100vh!important;
+            width:100%!important;height:100%!important;
             z-index:1!important;
             opacity:0!important;
         }
@@ -82,23 +86,44 @@ def render_escaner():
         *[class*="live-text"],*[class*="livetext"],
         img-analysis-result,translate-button{display:none!important;}
     `;
+    function doInject(f,doc){
+        patched.add(f);
+        if(f._innerObs){f._innerObs.disconnect();delete f._innerObs;}
+        if(doc.getElementById('_umad_css'))return;
+        var s=doc.createElement('style');
+        s.id='_umad_css';
+        s.textContent=CSS;
+        (doc.head||doc.body||doc.documentElement).appendChild(s);
+        var vid=doc.querySelector('video');
+        if(vid){
+            vid.setAttribute('translate','no');
+            vid.setAttribute('autocorrect','off');
+            vid.setAttribute('autocomplete','off');
+            vid.setAttribute('spellcheck','false');
+        }
+    }
     function inject(f){
         if(patched.has(f))return;
         try{
             var doc=f.contentDocument||f.contentWindow.document;
-            if(!doc||!doc.querySelector('video'))return;
-            patched.add(f);
-            var s=doc.createElement('style');
-            s.textContent=CSS;
-            (doc.head||doc.body||doc.documentElement).appendChild(s);
-            var vid=doc.querySelector('video');
-            if(vid){
-                vid.setAttribute('translate','no');
-                vid.setAttribute('x-apple-disable-message-reformatting','');
-                vid.setAttribute('autocorrect','off');
-                vid.setAttribute('autocomplete','off');
-                vid.setAttribute('spellcheck','false');
+            if(!doc)return;
+            if(!doc.querySelector('video')){
+                // Video aún no en DOM (esperando permiso de cámara)
+                // Instalar observer DENTRO del iframe para detectar cuando aparece
+                if(!f._innerObs){
+                    try{
+                        f._innerObs=new MutationObserver(function(){
+                            if(doc.querySelector('video'))doInject(f,doc);
+                        });
+                        f._innerObs.observe(
+                            doc.documentElement||doc.body,
+                            {childList:true,subtree:true}
+                        );
+                    }catch(e){}
+                }
+                return;
             }
+            doInject(f,doc);
         }catch(e){}
     }
     function sweep(){
@@ -111,7 +136,7 @@ def render_escaner():
             {childList:true,subtree:true}
         );
     }catch(e){}
-    [100,400,900,1800,3500].forEach(function(t){setTimeout(sweep,t);});
+    [100,400,900,1800,3500,7000,12000].forEach(function(t){setTimeout(sweep,t);});
 })();
 </script>""", height=0)
 
