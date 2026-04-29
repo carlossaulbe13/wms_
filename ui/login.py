@@ -258,8 +258,10 @@ def pantalla_login(token_secreto, token_admin_pwd):
             # ── Pantalla de bienvenida (RFID o contraseña) ────
             _emp_saludo = _empleado if _rfid_glow else st.session_state.get('_empleado_activo')
             if _emp_saludo:
-                _ape_g = _emp_saludo.get('apellido', '')
-                saludo_nombre = _ape_g.split()[0] if _ape_g else _emp_saludo.get('nombre', '')
+                _hon_g  = _emp_saludo.get('honorifico', '')
+                _ape_g  = _emp_saludo.get('apellido', '')
+                _ape_part = _ape_g.split()[0] if _ape_g else ''
+                saludo_nombre = (f"{_hon_g} {_ape_part}".strip() if _ape_part else _emp_saludo.get('nombre', ''))
                 pues = _emp_saludo.get('puesto', '')
             else:
                 _rol_glow = st.session_state.get('rol', 'admin')
