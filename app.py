@@ -106,10 +106,11 @@ with st.sidebar:
     _rol     = st.session_state.get('rol', 'operador')
     _color   = '#94B4C1' if _rol == 'admin' else '#547792'
     _emp_sb  = st.session_state.get('_empleado_activo') or {}
-    _nom_sb  = _emp_sb.get('nombre', '')
-    if _nom_sb:
-        _parts = _nom_sb.split()
-        _saludo_sb = _parts[1] if len(_parts) >= 2 else _parts[0]
+    _hon_sb  = _emp_sb.get('honorifico', '')
+    _ape_sb  = _emp_sb.get('apellido', '')
+    if _ape_sb:
+        _ape_part = _ape_sb.split()[0]
+        _saludo_sb = f"{_hon_sb} {_ape_part}".strip() if _hon_sb else _ape_part
     else:
         _saludo_sb = 'Administrador' if _rol == 'admin' else 'Operador'
 
