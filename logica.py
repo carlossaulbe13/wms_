@@ -46,26 +46,26 @@ def nivel_acepta_altura(nivel, alto_m):
 def asignar_rack_por_peso_vol(peso, vol):
     """Determina el rack objetivo según peso y volumen."""
     if peso > PESO_SOBRE:
-        return "POS_5"
+        return "RACK_5"
     if peso >= 100:
-        return "POS_4"
+        return "RACK_4"
     if vol > 1.5:
-        return "POS_5"
+        return "RACK_5"
     if peso >= 50 or vol > 1.0:
-        return "POS_3"
+        return "RACK_3"
     if peso >= 20 or vol > 0.5:
-        return "POS_2"
-    return "POS_1"
+        return "RACK_2"
+    return "RACK_1"
 
 def obtener_coordenada_libre(db, rack_objetivo, peso_nuevo=0, alto_m=0):
     """
     Busca la primera posicion libre en el rack respetando:
     - Carga maxima por nivel
     - Restriccion de altura por nivel
-    No aplica restricciones en POS_5 (sobredimensiones).
+    No aplica restricciones en RACK_5 (sobredimensiones).
     Excluye posiciones de artículos de BAJA.
     """
-    es_sobre = rack_objetivo == "POS_5"
+    es_sobre = rack_objetivo == "RACK_5"
     ocupadas = {
         (v.get('piso'), v.get('fila'), v.get('columna'))
         for v in db.values()
@@ -121,7 +121,7 @@ def registrar_pallet(uid, sku_base, nombre, peso, cantidad,
     # Discriminante de altura
     if alto_m > ALTO_MAX_N3:
         avisos.append(f"Alto {alto_cm:.0f} cm > 180 cm — asignado a SOBREDIMENSIONES.")
-        r = "POS_5"
+        r = "RACK_5"
     elif alto_m > ALTO_MAX_N1_N2:
         avisos.append(f"Alto {alto_cm:.0f} cm > 150 cm — solo nivel 3.")
         r = asignar_rack_por_peso_vol(peso, 0.0)
@@ -131,12 +131,12 @@ def registrar_pallet(uid, sku_base, nombre, peso, cantidad,
     # Discriminante de peso
     if peso > PESO_SOBRE:
         avisos.append(f"Peso {peso:.0f} kg > {PESO_SOBRE:.0f} kg — asignado a SOBREDIMENSIONES.")
-        r = "POS_5"
+        r = "RACK_5"
 
     # Coordenada libre con fallback a sobredimensiones
     piso, nivel, col = obtener_coordenada_libre(db, r, peso_nuevo=peso, alto_m=alto_m)
-    if piso is None and r != "POS_5":
-        r = "POS_5"
+    if piso is None and r != "RACK_5":
+        r = "RACK_5"
         avisos.append("Rack asignado lleno — redirigido a SOBREDIMENSIONES.")
         piso, nivel, col = obtener_coordenada_libre(db, r, peso_nuevo=peso, alto_m=alto_m)
 
