@@ -27,7 +27,7 @@ _CSS = """
     75%     { transform: translateX(-4px); }
     90%     { transform: translateX(4px); }
 }
-.avatar-glow  { animation: rfid-glow  1.4s ease-out forwards; }
+.avatar-glow  { animation: rfid-glow  3s ease-out forwards; }
 .avatar-shake { animation: rfid-shake 0.65s ease-in-out; }
 
 /* ── Fondo gradiente full-screen ───────── */
