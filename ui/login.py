@@ -167,11 +167,42 @@ def leer_uid_cloud():
     except Exception:
         return None
 
+def _preparar_auth(token_secreto, token_admin_pwd, rol, empleado=None):
+    """Devuelve el dict de session_state que aplica la autenticación."""
+    if rol == 'admin':
+        tok = token_admin_pwd + '_admin'
+    else:
+        tok = token_secreto + '_' + rol
+    return {
+        'autenticado':      True,
+        'rol':              rol,
+        'session_token':    tok,
+        '_empleado_activo': empleado,
+        '_pwd_bienvenido':  rol,
+        '_qs':              tok,
+    }
+
+
 def pantalla_login(token_secreto, token_admin_pwd):
     st_autorefresh(interval=2000, key='login_refresh')
     st.markdown(_CSS, unsafe_allow_html=True)
 
-    # RFID check antes del render
+    # ── 1. Flags de animación de contraseña (leídos ANTES del render) ──
+    _pwd_glow  = st.session_state.pop('_pwd_glow_pending', False)
+    _pwd_shake = st.session_state.pop('_pwd_shake_pending', False)
+    _pwd_error = st.session_state.pop('_pwd_error', None)
+
+    if _pwd_glow:
+        # Aplicar la autenticación pendiente ahora (sin rerun)
+        # Mismo patrón que RFID: autenticado=True en este render,
+        # el autorefresh (2s) navega al app principal.
+        _auth = st.session_state.pop('_pwd_glow_auth', {})
+        for _k, _v in _auth.items():
+            st.session_state[_k] = _v
+        if '_qs' in _auth:
+            st.query_params['_s'] = _auth['_qs']
+
+    # ── 2. RFID check ──────────────────────────────────────────
     uid = leer_uid_cloud() if ES_CLOUD else leer_uid_local()
     _rfid_err   = None
     _rfid_glow  = False
@@ -180,7 +211,6 @@ def pantalla_login(token_secreto, token_admin_pwd):
     if uid:
         if uid in UIDS_AUTORIZADOS:
             _rfid_glow = True
-            # Buscar empleado registrado para el saludo
             try:
                 from firebase import buscar_empleado_por_uid
                 _empleado = buscar_empleado_por_uid(uid)
@@ -191,16 +221,18 @@ def pantalla_login(token_secreto, token_admin_pwd):
             st.session_state.session_token    = token_secreto + '_admin'
             st.session_state._empleado_activo = _empleado
             st.query_params['_s']             = token_secreto + '_admin'
-            # No rerun — el glow se muestra en este render;
-            # el autorefresh (2 s) redirigirá ya con autenticado=True
         else:
             _rfid_shake = True
             _rfid_err = f"UID no autorizado: {uid}"
 
-    # Layout: columna central amplia
+    # ── 3. Clase de animación (RFID o contraseña) ──────────────
+    _show_glow  = _rfid_glow or _pwd_glow
+    _show_shake = not _show_glow and (_rfid_shake or _pwd_shake)
+    _anim_class = "avatar-glow" if _show_glow else ("avatar-shake" if _show_shake else "")
+
+    # ── 4. Layout ──────────────────────────────────────────────
     _, col, _ = st.columns([1.2, 1, 1.2])
     with col:
-        # Título centrado fuera del card
         st.markdown(
             "<div style='text-align:center;margin-top:6vh;margin-bottom:24px;'>"
             "<span style='color:#EAE0CF;font-size:14px;font-weight:600;"
@@ -209,8 +241,6 @@ def pantalla_login(token_secreto, token_admin_pwd):
             unsafe_allow_html=True,
         )
 
-        # Card
-        _anim_class = "avatar-glow" if _rfid_glow else ("avatar-shake" if _rfid_shake else "")
         st.markdown(
             f"<div class='login-card'>"
             f"<div style='text-align:center; margin-bottom:28px;'>"
@@ -224,16 +254,18 @@ def pantalla_login(token_secreto, token_admin_pwd):
             unsafe_allow_html=True,
         )
 
-        if _rfid_glow:
-            # ── Pantalla de bienvenida RFID ───────────────────
-            if _empleado:
-                hon  = _empleado.get('honorifico', '')
-                nom  = _empleado.get('nombre', '')
-                pues = _empleado.get('puesto', '')
+        if _show_glow:
+            # ── Pantalla de bienvenida (RFID o contraseña) ────
+            _emp_saludo = _empleado if _rfid_glow else st.session_state.get('_empleado_activo')
+            if _emp_saludo:
+                hon  = _emp_saludo.get('honorifico', '')
+                nom  = _emp_saludo.get('nombre', '')
+                pues = _emp_saludo.get('puesto', '')
                 saludo_nombre = f"{hon} {nom}".strip() if hon else nom
             else:
-                saludo_nombre = "Administrador"
-                pues          = ""
+                _rol_glow = st.session_state.get('rol', 'admin')
+                saludo_nombre = "Administrador" if _rol_glow == 'admin' else "Operador"
+                pues = ""
 
             st.markdown(
                 f"<div style='text-align:center;padding:8px 0 20px;'>"
@@ -264,30 +296,25 @@ def pantalla_login(token_secreto, token_admin_pwd):
 
             if _rfid_err:
                 st.error(_rfid_err)
+            if _pwd_error:
+                st.error(_pwd_error)
 
             with st.form("login_form"):
                 pwd    = st.text_input("pwd", type="password", placeholder="Contraseña", label_visibility="collapsed")
                 submit = st.form_submit_button("ENTRAR", use_container_width=True)
                 if submit:
+                    import hashlib as _hl
                     if pwd == PASSWORD_ADMIN:
-                        st.session_state.autenticado      = True
-                        st.session_state.rol              = 'admin'
-                        st.session_state.session_token    = token_admin_pwd + '_admin'
-                        st.session_state._empleado_activo = None
-                        st.session_state._pwd_bienvenido  = 'admin'
-                        st.query_params['_s']             = token_admin_pwd + '_admin'
+                        _auth = _preparar_auth(token_secreto, token_admin_pwd, 'admin')
+                        st.session_state._pwd_glow_pending = True
+                        st.session_state._pwd_glow_auth    = _auth
                         st.rerun()
                     elif pwd == PASSWORD_ACCESO:
-                        st.session_state.autenticado      = True
-                        st.session_state.rol              = 'operador'
-                        st.session_state.session_token    = token_secreto + '_operador'
-                        st.session_state._empleado_activo = None
-                        st.session_state._pwd_bienvenido  = 'operador'
-                        st.query_params['_s']             = token_secreto + '_operador'
+                        _auth = _preparar_auth(token_secreto, token_admin_pwd, 'operador')
+                        st.session_state._pwd_glow_pending = True
+                        st.session_state._pwd_glow_auth    = _auth
                         st.rerun()
                     else:
-                        # Buscar contraseña de empleado registrado
-                        import hashlib as _hl
                         _pwd_hash = _hl.sha256(pwd.encode()).hexdigest()
                         try:
                             from firebase import buscar_empleado_por_password
@@ -296,15 +323,15 @@ def pantalla_login(token_secreto, token_admin_pwd):
                             _result = None
                         if _result:
                             _, _emp = _result
-                            st.session_state.autenticado      = True
-                            st.session_state.rol              = _emp.get('rol', 'operador')
-                            st.session_state.session_token    = token_secreto + '_' + _emp.get('rol', 'operador')
-                            st.session_state._empleado_activo = _emp
-                            st.session_state._pwd_bienvenido  = _emp.get('rol', 'operador')
-                            st.query_params['_s']             = token_secreto + '_' + _emp.get('rol', 'operador')
+                            _rol = _emp.get('rol', 'operador')
+                            _auth = _preparar_auth(token_secreto, token_admin_pwd, _rol, _emp)
+                            st.session_state._pwd_glow_pending = True
+                            st.session_state._pwd_glow_auth    = _auth
                             st.rerun()
                         else:
-                            st.error("Contraseña incorrecta")
+                            st.session_state._pwd_shake_pending = True
+                            st.session_state._pwd_error         = "Contraseña incorrecta"
+                            st.rerun()
 
         # Cierre del div card
         st.markdown("</div>", unsafe_allow_html=True)
