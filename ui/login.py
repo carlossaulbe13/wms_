@@ -286,7 +286,25 @@ def pantalla_login(token_secreto, token_admin_pwd):
                         st.query_params['_s']             = token_secreto + '_operador'
                         st.rerun()
                     else:
-                        st.error("Contraseña incorrecta")
+                        # Buscar contraseña de empleado registrado
+                        import hashlib as _hl
+                        _pwd_hash = _hl.sha256(pwd.encode()).hexdigest()
+                        try:
+                            from firebase import buscar_empleado_por_password
+                            _result = buscar_empleado_por_password(_pwd_hash)
+                        except Exception:
+                            _result = None
+                        if _result:
+                            _, _emp = _result
+                            st.session_state.autenticado      = True
+                            st.session_state.rol              = _emp.get('rol', 'operador')
+                            st.session_state.session_token    = token_secreto + '_' + _emp.get('rol', 'operador')
+                            st.session_state._empleado_activo = _emp
+                            st.session_state._pwd_bienvenido  = _emp.get('rol', 'operador')
+                            st.query_params['_s']             = token_secreto + '_' + _emp.get('rol', 'operador')
+                            st.rerun()
+                        else:
+                            st.error("Contraseña incorrecta")
 
         # Cierre del div card
         st.markdown("</div>", unsafe_allow_html=True)
