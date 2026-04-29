@@ -35,11 +35,13 @@ def render():
     # ── Alta de empleado ──────────────────────────────────────
     with st.expander("+ Registrar nuevo empleado", expanded=not bool(empleados)):
         with st.form("form_alta_empleado", clear_on_submit=True):
-            c1, c2 = st.columns([1, 3])
+            c1, c2, c3_name = st.columns([1, 2, 2])
             with c1:
                 honorifico = st.selectbox("Honorífico", HONORIFICOS, key="emp_hon")
             with c2:
-                nombre = st.text_input("Nombre completo", placeholder="Ej: Juan García López", key="emp_nombre")
+                nombre = st.text_input("Nombre(s)", placeholder="Ej: Juan Carlos", key="emp_nombre")
+            with c3_name:
+                apellido = st.text_input("Apellido(s)", placeholder="Ej: García López", key="emp_apellido")
 
             c3, c4 = st.columns(2)
             with c3:
@@ -76,15 +78,18 @@ def render():
 
             submitted = st.form_submit_button("Registrar empleado", use_container_width=True)
             if submitted:
-                uid_clean    = uid_rfid.strip().upper()
-                nombre_clean = nombre.strip()
-                puesto_clean = puesto.strip()
-                pwd1_clean   = pwd1.strip()
-                pwd2_clean   = pwd2.strip()
+                uid_clean      = uid_rfid.strip().upper()
+                nombre_clean   = nombre.strip()
+                apellido_clean = apellido.strip()
+                puesto_clean   = puesto.strip()
+                pwd1_clean     = pwd1.strip()
+                pwd2_clean     = pwd2.strip()
 
                 # Validaciones
                 if not nombre_clean:
                     st.error("El nombre es obligatorio.")
+                elif not apellido_clean:
+                    st.error("El apellido es obligatorio.")
                 elif not uid_clean and not pwd1_clean:
                     st.error("Debes proporcionar al menos un UID RFID o una contraseña.")
                 elif pwd1_clean and pwd1_clean != pwd2_clean:
@@ -92,9 +97,10 @@ def render():
                 elif pwd1_clean and len(pwd1_clean) < 6:
                     st.error("La contraseña debe tener al menos 6 caracteres.")
                 else:
-                    key = _key_para_empleado(uid_clean, nombre_clean)
+                    key = _key_para_empleado(uid_clean, apellido_clean)
                     datos = {
                         "nombre":     nombre_clean,
+                        "apellido":   apellido_clean,
                         "honorifico": honorifico if honorifico != "(ninguno)" else "",
                         "puesto":     puesto_clean,
                         "rol":        rol,
@@ -136,7 +142,8 @@ def render():
     # ── Lista de empleados ────────────────────────────────────
     for key, emp in empleados.items():
         hon   = emp.get("honorifico", "")
-        nom   = emp.get("nombre", "—")
+        nom   = emp.get("nombre", "")
+        ape   = emp.get("apellido", "")
         pues  = emp.get("puesto", "—")
         rol   = emp.get("rol", "operador")
         uid   = emp.get("uid_rfid", "") or "—"
@@ -144,7 +151,8 @@ def render():
         fecha = emp.get("fecha_alta", "—")
         tiene_pwd = bool(emp.get("password_hash"))
 
-        nombre_display = f"{hon} {nom}".strip() if hon else nom
+        nombre_completo = f"{nom} {ape}".strip() or "—"
+        nombre_display = f"{hon} {nombre_completo}".strip() if hon else nombre_completo
         rol_color = "#94B4C1" if rol == "admin" else "#547792"
 
         acceso_tags = ""
