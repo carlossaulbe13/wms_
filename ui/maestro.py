@@ -9,7 +9,7 @@ from config import TIPOS_EMBALAJE, HISTORIAL_URL, RACK_A_FILA
 from firebase import (cargar_db, guardar_db, registrar_movimiento,
                       dar_de_baja_pallet, eliminar_pallet,
                       eliminar_pallets, vaciar_inventario)
-from logica import registrar_pallet, asignar_rack_por_peso_vol
+from logica import registrar_pallet
 
 def render():
     """Renderiza el maestro de articulos."""
@@ -159,9 +159,6 @@ def render():
                                                           help="Alerta cuando la cantidad baje de este valor. 0 = sin alerta.")
 
                     rack_actual = datos.get('rack', 'RACK_1')
-                    rack_ideal  = asignar_rack_por_peso_vol(nuevo_peso, nuevo_vol)
-                    if rack_actual != rack_ideal:
-                        st.warning(f"ALERTA: Por peso/volumen este material deberia estar en {rack_ideal} (actualmente {rack_actual}).")
 
                     ba1, ba2, ba3 = st.columns(3)
                     with ba1:
