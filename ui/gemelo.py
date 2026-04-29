@@ -17,7 +17,7 @@ def render(_TOK_ACTIVO):
 
     # Cargar estados de sensores CNY70 y construir lookup (rack_id, nivel, col) → estado
     _sensores_raw = leer_sensores()
-    sensor_estado = {}  # {("POS_1", 1, 1): "ocupado"|"libre"}
+    sensor_estado = {}  # {("RACK_1", 1, 1): "ocupado"|"libre"}
     for _lbl, _sdata in (_sensores_raw or {}).items():
         try:
             _p = _lbl.split('-')
@@ -57,7 +57,7 @@ def render(_TOK_ACTIVO):
             st.query_params['_s'] = _TOK_ACTIVO
             st.rerun()
 
-        t5, c5 = rack_stats(db, 'POS_5')
+        t5, c5 = rack_stats(db, 'RACK_5')
         badge5 = '#dc3545' if c5 > 0 else '#2d4060'  # solo rojo si hay congelados, neutro si no
 
         # Resaltado: activo mientras haya confirmacion pendiente (hasta boton fisico)
@@ -83,7 +83,7 @@ def render(_TOK_ACTIVO):
         CAP_FILA = 45  # 5 racks × 3 niveles × 3 cols
         filas_html = ''
         for fila_label, rack_id in [
-            ('FILA A','POS_1'),('FILA B','POS_2'),('FILA C','POS_3'),('FILA D','POS_4')
+            ('FILA A','RACK_1'),('FILA B','RACK_2'),('FILA C','RACK_3'),('FILA D','RACK_4')
         ]:
             t, c = rack_stats(db, rack_id)
             a    = t - c  # activos (no congelados)
@@ -124,8 +124,8 @@ def render(_TOK_ACTIVO):
             )
 
         # Clase y borde del botón sobredimensiones
-        clase_sobre = 'fila-res' if (res_activo and rack_res == 'POS_5') else ''
-        borde_sobre = '#facc15'  if (res_activo and rack_res == 'POS_5') else '#547792'
+        clase_sobre = 'fila-res' if (res_activo and rack_res == 'RACK_5') else ''
+        borde_sobre = '#facc15'  if (res_activo and rack_res == 'RACK_5') else '#547792'
 
         nave_html = (
             '<div style="display:grid;grid-template-columns:1fr 1fr 3fr 1fr;gap:8px;align-items:stretch;">'
@@ -179,7 +179,7 @@ def render(_TOK_ACTIVO):
             st.session_state.twin_zona = None
             st.rerun()
 
-        rack_id    = ZONA_A_RACK.get(zona_sel, "POS_5")
+        rack_id    = ZONA_A_RACK.get(zona_sel, "RACK_5")
         items_zona = {k: v for k, v in db.items() if v.get('rack') == rack_id}
         st.subheader(f"Zona: {zona_sel}  |  {len(items_zona)} pallets registrados")
 
@@ -208,7 +208,7 @@ def render(_TOK_ACTIVO):
             st.session_state.twin_rack = None
             st.rerun()
 
-        rack_id    = ZONA_A_RACK.get(fila_sel, "POS_1")
+        rack_id    = ZONA_A_RACK.get(fila_sel, "RACK_1")
         items_rack = {k: v for k, v in db.items() if v.get('rack') == rack_id}
 
         st.markdown(
@@ -390,7 +390,7 @@ def render(_TOK_ACTIVO):
 
     # ── NIVEL 4: Rack seleccionado en detalle ────────────────────
     else:
-        rack_id    = ZONA_A_RACK.get(fila_sel, "POS_1")
+        rack_id    = ZONA_A_RACK.get(fila_sel, "RACK_1")
         items_rack = {k: v for k, v in db.items() if v.get('rack') == rack_id}
 
         crumbs = ["Nave principal", zona_sel, fila_sel, f"Rack {rack_sel}"]
@@ -623,7 +623,7 @@ def render(_TOK_ACTIVO):
 
     else:
         # Vista de fila: KPIs específicos de esa fila - Excluir artículos de BAJA
-        rack_id_kpi = ZONA_A_RACK.get(fila_sel or zona_sel, "POS_1")
+        rack_id_kpi = ZONA_A_RACK.get(fila_sel or zona_sel, "RACK_1")
         items_fila_kpi = [v for v in db.values() if v.get('rack') == rack_id_kpi and v.get('estado') != 'BAJA']
 
         total_fila      = len(items_fila_kpi)
