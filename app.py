@@ -390,37 +390,47 @@ if not _es_movil:
             from ui.empleados import render as render_empleados
             render_empleados()
 else:
-    _movil_page = st.query_params.get('page', 'escaner')
+    st.markdown("""<style>
+[data-testid="stTabs"] [data-baseweb="tab-list"] {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 9999 !important;
+    background: #1C1C1E !important;
+    border-top: 1px solid rgba(72,72,74,0.45) !important;
+    border-bottom: none !important;
+    padding: 6px 12px env(safe-area-inset-bottom,8px) !important;
+    gap: 8px !important;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.4) !important;
+}
+[data-testid="stTabs"] [data-baseweb="tab"] {
+    flex: 1 !important;
+    justify-content: center !important;
+    padding: 12px 4px !important;
+    border-radius: 10px !important;
+    font-weight: 700 !important;
+    font-size: 13px !important;
+    letter-spacing: 0.8px !important;
+}
+[data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"] {
+    background: rgba(72,72,74,0.22) !important;
+    border: 1px solid #48484A !important;
+    border-bottom: 1px solid #48484A !important;
+    color: #E5E5EA !important;
+}
+[data-testid="stTabs"] [data-baseweb="tab"][aria-selected="false"] {
+    background: transparent !important;
+    border: 1px solid transparent !important;
+    color: #F59E0B !important;
+}
+.main .block-container { padding-bottom: 90px !important; }
+</style>""", unsafe_allow_html=True)
 
-    st.markdown("<style>.main .block-container{padding-bottom:90px!important}</style>",
-                unsafe_allow_html=True)
-
-    if _movil_page == 'alta':
-        from ui.escaner import render_alta
-        render_alta()
-    else:
+    tab_esc, tab_alt = st.tabs(['ESCÁNER', 'ALTA'])
+    with tab_esc:
         from ui.escaner import render_escaner
         render_escaner()
-
-    _e_style = "background:rgba(72,72,74,0.22);border:1px solid #48484A;color:#E5E5EA" \
-               if _movil_page == 'escaner' else \
-               "background:transparent;border:1px solid transparent;color:#F59E0B"
-    _a_style = "background:rgba(72,72,74,0.22);border:1px solid #48484A;color:#E5E5EA" \
-               if _movil_page == 'alta' else \
-               "background:transparent;border:1px solid transparent;color:#F59E0B"
-
-    st.markdown(f"""
-<div style="position:fixed;bottom:0;left:0;right:0;z-index:9999;
-     background:#1C1C1E;border-top:1px solid rgba(72,72,74,0.45);
-     display:flex;padding:6px 12px env(safe-area-inset-bottom,8px);gap:8px;
-     box-shadow:0 -4px 20px rgba(0,0,0,0.4);">
-  <a href="?_s={_TOK_ACTIVO}&movil=1&page=escaner" target="_self"
-     style="flex:1;display:block;text-align:center;padding:12px 4px;
-            border-radius:10px;text-decoration:none;font-weight:700;
-            font-size:13px;letter-spacing:0.8px;{_e_style}">ESCÁNER</a>
-  <a href="?_s={_TOK_ACTIVO}&movil=1&page=alta" target="_self"
-     style="flex:1;display:block;text-align:center;padding:12px 4px;
-            border-radius:10px;text-decoration:none;font-weight:700;
-            font-size:13px;letter-spacing:0.8px;{_a_style}">ALTA</a>
-</div>
-""", unsafe_allow_html=True)
+    with tab_alt:
+        from ui.escaner import render_alta
+        render_alta()
