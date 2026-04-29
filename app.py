@@ -99,8 +99,14 @@ _TOK_ACTIVO = st.session_state.get('session_token') or (_TOKEN_BASE + '_operador
 
 # ── Banner de bienvenida (login por contraseña) ───────────────
 if st.session_state.pop('_pwd_bienvenido', None):
-    _pwd_rol = st.session_state.get('rol', 'operador')
-    _pwd_label = 'Administrador' if _pwd_rol == 'admin' else 'Operador'
+    _pwd_rol  = st.session_state.get('rol', 'operador')
+    _pwd_emp  = st.session_state.get('_empleado_activo') or {}
+    _pwd_hon  = _pwd_emp.get('honorifico', '')
+    _pwd_nom  = _pwd_emp.get('nombre', '')
+    if _pwd_nom:
+        _pwd_label = f"{_pwd_hon} {_pwd_nom}".strip() if _pwd_hon else _pwd_nom
+    else:
+        _pwd_label = 'Administrador' if _pwd_rol == 'admin' else 'Operador'
     st.markdown(
         f"<div style='background:rgba(84,119,146,0.18);border:1px solid #547792;"
         f"border-radius:10px;padding:14px 20px;margin-bottom:12px;text-align:center;'>"
