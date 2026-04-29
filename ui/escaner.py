@@ -258,7 +258,7 @@ def mostrar_detalle_pallet(data, mostrar_boton_registro=True):
                 'estado': estado,
                 'embalaje': embalaje,
                 'alto_cm': float(alto_cm),
-                'ubicacion': ubicacion
+                'ubicacion': pos
             }
             
             with st.spinner("Registrando y asignando ubicación..."):
