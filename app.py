@@ -392,11 +392,11 @@ else:
      background:#213448;border-top:1px solid rgba(84,119,146,0.45);
      display:flex;padding:6px 12px env(safe-area-inset-bottom,8px);gap:8px;
      box-shadow:0 -4px 20px rgba(0,0,0,0.4);">
-  <a href="?_s={_TOK_ACTIVO}&movil=1&page=escaner"
+  <a href="?_s={_TOK_ACTIVO}&movil=1&page=escaner" target="_self"
      style="flex:1;display:block;text-align:center;padding:12px 4px;
             border-radius:10px;text-decoration:none;font-weight:700;
             font-size:13px;letter-spacing:0.8px;{_e_style}">ESCÁNER</a>
-  <a href="?_s={_TOK_ACTIVO}&movil=1&page=alta"
+  <a href="?_s={_TOK_ACTIVO}&movil=1&page=alta" target="_self"
      style="flex:1;display:block;text-align:center;padding:12px 4px;
             border-radius:10px;text-decoration:none;font-weight:700;
             font-size:13px;letter-spacing:0.8px;{_a_style}">ALTA</a>
