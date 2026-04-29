@@ -20,27 +20,6 @@ def render_escaner():
     st.title(" Escáner Móvil")
     st.caption("Escanea códigos QR o busca pallets manualmente")
     
-    # CSS: recuadro cuadrado fijo centrado — sin borde inferior
-    st.markdown("""
-    <style>
-    iframe:not([height="0"]) {
-        width: 100% !important;
-        max-width: 340px !important;
-        height: 340px !important;
-        display: block !important;
-        margin: 0 auto !important;
-        border-radius: 12px !important;
-        border: none !important;
-        outline: 1.5px solid #547792 !important;
-        outline-offset: -1px !important;
-    }
-    /* eliminar margen inferior del contenedor Streamlit del componente */
-    div[data-testid="stComponentContainer"] {
-        margin-bottom: 0 !important;
-        padding-bottom: 0 !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
 
     # Intentar importar el escáner QR
     try:
@@ -66,48 +45,42 @@ def render_escaner():
             _stc.html("""<script>
 (function(){
     var patched=new WeakSet();
-    var CSS=`
-        *{box-sizing:border-box!important;}
-        html,body{
-            margin:0!important;padding:0!important;
+    // CSS inyectado DENTRO del iframe del escaner
+    var INNER_CSS=`
+        html,body{margin:0!important;padding:0!important;
             width:100%!important;height:100%!important;
-            background:#000!important;overflow:hidden!important;
-            position:relative!important;
-        }
-        video{
-            position:absolute!important;
-            inset:0!important;
-            width:100%!important;height:100%!important;
-            object-fit:cover!important;
-            display:block!important;
-            z-index:0!important;
-        }
-        canvas{
-            position:absolute!important;
-            inset:0!important;
-            width:100%!important;height:100%!important;
-            z-index:1!important;
-            opacity:0!important;
-        }
-        svg{opacity:0!important;pointer-events:none!important;}
-        *[data-visualcompletion],*[aria-label*="translate"],
-        *[class*="live-text"],*[class*="livetext"],
-        img-analysis-result,translate-button{display:none!important;}
+            background:#000!important;overflow:hidden!important;}
+        canvas{opacity:0!important;}
+        svg,img-analysis-result,translate-button{display:none!important;}
+        *[aria-label*="translate"]{display:none!important;}
     `;
+    function applyFill(vid){
+        var s='position:absolute!important;top:0!important;left:0!important;'+
+              'width:100%!important;height:100%!important;'+
+              'object-fit:cover!important;display:block!important;z-index:0!important;';
+        vid.style.cssText=s;
+    }
     function doInject(f,doc){
         patched.add(f);
         if(f._innerObs){f._innerObs.disconnect();delete f._innerObs;}
+        // Tamaño del iframe — solo al iframe que tiene video (el escaner real)
+        f.style.setProperty('width','100%','important');
+        f.style.setProperty('max-width','320px','important');
+        f.style.setProperty('height','320px','important');
+        f.style.setProperty('display','block','important');
+        f.style.setProperty('margin','0 auto','important');
+        f.style.setProperty('border-radius','12px','important');
+        f.style.setProperty('border','none','important');
+        f.style.setProperty('outline','1.5px solid #547792','important');
         if(doc.getElementById('_umad_css'))return;
         var s=doc.createElement('style');
-        s.id='_umad_css';
-        s.textContent=CSS;
+        s.id='_umad_css';s.textContent=INNER_CSS;
         (doc.head||doc.body||doc.documentElement).appendChild(s);
         var vid=doc.querySelector('video');
         if(vid){
-            vid.setAttribute('translate','no');
-            vid.setAttribute('autocorrect','off');
-            vid.setAttribute('autocomplete','off');
-            vid.setAttribute('spellcheck','false');
+            applyFill(vid);
+            vid.addEventListener('loadedmetadata',function(){applyFill(vid);},{once:true});
+            vid.addEventListener('play',function(){applyFill(vid);},{once:true});
         }
     }
     function inject(f){
@@ -116,17 +89,13 @@ def render_escaner():
             var doc=f.contentDocument||f.contentWindow.document;
             if(!doc)return;
             if(!doc.querySelector('video')){
-                // Video aún no en DOM (esperando permiso de cámara)
-                // Instalar observer DENTRO del iframe para detectar cuando aparece
                 if(!f._innerObs){
                     try{
                         f._innerObs=new MutationObserver(function(){
                             if(doc.querySelector('video'))doInject(f,doc);
                         });
-                        f._innerObs.observe(
-                            doc.documentElement||doc.body,
-                            {childList:true,subtree:true}
-                        );
+                        f._innerObs.observe(doc.documentElement||doc.body,
+                            {childList:true,subtree:true});
                     }catch(e){}
                 }
                 return;
@@ -140,9 +109,7 @@ def render_escaner():
     }
     try{
         new MutationObserver(sweep).observe(
-            window.parent.document.documentElement,
-            {childList:true,subtree:true}
-        );
+            window.parent.document.documentElement,{childList:true,subtree:true});
     }catch(e){}
     [100,400,900,1800,3500,7000,12000].forEach(function(t){setTimeout(sweep,t);});
 })();
@@ -167,7 +134,7 @@ def render_escaner():
                         st.error(f" Código QR inválido o vacío")
                         st.caption("El código debe ser un JSON válido con los datos del pallet")
             else:
-                st.caption("Apunta la cámara al código QR del pallet")
+                st.markdown('<p style="text-align:center;color:#888;font-size:0.82em;margin:6px 0 0">Apunta la cámara al código QR del pallet</p>', unsafe_allow_html=True)
     
     # TAB: Buscar Pallet (siempre disponible)
     tab_buscar = tab2 if tiene_qr else tab1
