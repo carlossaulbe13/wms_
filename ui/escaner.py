@@ -75,6 +75,7 @@ def render_escaner():
             width:100vw!important;
             height:100vh!important;
             z-index:1!important;
+            opacity:0!important;
         }
         svg{opacity:0!important;pointer-events:none!important;}
         *[data-visualcompletion],*[aria-label*="translate"],
