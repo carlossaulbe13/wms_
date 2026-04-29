@@ -5,7 +5,7 @@ import os
 import streamlit as st
 import pandas as pd
 import requests
-from config import TIPOS_EMBALAJE, HISTORIAL_URL
+from config import TIPOS_EMBALAJE, HISTORIAL_URL, RACK_A_FILA
 from firebase import (cargar_db, guardar_db, registrar_movimiento,
                       dar_de_baja_pallet, eliminar_pallet,
                       eliminar_pallets, vaciar_inventario)
@@ -31,7 +31,7 @@ def render():
                     "PZAS":           int(v.get('cantidad', 1)),
                     "PESO (KG)":      float(v.get('peso', 0.0)),
                     "ALTO (M)":       float(v.get('alto_m', 0.0)),
-                    "RACK":           v.get('rack', ''),
+                    "RACK":           RACK_A_FILA.get(v.get('rack', ''), v.get('rack', '')),
                     "PISO":           v.get('piso', ''),
                     "NIVEL":          v.get('fila', ''),
                     "COL":            v.get('columna', ''),
@@ -79,7 +79,7 @@ def render():
                     "PZAS":           st.column_config.NumberColumn("Pzas",       width="small"),
                     "PESO (KG)":      st.column_config.NumberColumn("Peso (kg)",  width="small", format="%.1f"),
                     "ALTO (M)":       st.column_config.NumberColumn("Alto (m)",   width="small", format="%.2f"),
-                    "RACK":           st.column_config.TextColumn("Rack",         width="small"),
+                    "RACK":           st.column_config.TextColumn("Fila",         width="small"),
                     "PISO":           st.column_config.TextColumn("Piso",         width="small"),
                     "NIVEL":          st.column_config.TextColumn("Nivel",        width="small"),
                     "COL":            st.column_config.TextColumn("Col",          width="small"),
