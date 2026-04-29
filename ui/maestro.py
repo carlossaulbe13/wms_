@@ -223,6 +223,8 @@ def render():
                 st.session_state.qr_proveedor_detectado = False
             if 'generar_qr_fisico' not in st.session_state:
                 st.session_state.generar_qr_fisico = True
+            if '_form_alta_ver' not in st.session_state:
+                st.session_state._form_alta_ver = 0
 
             st.markdown("**Tipo de embalaje**")
             tipos_embalaje_filtrados = [
@@ -244,7 +246,7 @@ def render():
             else:
                 st.info(f"✓ Embalaje estándar seleccionado: {tipo_embalaje_sel}")
 
-            with st.form("new_part_manual"):
+            with st.form(f"new_part_manual_{st.session_state._form_alta_ver}"):
                 st.markdown("**Identificacion**")
                 c_id, c_sk, c_nm = st.columns(3)
                 with c_id:
@@ -318,6 +320,13 @@ def render():
                     if ok:
                         st.success(msg)
                         st.session_state.navigate_to_gemelo = True
+                        # Limpiar formulario para el próximo alta
+                        st.session_state._form_alta_ver += 1
+                        st.session_state.qr_proveedor_detectado = False
+                        st.session_state.generar_qr_fisico = True
+                        for _k in ('tipo_emb_pre', 'emb_obs_pre', 'alto_std', 'alto_pers',
+                                   'largo_pers', 'ancho_pers'):
+                            st.session_state.pop(_k, None)
                         st.rerun()
                     else:
                         st.error(msg)
