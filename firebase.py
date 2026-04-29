@@ -32,14 +32,94 @@ def cargar_db(forzar=False):
     st.session_state.db = db
     return db
 
+def _nodo_url(uid: str) -> str:
+    """URL del nodo individual de un pallet."""
+    return FIREBASE_URL.replace('maestro_articulos.json', f'maestro_articulos/{uid}.json')
+
 def guardar_db(db):
     """Escribe en Firebase y actualiza ambos caches."""
     try:
-        requests.put(FIREBASE_URL, json=db, timeout=5)
+        res = requests.put(FIREBASE_URL, json=db, timeout=5)
+        if res.status_code not in (200, 204):
+            st.error(f"Firebase rechazó la escritura: {res.status_code} — {res.text[:200]}")
+            return
         st.session_state.db = db
-        _fetch_firebase.clear()  # limpiar cache para el proximo fetch
+        _fetch_firebase.clear()
     except Exception as e:
         st.error(f"Error al guardar en Firebase: {e}")
+
+def dar_de_baja_pallet(uid: str) -> bool:
+    """PATCH sobre el nodo individual: cambia estado a BAJA sin tocar el resto."""
+    import datetime as _dt
+    payload = {
+        'estado':     'BAJA',
+        'fecha_baja': _dt.datetime.now().strftime('%Y-%m-%d %H:%M'),
+    }
+    try:
+        res = requests.patch(_nodo_url(uid), json=payload, timeout=5)
+        if res.status_code not in (200, 204):
+            st.error(f"Firebase rechazó la baja: {res.status_code} — {res.text[:200]}")
+            return False
+        # Actualizar cache local
+        db = st.session_state.get('db') or {}
+        if uid in db:
+            db[uid].update(payload)
+            st.session_state.db = db
+        _fetch_firebase.clear()
+        return True
+    except Exception as e:
+        st.error(f"Error al dar de baja en Firebase: {e}")
+        return False
+
+def eliminar_pallet(uid: str) -> bool:
+    """PATCH con null sobre el nodo individual — más compatible que DELETE."""
+    try:
+        res = requests.patch(FIREBASE_URL, json={uid: None}, timeout=5)
+        if res.status_code not in (200, 204):
+            st.error(f"Firebase rechazó la eliminación: {res.status_code} — {res.text[:200]}")
+            return False
+        db = dict(st.session_state.get('db') or {})
+        db.pop(uid, None)
+        st.session_state.db = db
+        _fetch_firebase.clear()
+        return True
+    except Exception as e:
+        st.error(f"Error al eliminar en Firebase: {e}")
+        return False
+
+def eliminar_pallets(uids: list) -> int:
+    """Elimina múltiples pallets en un solo PATCH."""
+    if not uids:
+        return 0
+    payload = {uid: None for uid in uids}
+    try:
+        res = requests.patch(FIREBASE_URL, json=payload, timeout=10)
+        if res.status_code not in (200, 204):
+            st.error(f"Firebase rechazó la eliminación masiva: {res.status_code} — {res.text[:200]}")
+            return 0
+        db = dict(st.session_state.get('db') or {})
+        for uid in uids:
+            db.pop(uid, None)
+        st.session_state.db = db
+        _fetch_firebase.clear()
+        return len(uids)
+    except Exception as e:
+        st.error(f"Error en eliminación masiva: {e}")
+        return 0
+
+def vaciar_inventario() -> bool:
+    """Borra TODOS los pallets escribiendo null en la raíz del nodo."""
+    try:
+        res = requests.put(FIREBASE_URL, json=None, timeout=10)
+        if res.status_code not in (200, 204):
+            st.error(f"Firebase rechazó vaciar inventario: {res.status_code} — {res.text[:200]}")
+            return False
+        st.session_state.db = {}
+        _fetch_firebase.clear()
+        return True
+    except Exception as e:
+        st.error(f"Error al vaciar inventario: {e}")
+        return False
 
 # ── Historial ─────────────────────────────────────────────────
 
