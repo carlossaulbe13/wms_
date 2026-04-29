@@ -69,6 +69,14 @@ ZONA_A_RACK = {
     "SOBREDIMENSIONES": "RACK_5",
 }
 
+RACK_A_FILA = {
+    "RACK_1": "FILA A",
+    "RACK_2": "FILA B",
+    "RACK_3": "FILA C",
+    "RACK_4": "FILA D",
+    "RACK_5": "SOBREDIMENSIONES",
+}
+
 # ── Tokens de sesion ─────────────────────────────────────────
 import hashlib
 TOKEN_OPERADOR = hashlib.sha256(PASSWORD_ACCESO.encode()).hexdigest()[:16] + '_operador'
