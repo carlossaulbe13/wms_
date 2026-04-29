@@ -11,6 +11,25 @@ ES_CLOUD = not os.path.exists('serial_rfid_bridge.py')
 
 _CSS = """
 <style>
+/* ── Animaciones RFID ──────────────────── */
+@keyframes rfid-glow {
+    0%   { box-shadow: 0 6px 22px rgba(0,0,0,0.55); border-color: #547792; }
+    25%  { box-shadow: 0 0 0 10px rgba(148,180,193,0.38), 0 0 48px rgba(148,180,193,0.7); border-color: #94B4C1; }
+    60%  { box-shadow: 0 0 0 5px rgba(148,180,193,0.2), 0 0 24px rgba(148,180,193,0.45); border-color: #94B4C1; }
+    100% { box-shadow: 0 6px 22px rgba(0,0,0,0.55); border-color: #547792; }
+}
+@keyframes rfid-shake {
+    0%,100% { transform: translateX(0) rotate(0deg); }
+    15%     { transform: translateX(-9px) rotate(-2deg); }
+    30%     { transform: translateX(9px)  rotate(2deg); }
+    45%     { transform: translateX(-7px) rotate(-1deg); }
+    60%     { transform: translateX(7px)  rotate(1deg); }
+    75%     { transform: translateX(-4px); }
+    90%     { transform: translateX(4px); }
+}
+.avatar-glow  { animation: rfid-glow  1.4s ease-out forwards; }
+.avatar-shake { animation: rfid-shake 0.65s ease-in-out; }
+
 /* ── Fondo gradiente full-screen ───────── */
 [data-testid="stAppViewContainer"] > div:first-child {
     background: linear-gradient(145deg, #213448 0%, #547792 65%, #94B4C1 100%);
@@ -154,15 +173,20 @@ def pantalla_login(token_secreto, token_admin_pwd):
 
     # RFID check antes del render
     uid = leer_uid_cloud() if ES_CLOUD else leer_uid_local()
-    _rfid_err = None
+    _rfid_err   = None
+    _rfid_glow  = False
+    _rfid_shake = False
     if uid:
         if uid in UIDS_AUTORIZADOS:
-            st.session_state.autenticado    = True
-            st.session_state.rol            = 'admin'
-            st.session_state.session_token  = token_secreto + '_admin'
-            st.query_params['_s']           = token_secreto + '_admin'
-            st.rerun()
+            _rfid_glow = True
+            st.session_state.autenticado   = True
+            st.session_state.rol           = 'admin'
+            st.session_state.session_token = token_secreto + '_admin'
+            st.query_params['_s']          = token_secreto + '_admin'
+            # No rerun — el glow se muestra en este render;
+            # el autorefresh (2 s) redirigirá ya con autenticado=True
         else:
+            _rfid_shake = True
             _rfid_err = f"UID no autorizado: {uid}"
 
     # Layout: columna central amplia
@@ -178,10 +202,11 @@ def pantalla_login(token_secreto, token_admin_pwd):
         )
 
         # Card con solo el avatar
+        _anim_class = "avatar-glow" if _rfid_glow else ("avatar-shake" if _rfid_shake else "")
         st.markdown(
             f"<div class='login-card'>"
             f"<div style='text-align:center; margin-bottom:28px;'>"
-            f"  <div style='width:88px;height:88px;background:#213448;"
+            f"  <div class='{_anim_class}' style='width:88px;height:88px;background:#213448;"
             f"       border:2.5px solid #547792;border-radius:50%;"
             f"       margin:0 auto 0 auto;display:flex;align-items:center;"
             f"       justify-content:center;box-shadow:0 6px 22px rgba(0,0,0,0.55);'>"
