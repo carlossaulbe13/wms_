@@ -5,7 +5,7 @@ Usa cache de session_state para minimizar llamadas HTTP.
 import requests
 import datetime
 import streamlit as st
-from config import FIREBASE_URL, HISTORIAL_URL, RFID_URL, SENSORES_URL
+from config import FIREBASE_URL, HISTORIAL_URL, RFID_URL, SENSORES_URL, EMPLEADOS_URL
 
 # ── Base de datos principal ───────────────────────────────────
 
@@ -173,6 +173,47 @@ def leer_sensores():
     """Lee /almacen/sensores. Retorna {label: {estado, ts}}. Cache 2s."""
     return _fetch_sensores()
 
+
+# ── Empleados ─────────────────────────────────────────────────
+
+def _uid_a_key(uid_rfid: str) -> str:
+    """Firebase no permite ':' en claves — los reemplaza por '_'."""
+    return uid_rfid.replace(":", "_").upper()
+
+def cargar_empleados() -> dict:
+    """Lee /empleados. Retorna {uid_key: {...}}."""
+    try:
+        res = requests.get(EMPLEADOS_URL, timeout=5)
+        data = res.json() if res.status_code == 200 else None
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+def guardar_empleado(uid_rfid: str, datos: dict) -> bool:
+    """PUT en /empleados/{key}. Retorna True si OK."""
+    key = _uid_a_key(uid_rfid)
+    url = EMPLEADOS_URL.replace("empleados.json", f"empleados/{key}.json")
+    try:
+        res = requests.put(url, json=datos, timeout=5)
+        return res.status_code in (200, 204)
+    except Exception:
+        return False
+
+def eliminar_empleado(uid_rfid: str) -> bool:
+    """DELETE en /empleados/{key}."""
+    key = _uid_a_key(uid_rfid)
+    url = EMPLEADOS_URL.replace("empleados.json", f"empleados/{key}.json")
+    try:
+        res = requests.delete(url, timeout=5)
+        return res.status_code in (200, 204)
+    except Exception:
+        return False
+
+def buscar_empleado_por_uid(uid_rfid: str) -> dict | None:
+    """Busca un empleado por UID RFID. Retorna el dict o None."""
+    empleados = cargar_empleados()
+    key = _uid_a_key(uid_rfid)
+    return empleados.get(key)
 
 def leer_rfid_pendiente():
     """
