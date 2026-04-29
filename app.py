@@ -97,36 +97,30 @@ if not st.session_state.get('autenticado', False):
 # Token activo para navegación
 _TOK_ACTIVO = st.session_state.get('session_token') or (_TOKEN_BASE + '_operador')
 
-# ── Banner de bienvenida (login por contraseña) ───────────────
-if st.session_state.pop('_pwd_bienvenido', None):
-    _pwd_rol  = st.session_state.get('rol', 'operador')
-    _pwd_emp  = st.session_state.get('_empleado_activo') or {}
-    _pwd_hon  = _pwd_emp.get('honorifico', '')
-    _pwd_nom  = _pwd_emp.get('nombre', '')
-    if _pwd_nom:
-        _pwd_label = f"{_pwd_hon} {_pwd_nom}".strip() if _pwd_hon else _pwd_nom
-    else:
-        _pwd_label = 'Administrador' if _pwd_rol == 'admin' else 'Operador'
-    st.markdown(
-        f"<div style='background:rgba(84,119,146,0.18);border:1px solid #547792;"
-        f"border-radius:10px;padding:14px 20px;margin-bottom:12px;text-align:center;'>"
-        f"<span style='color:#94B4C1;font-size:12px;letter-spacing:2px;'>ACCESO CONCEDIDO &nbsp;·&nbsp; </span>"
-        f"<span style='color:#EAE0CF;font-size:15px;font-weight:700;'>"
-        f"Bienvenido de vuelta, {_pwd_label}</span>"
-        f"</div>",
-        unsafe_allow_html=True,
-    )
+st.session_state.pop('_pwd_bienvenido', None)  # consumido — saludo va en sidebar
 
 # ── Sidebar ───────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("<h2 style='margin:0;padding:0;'>WMS</h2>", unsafe_allow_html=True)
-    
-    _rol = st.session_state.get('rol', 'operador')
-    _color = '#94B4C1' if _rol == 'admin' else '#547792'
+
+    _rol     = st.session_state.get('rol', 'operador')
+    _color   = '#94B4C1' if _rol == 'admin' else '#547792'
+    _emp_sb  = st.session_state.get('_empleado_activo') or {}
+    _hon_sb  = _emp_sb.get('honorifico', '')
+    _nom_sb  = _emp_sb.get('nombre', '')
+    if _nom_sb:
+        _saludo_sb = f"{_hon_sb} {_nom_sb}".strip() if _hon_sb else _nom_sb
+    else:
+        _saludo_sb = 'Administrador' if _rol == 'admin' else 'Operador'
+
     st.markdown(
-        f"<div style='font-size:16px;color:{_color};margin-bottom:8px;margin-top:4px;'>"
-        f"Rol: <b>{'Administrador' if _rol == 'admin' else 'Operador'}</b></div>",
-        unsafe_allow_html=True
+        f"<div style='margin-top:6px;margin-bottom:2px;'>"
+        f"  <div style='color:#EAE0CF;font-size:15px;font-weight:700;line-height:1.3;'>{_saludo_sb}</div>"
+        f"  <div style='font-size:13px;color:{_color};margin-top:3px;'>"
+        f"    Rol: <b>{'Administrador' if _rol == 'admin' else 'Operador'}</b>"
+        f"  </div>"
+        f"</div>",
+        unsafe_allow_html=True,
     )
     st.markdown("---")
 
