@@ -184,7 +184,8 @@ st.markdown("""
 [data-testid="stTabs"] [data-baseweb="tab-list"] {
     background-color: #1C1C1E !important;
     border-bottom: 1px solid #48484A !important;
-    gap: 2px !important;
+    gap: 16px !important;
+    padding: 0 8px !important;
 }
 [data-testid="stTabs"] [data-baseweb="tab"] {
     color: #F59E0B !important;
