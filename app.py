@@ -49,7 +49,7 @@ if st.session_state.db is None:
 # Los botones físicos fueron reemplazados por sensores CNY70.
 # Cuando cualquier sensor del rack pendiente reporta "ocupado",
 # se confirma automáticamente el depósito.
-_SENSOR_RACK_MAP = {'POS_1': 'R1', 'POS_2': 'R2', 'POS_3': 'R3', 'POS_4': 'R4'}
+_SENSOR_RACK_MAP = {'RACK_1': 'R1', 'RACK_2': 'R2', 'RACK_3': 'R3', 'RACK_4': 'R4'}
 
 if st.session_state.get("confirmacion_pendiente"):
     from streamlit_autorefresh import st_autorefresh
@@ -312,7 +312,7 @@ if st.session_state.confirmacion_pendiente:
     _rack = st.session_state.confirmacion_pendiente
 
     # Mapa fila legible
-    _fila_nombres = {'POS_1':'FILA A','POS_2':'FILA B','POS_3':'FILA C','POS_4':'FILA D','POS_5':'SOBREDIMENSIONES'}
+    _fila_nombres = {'RACK_1':'FILA A','RACK_2':'FILA B','RACK_3':'FILA C','RACK_4':'FILA D','RACK_5':'SOBREDIMENSIONES'}
     _fila = _fila_nombres.get(_rack, _rack)
 
     st.markdown(
