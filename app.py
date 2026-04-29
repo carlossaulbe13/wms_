@@ -360,6 +360,11 @@ setTimeout(function(){
 
 # ── Renderizar según dispositivo ──────────────────────────────
 if not _es_movil:
+    # Limpiar barra móvil si quedó en DOM
+    _components.html("""<script>
+(function(){ var n=window.parent.document.getElementById('wms-bnav');
+if(n){ n.remove(); var s=window.parent.document.getElementById('wms-bnav-style'); if(s) s.remove(); } })();
+</script>""", height=0)
     tabs = st.tabs(['RASTREO Y UBICACIÓN', 'MAESTRO DE ARTICULOS'])
     with tabs[0]:
         from ui.gemelo import render as render_gemelo
@@ -368,10 +373,85 @@ if not _es_movil:
         from ui.maestro import render as render_maestro
         render_maestro()
 else:
-    tabs = st.tabs(['ESCANER DE CAMPO', 'ALTA DE MATERIAL'])
-    with tabs[0]:
-        from ui.escaner import render_escaner
-        render_escaner()
-    with tabs[1]:
+    _movil_page = st.query_params.get('page', 'escaner')
+
+    if _movil_page == 'alta':
         from ui.escaner import render_alta
         render_alta()
+    else:
+        from ui.escaner import render_escaner
+        render_escaner()
+
+    _components.html(f"""<script>
+(function(){{
+    var cur = '{_movil_page}';
+    var tok = '{_TOK_ACTIVO}';
+
+    // Actualizar activo si la barra ya existe
+    var existing = window.parent.document.getElementById('wms-bnav');
+    if (existing) {{
+        existing.querySelectorAll('button').forEach(function(b) {{
+            b.classList.toggle('active', b.dataset.page === cur);
+        }});
+        return;
+    }}
+
+    // Inyectar estilos una sola vez
+    var s = window.parent.document.createElement('style');
+    s.id = 'wms-bnav-style';
+    s.textContent = `
+        #wms-bnav {{
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            z-index: 9999;
+            background: #213448;
+            border-top: 1px solid rgba(84,119,146,0.45);
+            display: flex;
+            padding: 6px 12px env(safe-area-inset-bottom, 8px);
+            gap: 8px;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.4);
+        }}
+        #wms-bnav button {{
+            flex: 1;
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 10px;
+            color: #94B4C1;
+            font-size: 13px;
+            font-weight: 700;
+            padding: 12px 4px;
+            cursor: pointer;
+            letter-spacing: 0.8px;
+            transition: background 0.15s, color 0.15s, border-color 0.15s;
+        }}
+        #wms-bnav button.active {{
+            background: rgba(84,119,146,0.22);
+            border-color: #547792;
+            color: #EAE0CF;
+        }}
+        .main .block-container {{
+            padding-bottom: 90px !important;
+        }}
+    `;
+    window.parent.document.head.appendChild(s);
+
+    // Crear barra
+    var nav = window.parent.document.createElement('div');
+    nav.id = 'wms-bnav';
+    ['escaner', 'alta'].forEach(function(page) {{
+        var b = window.parent.document.createElement('button');
+        b.dataset.page = page;
+        b.textContent = page === 'escaner' ? 'ESCÁNER' : 'ALTA';
+        if (page === cur) b.classList.add('active');
+        b.onclick = function() {{
+            var p = new URLSearchParams();
+            p.set('_s', tok);
+            p.set('movil', '1');
+            p.set('page', page);
+            window.parent.location.search = '?' + p.toString();
+        }};
+        nav.appendChild(b);
+    }});
+    window.parent.document.body.appendChild(nav);
+}})();
+</script>""", height=0)
