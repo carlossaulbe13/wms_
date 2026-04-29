@@ -3,16 +3,25 @@ ui/empleados.py — Alta y gestión de empleados.
 Solo accesible para rol admin.
 """
 import datetime
+import hashlib
 import streamlit as st
 from config import HONORIFICOS, PERMISOS_DISPONIBLES
 from firebase import cargar_empleados, guardar_empleado, eliminar_empleado
 
 _ROLES = ["operador", "admin"]
 
-_PUESTOS_SUGERIDOS = [
-    "Jefe de Almacén", "Auxiliar de Almacén", "Operador Logístico",
-    "Supervisor", "Coordinador", "Gerente", "Analista", "Técnico",
-]
+
+def _hash_pwd(pwd: str) -> str:
+    return hashlib.sha256(pwd.encode()).hexdigest()
+
+
+def _key_para_empleado(uid_clean: str, nombre_clean: str) -> str:
+    """Genera la clave Firebase: UID si hay, si no timestamp+nombre."""
+    if uid_clean:
+        return uid_clean.replace(":", "_").upper()
+    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    safe_nom = nombre_clean[:12].replace(" ", "_").upper()
+    return f"EMP_{ts}_{safe_nom}"
 
 
 def render():
@@ -34,18 +43,29 @@ def render():
 
             c3, c4 = st.columns(2)
             with c3:
-                puesto = st.text_input(
-                    "Puesto", placeholder="Ej: Jefe de Almacén", key="emp_puesto"
-                )
+                puesto = st.text_input("Puesto", placeholder="Ej: Jefe de Almacén", key="emp_puesto")
             with c4:
                 rol = st.selectbox("Rol en el sistema", _ROLES, key="emp_rol")
 
             uid_rfid = st.text_input(
-                "UID de tarjeta RFID",
+                "UID de tarjeta RFID (opcional)",
                 placeholder="Ej: A1:B2:C3:D4",
-                help="Escribe el UID tal como aparece en el lector (separado por ':')",
+                help="Déjalo vacío si el empleado no tiene tarjeta RFID.",
                 key="emp_uid",
             )
+
+            st.markdown(
+                "<div style='color:#94B4C1;font-size:12px;margin:8px 0 4px;'>"
+                "Contraseña de acceso alternativa (opcional)</div>",
+                unsafe_allow_html=True,
+            )
+            cp1, cp2 = st.columns(2)
+            with cp1:
+                pwd1 = st.text_input("Contraseña", type="password",
+                                     placeholder="Mín. 6 caracteres", key="emp_pwd1")
+            with cp2:
+                pwd2 = st.text_input("Confirmar contraseña", type="password",
+                                     placeholder="Repite la contraseña", key="emp_pwd2")
 
             permisos = st.multiselect(
                 "Permisos",
@@ -56,14 +76,23 @@ def render():
 
             submitted = st.form_submit_button("Registrar empleado", use_container_width=True)
             if submitted:
-                uid_clean = uid_rfid.strip().upper()
+                uid_clean    = uid_rfid.strip().upper()
                 nombre_clean = nombre.strip()
                 puesto_clean = puesto.strip()
+                pwd1_clean   = pwd1.strip()
+                pwd2_clean   = pwd2.strip()
+
+                # Validaciones
                 if not nombre_clean:
                     st.error("El nombre es obligatorio.")
-                elif not uid_clean:
-                    st.error("El UID RFID es obligatorio.")
+                elif not uid_clean and not pwd1_clean:
+                    st.error("Debes proporcionar al menos un UID RFID o una contraseña.")
+                elif pwd1_clean and pwd1_clean != pwd2_clean:
+                    st.error("Las contraseñas no coinciden.")
+                elif pwd1_clean and len(pwd1_clean) < 6:
+                    st.error("La contraseña debe tener al menos 6 caracteres.")
                 else:
+                    key = _key_para_empleado(uid_clean, nombre_clean)
                     datos = {
                         "nombre":     nombre_clean,
                         "honorifico": honorifico if honorifico != "(ninguno)" else "",
@@ -74,12 +103,24 @@ def render():
                         "activo":     True,
                         "fecha_alta": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
                     }
-                    ok = guardar_empleado(uid_clean, datos)
+                    if pwd1_clean:
+                        datos["password_hash"] = _hash_pwd(pwd1_clean)
+
+                    # Guardar con key explícita (no depende de uid_rfid)
+                    from firebase import EMPLEADOS_URL
+                    import requests
+                    url = EMPLEADOS_URL.replace("empleados.json", f"empleados/{key}.json")
+                    try:
+                        res = requests.put(url, json=datos, timeout=5)
+                        ok = res.status_code in (200, 204)
+                    except Exception:
+                        ok = False
+
                     if ok:
                         st.success(f"Empleado '{nombre_clean}' registrado correctamente.")
                         st.rerun()
                     else:
-                        st.error("Error al guardar en Firebase. Intenta de nuevo.")
+                        st.error("Error al guardar en Firebase. Verifica la conexión.")
 
     if not empleados:
         st.info("No hay empleados registrados aún.")
@@ -94,16 +135,23 @@ def render():
 
     # ── Lista de empleados ────────────────────────────────────
     for key, emp in empleados.items():
-        hon  = emp.get("honorifico", "")
-        nom  = emp.get("nombre", "—")
-        pues = emp.get("puesto", "—")
-        rol  = emp.get("rol", "operador")
-        uid  = emp.get("uid_rfid", "—")
+        hon   = emp.get("honorifico", "")
+        nom   = emp.get("nombre", "—")
+        pues  = emp.get("puesto", "—")
+        rol   = emp.get("rol", "operador")
+        uid   = emp.get("uid_rfid", "") or "—"
         perms = emp.get("permisos", [])
         fecha = emp.get("fecha_alta", "—")
+        tiene_pwd = bool(emp.get("password_hash"))
 
         nombre_display = f"{hon} {nom}".strip() if hon else nom
         rol_color = "#94B4C1" if rol == "admin" else "#547792"
+
+        acceso_tags = ""
+        if uid != "—":
+            acceso_tags += "<span style='background:rgba(84,119,146,0.25);color:#94B4C1;font-size:11px;padding:2px 8px;border-radius:4px;'>RFID</span> "
+        if tiene_pwd:
+            acceso_tags += "<span style='background:rgba(84,119,146,0.25);color:#94B4C1;font-size:11px;padding:2px 8px;border-radius:4px;'>Contraseña</span>"
 
         with st.container():
             st.markdown(
@@ -121,6 +169,7 @@ def render():
                 f"<div style='color:#547792;font-size:12px;margin-top:6px;'>"
                 f"UID: <code style='color:#94B4C1;'>{uid}</code> &nbsp;·&nbsp; Alta: {fecha}"
                 f"</div>"
+                f"<div style='margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;'>{acceso_tags}</div>"
                 f"<div style='margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;'>"
                 + "".join(
                     f"<span style='background:rgba(84,119,146,0.2);color:#94B4C1;"
@@ -131,7 +180,7 @@ def render():
                 unsafe_allow_html=True,
             )
 
-            col_edit, col_del = st.columns([5, 1])
+            _, col_del = st.columns([5, 1])
             with col_del:
                 if st.button("Eliminar", key=f"del_{key}", type="secondary", use_container_width=True):
                     st.session_state[f"_confirm_del_{key}"] = True
@@ -141,7 +190,18 @@ def render():
                 ca, cb = st.columns(2)
                 with ca:
                     if st.button("Sí, eliminar", key=f"del_ok_{key}", type="primary", use_container_width=True):
-                        eliminar_empleado(uid)
+                        uid_val = emp.get("uid_rfid", "")
+                        if uid_val:
+                            eliminar_empleado(uid_val)
+                        else:
+                            # Eliminar por key directamente
+                            from firebase import EMPLEADOS_URL
+                            import requests
+                            url = EMPLEADOS_URL.replace("empleados.json", f"empleados/{key}.json")
+                            try:
+                                requests.delete(url, timeout=5)
+                            except Exception:
+                                pass
                         st.session_state.pop(f"_confirm_del_{key}", None)
                         st.rerun()
                 with cb:
