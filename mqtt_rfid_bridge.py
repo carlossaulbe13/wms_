@@ -27,7 +27,7 @@ import requests
 import paho.mqtt.client as mqtt
 from config import MQTT_HOST, MQTT_PORT, MQTT_USER, MQTT_PASS, MQTT_TOPIC_RFID, RFID_URL
 
-RFID_JSON_PATH = "rfid_uid.json"
+RFID_JSON_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rfid_uid.json")
 
 logging.basicConfig(
     level=logging.INFO,
