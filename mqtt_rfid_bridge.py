@@ -23,8 +23,9 @@ import os
 
 sys.path.insert(0, os.path.dirname(__file__))
 
+import requests
 import paho.mqtt.client as mqtt
-from config import MQTT_HOST, MQTT_PORT, MQTT_USER, MQTT_PASS, MQTT_TOPIC_RFID
+from config import MQTT_HOST, MQTT_PORT, MQTT_USER, MQTT_PASS, MQTT_TOPIC_RFID, RFID_URL
 
 RFID_JSON_PATH = "rfid_uid.json"
 
@@ -81,6 +82,13 @@ def _on_message(client, userdata, msg):
         log.info("UID recibido y escrito: %s", uid)
     except Exception as e:
         log.error("Error escribiendo %s: %s", RFID_JSON_PATH, e)
+
+    try:
+        payload = {"uid": uid, "ts": int(time.time())}
+        requests.put(RFID_URL, json=payload, timeout=4)
+        log.info("UID enviado a Firebase: %s", uid)
+    except Exception as e:
+        log.warning("Firebase write fallido (no critico): %s", e)
 
 
 def main():
