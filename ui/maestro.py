@@ -5,11 +5,31 @@ import os
 import streamlit as st
 import pandas as pd
 import requests
-from config import TIPOS_EMBALAJE, HISTORIAL_URL, RACK_A_FILA
+import re
+from config import (TIPOS_EMBALAJE, HISTORIAL_URL, RACK_A_FILA,
+                    PESO_SOBRE, ALTO_MAX_N3, CARGA_MAX_NIVEL)
 from firebase import (cargar_db, guardar_db, registrar_movimiento,
                       dar_de_baja_pallet, eliminar_pallet,
                       eliminar_pallets, vaciar_inventario)
-from logica import registrar_pallet
+from logica import (registrar_pallet, obtener_coordenada_libre,
+                    nivel_acepta_altura, peso_en_nivel)
+
+_EMBALAJE_DIMS = {
+    "americano":  (1.219, 1.016),
+    "europeo":    (1.200, 0.800),
+    "industrial": (1.200, 1.000),
+    "semilla":    (1.200, 1.200),
+}
+_RACKS_NORM = ["RACK_1", "RACK_2", "RACK_3", "RACK_4"]
+
+def _vol(embalaje: str, embalaje_obs: str, alto_m: float) -> float:
+    for key, (l, a) in _EMBALAJE_DIMS.items():
+        if key in embalaje.lower():
+            return round(l * a * alto_m, 4)
+    m = re.search(r'L:([\d.]+)cm.*?A:([\d.]+)cm', embalaje_obs or '')
+    if m:
+        return round((float(m.group(1)) / 100) * (float(m.group(2)) / 100) * alto_m, 4)
+    return 0.0
 
 def render():
     """Renderiza el maestro de articulos."""
@@ -142,38 +162,97 @@ def render():
                         nuevo_sku    = st.text_input("SKU BASE", value=datos.get('sku_base', ''), key="e_sku")
                         nuevo_nombre = st.text_input("NOMBRE",   value=datos.get('nombre', ''),   key="e_nom")
                     with ed2:
-                        nueva_cant   = st.number_input("PIEZAS", min_value=1,
-                                                       value=int(datos.get('cantidad', 1)), key="e_cant")
-                        nuevo_peso   = st.number_input("PESO (KG)", min_value=0.0,
-                                                       value=float(datos.get('peso', 0.0)), key="e_peso")
+                        nueva_cant  = st.number_input("PIEZAS", min_value=1,
+                                                      value=int(datos.get('cantidad', 1)), key="e_cant")
+                        nuevo_peso  = st.number_input("PESO (KG)", min_value=0.0,
+                                                      value=float(datos.get('peso', 0.0)), key="e_peso")
+                        nuevo_alto_cm = st.number_input(
+                            "ALTO (CM)", min_value=0.0, step=1.0,
+                            value=round(float(datos.get('alto_m', 0.0)) * 100, 1),
+                            key="e_alto",
+                            help="Modifica si se equivocó al registrar. Puede reasignar el artículo.",
+                        )
                     with ed3:
                         nuevo_estado = st.selectbox("ESTADO", ["ACTIVO", "CONGELADO"],
                                                     index=0 if datos.get('estado') == "ACTIVO" else 1,
                                                     key="e_estado")
-                        nuevo_vol    = st.number_input("VOLUMEN (M3)", min_value=0.0,
-                                                       value=float(datos.get('volumen', 0.0)),
-                                                       step=0.1, key="e_vol")
                         nuevo_stock_min = st.number_input("STOCK MINIMO (pzas)", min_value=0,
                                                           value=int(datos.get('stock_minimo', 0)),
                                                           key="e_smin",
                                                           help="Alerta cuando la cantidad baje de este valor. 0 = sin alerta.")
+                        _nuevo_alto_m = nuevo_alto_cm / 100.0
+                        _vol_calc = _vol(datos.get('embalaje', ''), datos.get('embalaje_obs', ''), _nuevo_alto_m)
+                        st.metric("VOLUMEN (M3)", f"{_vol_calc:.4f}",
+                                  help="Calculado: largo × ancho del embalaje × alto editado.")
 
-                    rack_actual = datos.get('rack', 'RACK_1')
+                    rack_actual  = datos.get('rack', 'RACK_1')
+                    piso_actual  = datos.get('piso', 1)
+                    nivel_actual = int(datos.get('fila', 1))
 
                     ba1, ba2, ba3 = st.columns(3)
                     with ba1:
                         if st.button("GUARDAR CAMBIOS", use_container_width=True):
-                            db_actual[uid_sel].update({
+                            _alto_m_new = nuevo_alto_cm / 100.0
+                            _vol_new    = _vol(datos.get('embalaje', ''), datos.get('embalaje_obs', ''), _alto_m_new)
+
+                            # ── Verificar si hay que reasignar ────────────────
+                            _forzar_sobre = _alto_m_new > ALTO_MAX_N3 or nuevo_peso > PESO_SOBRE
+                            _needs_reasig = False
+
+                            if _forzar_sobre and rack_actual != "RACK_5":
+                                _needs_reasig = True
+                            elif not _forzar_sobre and rack_actual == "RACK_5":
+                                _needs_reasig = True
+                            elif not _forzar_sobre:
+                                if not nivel_acepta_altura(nivel_actual, _alto_m_new):
+                                    _needs_reasig = True
+                                else:
+                                    _peso_nivel = peso_en_nivel(db_actual, rack_actual, piso_actual, nivel_actual)
+                                    _peso_sin   = _peso_nivel - float(datos.get('peso', 0))
+                                    if _peso_sin + nuevo_peso > CARGA_MAX_NIVEL:
+                                        _needs_reasig = True
+
+                            _updates = {
                                 'sku_base': nuevo_sku, 'nombre': nuevo_nombre,
                                 'cantidad': nueva_cant, 'estado': nuevo_estado,
-                                'peso': nuevo_peso, 'volumen': nuevo_vol,
-                                'stock_minimo': nuevo_stock_min
-                            })
-                            guardar_db(db_actual)
-                            registrar_movimiento('EDICION', uid_sel,
-                                f"SKU: {nuevo_sku} | Estado: {nuevo_estado} | Peso: {nuevo_peso}kg")
-                            st.success("Cambios guardados.")
-                            st.rerun()
+                                'peso': nuevo_peso, 'alto_m': round(_alto_m_new, 2),
+                                'volumen': _vol_new, 'stock_minimo': nuevo_stock_min,
+                            }
+
+                            if _needs_reasig:
+                                _db_temp = {k: v for k, v in db_actual.items() if k != uid_sel}
+                                _racks_try = ["RACK_5"] if _forzar_sobre else _RACKS_NORM + ["RACK_5"]
+                                _nr = _np = _nn = _nc = None
+                                for _rack in _racks_try:
+                                    _np, _nn, _nc = obtener_coordenada_libre(
+                                        _db_temp, _rack, peso_nuevo=nuevo_peso, alto_m=_alto_m_new)
+                                    if _np is not None:
+                                        _nr = _rack
+                                        break
+                                if _nr is None:
+                                    st.error("Sin espacio para reasignar con las nuevas dimensiones.")
+                                else:
+                                    _updates.update({'rack': _nr, 'piso': _np, 'fila': _nn, 'columna': _nc})
+                                    db_actual[uid_sel].update(_updates)
+                                    guardar_db(db_actual)
+                                    registrar_movimiento('EDICION', uid_sel,
+                                        f"SKU:{nuevo_sku} | Alto:{nuevo_alto_cm:.0f}cm | Peso:{nuevo_peso}kg"
+                                        f" | Reasignado {rack_actual}→{_nr} P{_np}N{_nn}C{_nc}")
+                                    _f_ant = RACK_A_FILA.get(rack_actual, rack_actual)
+                                    _f_nue = RACK_A_FILA.get(_nr, _nr)
+                                    st.warning(
+                                        f"Artículo reasignado: {_f_ant} → {_f_nue} | "
+                                        f"Piso {_np} · Nivel {_nn} · Col {_nc}"
+                                    )
+                                    st.rerun()
+                            else:
+                                db_actual[uid_sel].update(_updates)
+                                guardar_db(db_actual)
+                                registrar_movimiento('EDICION', uid_sel,
+                                    f"SKU:{nuevo_sku} | Estado:{nuevo_estado} | "
+                                    f"Peso:{nuevo_peso}kg | Alto:{nuevo_alto_cm:.0f}cm")
+                                st.success("Cambios guardados.")
+                                st.rerun()
                     with ba2:
                         if st.button("DAR DE BAJA", use_container_width=True):
                             _nom_b = datos.get('nombre', '')
