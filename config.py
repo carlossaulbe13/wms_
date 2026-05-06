@@ -100,6 +100,11 @@ MQTT_USER     = get_secret("MQTT_USER",     "umad_wms1")
 MQTT_PASS     = get_secret("MQTT_PASS",     "Logistica1")
 MQTT_TOPIC_RFID = get_secret("MQTT_TOPIC_RFID", "wms/rfid")
 
+# ── Firebase Auth (REST API) ─────────────────────────────────
+FIREBASE_API_KEY    = get_secret("FIREBASE_API_KEY",    "AIzaSyB01msXsi4da_xPtXyHnr6oSYtYUtvbXYA")
+FIREBASE_AUTH_EMAIL = get_secret("FIREBASE_AUTH_EMAIL", "esp32@umad-wms.com")
+FIREBASE_AUTH_PASS  = get_secret("FIREBASE_AUTH_PASS",  "135700/Esp32")
+
 # ── Tokens de sesion ─────────────────────────────────────────
 import hashlib
 TOKEN_OPERADOR = hashlib.sha256(PASSWORD_ACCESO.encode()).hexdigest()[:16] + '_operador'
