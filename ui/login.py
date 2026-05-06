@@ -290,15 +290,15 @@ def pantalla_login(token_secreto, token_admin_pwd):
         # ── Bloque 1: título + avatar ──────────────────────────
         st.markdown(
             "<div style='text-align:center;margin-top:6vh;margin-bottom:16px;'>"
-            "<span style='color:#E5E5EA;font-size:20px;font-weight:700;"
-            "letter-spacing:3px;'>WAREHOUSE MANAGEMENT SYSTEM</span>"
+            "<span style='color:#E5E5EA;font-size:16px;font-weight:600;"
+            "letter-spacing:2.5px;'>WAREHOUSE MANAGEMENT SYSTEM</span>"
             "</div>",
             unsafe_allow_html=True,
         )
 
         st.markdown(
             f"<div class='login-card' style='display:flex;align-items:center;"
-            f"justify-content:center;padding:24px;margin-bottom:0;'>"
+            f"justify-content:center;padding:24px;aspect-ratio:1/1;margin-bottom:20px;'>"
             f"<div class='{_anim_class}' style='width:88px;height:88px;background:#111113;"
             f"border:2px solid #2C2C2E;border-radius:50%;"
             f"display:flex;align-items:center;justify-content:center;"
@@ -308,12 +308,6 @@ def pantalla_login(token_secreto, token_admin_pwd):
             f"</div>",
             unsafe_allow_html=True,
         )
-
-        # ── Espaciado entre bloques ────────────────────────────
-        st.markdown("<div style='height:20px;'></div>", unsafe_allow_html=True)
-
-        # ── Bloque 2: formulario / bienvenida ──────────────────
-        st.markdown("<div class='login-card'>", unsafe_allow_html=True)
 
         if _show_glow:
             # ── Pantalla de bienvenida (RFID o contraseña) ────
@@ -383,5 +377,3 @@ def pantalla_login(token_secreto, token_admin_pwd):
                             st.session_state._pwd_error         = "Contraseña incorrecta"
                             st.rerun()
 
-        # Cierre del div card
-        st.markdown("</div>", unsafe_allow_html=True)
