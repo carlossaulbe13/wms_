@@ -188,11 +188,16 @@ def leer_uid_cloud():
         if not data or not isinstance(data, dict):
             return None
         uid = data.get('uid', '').strip().upper()
+        ts  = data.get('ts', 0)
         if not uid:
+            return None
+        # Descartar UIDs con más de 4 segundos — evita reprocesar lecturas
+        # antiguas tras un logout (session_state se limpia pero Firebase no)
+        if (time.time() - ts) >= 4:
             return None
         last_uid = st.session_state.get('_rfid_last_uid', '')
         last_ts  = st.session_state.get('_rfid_last_ts', 0)
-        if uid == last_uid and (time.time() - last_ts) < 8:
+        if uid == last_uid and (time.time() - last_ts) < 4:
             return None
         st.session_state['_rfid_last_uid'] = uid
         st.session_state['_rfid_last_ts']  = time.time()
@@ -230,9 +235,15 @@ def pantalla_login(token_secreto, token_admin_pwd):
     _pwd_error = st.session_state.pop('_pwd_error', None)
 
     if _pwd_glow:
-        # Aplicar la autenticación pendiente ahora (sin rerun)
-        # Mismo patrón que RFID: autenticado=True en este render,
-        # el autorefresh (2s) navega al app principal.
+        # Fase 1: mostrar glow pero NO aplicar auth todavía.
+        # El form submit dispara un rerun inmediato; si aplicáramos auth aquí,
+        # query_params lanzaría otro rerun y la animación sería invisible.
+        # Guardamos la bandera para que el autorefresh (~2s) aplique auth en fase 2.
+        st.session_state['_pwd_glow_phase2'] = True
+    elif st.session_state.get('_pwd_glow_phase2'):
+        # Fase 2 (autorefresh ~2s después): ahora sí aplicar auth y navegar.
+        _pwd_glow = True
+        st.session_state.pop('_pwd_glow_phase2', None)
         _auth = st.session_state.pop('_pwd_glow_auth', {})
         for _k, _v in _auth.items():
             st.session_state[_k] = _v
