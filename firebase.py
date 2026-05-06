@@ -2,10 +2,39 @@
 firebase.py — Operaciones con Firebase Realtime Database.
 Usa cache de session_state para minimizar llamadas HTTP.
 """
+import time
 import requests
 import datetime
 import streamlit as st
-from config import FIREBASE_URL, HISTORIAL_URL, RFID_URL, SENSORES_URL, EMPLEADOS_URL
+from config import (FIREBASE_URL, HISTORIAL_URL, RFID_URL, SENSORES_URL, EMPLEADOS_URL,
+                    FIREBASE_API_KEY, FIREBASE_AUTH_EMAIL, FIREBASE_AUTH_PASS)
+
+# ── Firebase Auth token (cacheado en memoria, expira en ~1 h) ─
+_tok: dict = {"id": "", "exp": 0}
+
+def _get_token() -> str:
+    if time.time() < _tok["exp"] - 60:
+        return _tok["id"]
+    try:
+        r = requests.post(
+            f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={FIREBASE_API_KEY}",
+            json={"email": FIREBASE_AUTH_EMAIL, "password": FIREBASE_AUTH_PASS, "returnSecureToken": True},
+            timeout=6,
+        )
+        d = r.json()
+        _tok["id"]  = d.get("idToken", "")
+        _tok["exp"] = time.time() + int(d.get("expiresIn", 3600))
+    except Exception:
+        pass
+    return _tok["id"]
+
+def _au(url: str) -> str:
+    """Agrega ?auth=<id_token> a una URL de Firebase RTDB."""
+    tok = _get_token()
+    if not tok:
+        return url
+    sep = "&" if "?" in url else "?"
+    return f"{url}{sep}auth={tok}"
 
 # ── Base de datos principal ───────────────────────────────────
 
@@ -13,7 +42,7 @@ from config import FIREBASE_URL, HISTORIAL_URL, RFID_URL, SENSORES_URL, EMPLEADO
 def _fetch_firebase():
     """Llamada real a Firebase. Cacheada 4 segundos por st.cache_data."""
     try:
-        res = requests.get(FIREBASE_URL, timeout=5)
+        res = requests.get(_au(FIREBASE_URL), timeout=5)
         if res.status_code == 200 and res.json() is not None:
             return res.json()
     except Exception:
@@ -39,7 +68,7 @@ def _nodo_url(uid: str) -> str:
 def guardar_db(db):
     """Escribe en Firebase y actualiza ambos caches."""
     try:
-        res = requests.put(FIREBASE_URL, json=db, timeout=5)
+        res = requests.put(_au(FIREBASE_URL), json=db, timeout=5)
         if res.status_code not in (200, 204):
             st.error(f"Firebase rechazó la escritura: {res.status_code} — {res.text[:200]}")
             return
@@ -56,7 +85,7 @@ def dar_de_baja_pallet(uid: str) -> bool:
         'fecha_baja': _dt.datetime.now().strftime('%Y-%m-%d %H:%M'),
     }
     try:
-        res = requests.patch(_nodo_url(uid), json=payload, timeout=5)
+        res = requests.patch(_au(_nodo_url(uid)), json=payload, timeout=5)
         if res.status_code not in (200, 204):
             st.error(f"Firebase rechazó la baja: {res.status_code} — {res.text[:200]}")
             return False
@@ -74,7 +103,7 @@ def dar_de_baja_pallet(uid: str) -> bool:
 def eliminar_pallet(uid: str) -> bool:
     """PATCH con null sobre el nodo individual — más compatible que DELETE."""
     try:
-        res = requests.patch(FIREBASE_URL, json={uid: None}, timeout=5)
+        res = requests.patch(_au(FIREBASE_URL), json={uid: None}, timeout=5)
         if res.status_code not in (200, 204):
             st.error(f"Firebase rechazó la eliminación: {res.status_code} — {res.text[:200]}")
             return False
@@ -93,7 +122,7 @@ def eliminar_pallets(uids: list) -> int:
         return 0
     payload = {uid: None for uid in uids}
     try:
-        res = requests.patch(FIREBASE_URL, json=payload, timeout=10)
+        res = requests.patch(_au(FIREBASE_URL), json=payload, timeout=10)
         if res.status_code not in (200, 204):
             st.error(f"Firebase rechazó la eliminación masiva: {res.status_code} — {res.text[:200]}")
             return 0
@@ -110,7 +139,7 @@ def eliminar_pallets(uids: list) -> int:
 def vaciar_inventario() -> bool:
     """Borra TODOS los pallets escribiendo null en la raíz del nodo."""
     try:
-        res = requests.put(FIREBASE_URL, json=None, timeout=10)
+        res = requests.put(_au(FIREBASE_URL), json=None, timeout=10)
         if res.status_code not in (200, 204):
             st.error(f"Firebase rechazó vaciar inventario: {res.status_code} — {res.text[:200]}")
             return False
@@ -126,7 +155,7 @@ def vaciar_inventario() -> bool:
 def registrar_movimiento(accion, uid, detalle='', rol=None):
     """Guarda un evento en /historial. No bloquea si falla."""
     try:
-        res = requests.get(HISTORIAL_URL, timeout=5)
+        res = requests.get(_au(HISTORIAL_URL), timeout=5)
         historial = res.json() if res.status_code == 200 and res.json() else {}
         ts  = datetime.datetime.now()
         key = ts.strftime('%Y%m%d_%H%M%S_') + uid[:8].replace('-', '_')
@@ -137,14 +166,14 @@ def registrar_movimiento(accion, uid, detalle='', rol=None):
             'rol':       rol or st.session_state.get('rol', 'operador'),
             'timestamp': ts.strftime('%Y-%m-%d %H:%M:%S'),
         }
-        requests.put(HISTORIAL_URL, json=historial, timeout=5)
+        requests.put(_au(HISTORIAL_URL), json=historial, timeout=5)
     except Exception:
         pass
 
 def cargar_historial():
     """Lee el historial completo de Firebase."""
     try:
-        res = requests.get(HISTORIAL_URL, timeout=5)
+        res = requests.get(_au(HISTORIAL_URL), timeout=5)
         return res.json() if res.status_code == 200 and res.json() else {}
     except Exception:
         return {}
@@ -152,7 +181,7 @@ def cargar_historial():
 def limpiar_historial():
     """Borra todo el historial."""
     try:
-        requests.put(HISTORIAL_URL, json={}, timeout=5)
+        requests.put(_au(HISTORIAL_URL), json={}, timeout=5)
     except Exception:
         pass
 
@@ -183,7 +212,7 @@ def _uid_a_key(uid_rfid: str) -> str:
 def cargar_empleados() -> dict:
     """Lee /empleados. Retorna {uid_key: {...}}."""
     try:
-        res = requests.get(EMPLEADOS_URL, timeout=5)
+        res = requests.get(_au(EMPLEADOS_URL), timeout=5)
         data = res.json() if res.status_code == 200 else None
         return data if isinstance(data, dict) else {}
     except Exception:
@@ -194,7 +223,16 @@ def guardar_empleado(uid_rfid: str, datos: dict) -> bool:
     key = _uid_a_key(uid_rfid)
     url = EMPLEADOS_URL.replace("empleados.json", f"empleados/{key}.json")
     try:
-        res = requests.put(url, json=datos, timeout=5)
+        res = requests.put(_au(url), json=datos, timeout=5)
+        return res.status_code in (200, 204)
+    except Exception:
+        return False
+
+def guardar_empleado_key(key: str, datos: dict) -> bool:
+    """PUT en /empleados/{key} con key ya generada. Retorna True si OK."""
+    url = EMPLEADOS_URL.replace("empleados.json", f"empleados/{key}.json")
+    try:
+        res = requests.put(_au(url), json=datos, timeout=5)
         return res.status_code in (200, 204)
     except Exception:
         return False
@@ -204,7 +242,16 @@ def eliminar_empleado(uid_rfid: str) -> bool:
     key = _uid_a_key(uid_rfid)
     url = EMPLEADOS_URL.replace("empleados.json", f"empleados/{key}.json")
     try:
-        res = requests.delete(url, timeout=5)
+        res = requests.delete(_au(url), timeout=5)
+        return res.status_code in (200, 204)
+    except Exception:
+        return False
+
+def eliminar_empleado_key(key: str) -> bool:
+    """DELETE en /empleados/{key} con key ya conocida."""
+    url = EMPLEADOS_URL.replace("empleados.json", f"empleados/{key}.json")
+    try:
+        res = requests.delete(_au(url), timeout=5)
         return res.status_code in (200, 204)
     except Exception:
         return False
