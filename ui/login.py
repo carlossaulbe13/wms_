@@ -53,9 +53,10 @@ footer, #MainMenu { display: none !important; }
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
     border: 1px solid rgba(72, 72, 74, 0.55);
-    border-radius: 24px;
-    padding: 56px 48px 48px 48px;
-    margin: 0 auto 0 auto;
+    border-radius: 20px;
+    padding: 28px 28px 32px 28px;
+    width: 100%;
+    box-sizing: border-box;
     box-shadow: 0 16px 48px rgba(0,0,0,0.6);
 }
 
@@ -266,43 +267,41 @@ def pantalla_login(token_secreto, token_admin_pwd):
     _show_shake = not _show_glow and (_rfid_shake or _pwd_shake)
     _anim_class = "avatar-glow" if _show_glow else ("avatar-shake" if _show_shake else "")
 
-    # ── 4. Layout ──────────────────────────────────────────────
-    _, col, _ = st.columns([1.2, 1, 1.2])
+    # ── 4. Status dots fijos (esquina inferior izquierda) ────────
+    _fb_ok, _mq_ok = _check_sistemas()
+    st.markdown(
+        f"<div style='position:fixed;bottom:20px;left:20px;display:flex;"
+        f"align-items:center;gap:14px;z-index:9999;'>"
+        f"  <div style='display:flex;align-items:center;gap:5px;'>"
+        f"    {_dot(_fb_ok)}"
+        f"    <span style='color:#48484A;font-size:10px;letter-spacing:0.4px;'>Firebase</span>"
+        f"  </div>"
+        f"  <div style='display:flex;align-items:center;gap:5px;'>"
+        f"    {_dot(_mq_ok)}"
+        f"    <span style='color:#48484A;font-size:10px;letter-spacing:0.4px;'>MQTT</span>"
+        f"  </div>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+    # ── 5. Layout ──────────────────────────────────────────────
+    _, col, _ = st.columns([2, 1, 2])
     with col:
         st.markdown(
-            "<div style='text-align:center;margin-top:6vh;margin-bottom:24px;'>"
+            "<div style='text-align:center;margin-top:6vh;margin-bottom:20px;'>"
             "<span style='color:#E5E5EA;font-size:14px;font-weight:600;"
             "letter-spacing:2.5px;'>WAREHOUSE MANAGEMENT SYSTEM</span>"
             "</div>",
             unsafe_allow_html=True,
         )
 
-        _fb_ok, _mq_ok = _check_sistemas()
-        _all_ok = _fb_ok and _mq_ok
-        _status_html = (
-            f"<div style='display:flex;justify-content:flex-end;align-items:center;"
-            f"gap:14px;margin-bottom:18px;'>"
-            f"  <div style='display:flex;align-items:center;gap:5px;'>"
-            f"    {_dot(_fb_ok)}"
-            f"    <span style='color:#48484A;font-size:10px;letter-spacing:0.4px;'>Firebase</span>"
-            f"  </div>"
-            f"  <div style='display:flex;align-items:center;gap:5px;'>"
-            f"    {_dot(_mq_ok)}"
-            f"    <span style='color:#48484A;font-size:10px;letter-spacing:0.4px;'>MQTT</span>"
-            f"  </div>"
-            f"</div>"
-        )
-
         st.markdown(
             f"<div class='login-card'>"
-            + _status_html
-            + f"<div style='text-align:center; margin-bottom:28px;'>"
-            f"  <div class='{_anim_class}' style='width:88px;height:88px;background:#1C1C1E;"
-            f"       border:2.5px solid #48484A;border-radius:50%;"
-            f"       margin:0 auto 0 auto;display:flex;align-items:center;"
-            f"       justify-content:center;box-shadow:0 6px 22px rgba(0,0,0,0.6);'>"
-            f"    {_AVATAR_SVG}"
-            f"  </div>"
+            f"<div class='{_anim_class}' style='width:100%;height:130px;background:#111113;"
+            f"border:2px solid #2C2C2E;border-radius:14px;margin-bottom:24px;"
+            f"display:flex;align-items:center;justify-content:center;"
+            f"box-shadow:0 4px 16px rgba(0,0,0,0.5);'>"
+            f"  {_AVATAR_SVG}"
             f"</div>",
             unsafe_allow_html=True,
         )
@@ -335,19 +334,7 @@ def pantalla_login(token_secreto, token_admin_pwd):
             )
 
         else:
-            # ── Indicador RFID + formulario ───────────────────
-            st.markdown(
-                "<div style='background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.3);"
-                "border-radius:10px;padding:12px 18px;"
-                "display:flex;align-items:center;gap:12px;'>"
-                "<div style='width:8px;height:8px;border-radius:50%;background:#F59E0B;"
-                "box-shadow:0 0 8px #F59E0B;flex-shrink:0;'></div>"
-                "<span style='color:#F59E0B;font-size:13px;'>Pasa tu tarjeta RFID para acceso rápido</span>"
-                "</div>"
-                "<div style='height:36px;'></div>",
-                unsafe_allow_html=True,
-            )
-
+            # ── Formulario ────────────────────────────────────
             if _rfid_err:
                 st.error(_rfid_err)
             if _pwd_error:
