@@ -3,11 +3,12 @@ ui/login.py — Login con diseño moderno
 """
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
-from config import UIDS_AUTORIZADOS, PASSWORD_ACCESO, PASSWORD_ADMIN
-import json, time, os, requests
+from config import UIDS_AUTORIZADOS, PASSWORD_ACCESO, PASSWORD_ADMIN, MQTT_HOST, MQTT_PORT
+import json, time, os, socket, requests
 
-RFID_JSON_PATH = "rfid_uid.json"
-ES_CLOUD = not os.path.exists('serial_rfid_bridge.py')
+_WMS_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+RFID_JSON_PATH = os.path.join(_WMS_ROOT, "rfid_uid.json")
+ES_CLOUD = not os.path.exists(os.path.join(_WMS_ROOT, 'serial_rfid_bridge.py'))
 
 _CSS = """
 <style>
@@ -127,6 +128,41 @@ _AVATAR_SVG = """
 </svg>
 """
 
+@st.cache_data(ttl=10, show_spinner=False)
+def _check_sistemas():
+    fb_ok = False
+    try:
+        r = requests.get(
+            "https://umad-wms-default-rtdb.firebaseio.com/.json?shallow=true",
+            timeout=3,
+        )
+        fb_ok = r.status_code in (200, 401, 403)
+    except Exception:
+        pass
+
+    mq_ok = False
+    try:
+        s = socket.create_connection((MQTT_HOST, MQTT_PORT), timeout=2)
+        s.close()
+        mq_ok = True
+    except Exception:
+        pass
+
+    return fb_ok, mq_ok
+
+
+def _dot(ok: bool) -> str:
+    color = "#22C55E"
+    glow  = "0 0 8px rgba(34,197,94,0.85)"
+    if not ok:
+        color = "#3A3A3C"
+        glow  = "none"
+    return (
+        f"<div style='width:7px;height:7px;border-radius:50%;"
+        f"background:{color};box-shadow:{glow};flex-shrink:0;'></div>"
+    )
+
+
 def leer_uid_local():
     try:
         if os.path.exists(RFID_JSON_PATH):
@@ -184,7 +220,7 @@ def _preparar_auth(token_secreto, token_admin_pwd, rol, empleado=None):
 
 
 def pantalla_login(token_secreto, token_admin_pwd):
-    st_autorefresh(interval=6000, key='login_refresh')
+    st_autorefresh(interval=2000, key='login_refresh')
     st.markdown(_CSS, unsafe_allow_html=True)
 
     # ── 1. Flags de animación de contraseña (leídos ANTES del render) ──
@@ -223,7 +259,7 @@ def pantalla_login(token_secreto, token_admin_pwd):
             st.query_params['_s']             = token_secreto + '_admin'
         else:
             _rfid_shake = True
-            _rfid_err = f"UID no autorizado: {uid}"
+            _rfid_err = "Acceso denegado"
 
     # ── 3. Clase de animación (RFID o contraseña) ──────────────
     _show_glow  = _rfid_glow or _pwd_glow
@@ -241,9 +277,26 @@ def pantalla_login(token_secreto, token_admin_pwd):
             unsafe_allow_html=True,
         )
 
+        _fb_ok, _mq_ok = _check_sistemas()
+        _all_ok = _fb_ok and _mq_ok
+        _status_html = (
+            f"<div style='display:flex;justify-content:flex-end;align-items:center;"
+            f"gap:14px;margin-bottom:18px;'>"
+            f"  <div style='display:flex;align-items:center;gap:5px;'>"
+            f"    {_dot(_fb_ok)}"
+            f"    <span style='color:#48484A;font-size:10px;letter-spacing:0.4px;'>Firebase</span>"
+            f"  </div>"
+            f"  <div style='display:flex;align-items:center;gap:5px;'>"
+            f"    {_dot(_mq_ok)}"
+            f"    <span style='color:#48484A;font-size:10px;letter-spacing:0.4px;'>MQTT</span>"
+            f"  </div>"
+            f"</div>"
+        )
+
         st.markdown(
             f"<div class='login-card'>"
-            f"<div style='text-align:center; margin-bottom:28px;'>"
+            + _status_html
+            + f"<div style='text-align:center; margin-bottom:28px;'>"
             f"  <div class='{_anim_class}' style='width:88px;height:88px;background:#1C1C1E;"
             f"       border:2.5px solid #48484A;border-radius:50%;"
             f"       margin:0 auto 0 auto;display:flex;align-items:center;"
