@@ -167,10 +167,24 @@ def render():
                     )
 
                     if es_admin:
+                        _embalaje_str    = datos.get('embalaje', '')
+                        _embalaje_obs    = datos.get('embalaje_obs', '') or ''
+                        _es_personalizado = "Personalizado" in _embalaje_str
+
+                        # Parsear largo/ancho actuales de embalaje_obs
+                        _m_dims = re.search(r'L:([\d.]+)cm.*?A:([\d.]+)cm', _embalaje_obs)
+                        _largo_actual = float(_m_dims.group(1)) if _m_dims else 100.0
+                        _ancho_actual = float(_m_dims.group(2)) if _m_dims else 80.0
+
                         ed1, ed2, ed3 = st.columns(3)
                         with ed1:
                             nuevo_sku    = st.text_input("SKU BASE", value=datos.get('sku_base', ''), key=f"e_sku_{uid_sel}")
                             nuevo_nombre = st.text_input("NOMBRE",   value=datos.get('nombre', ''),   key=f"e_nom_{uid_sel}")
+                            if _es_personalizado:
+                                nuevo_largo_cm = st.number_input("LARGO (CM)", min_value=0.0, step=1.0,
+                                                                 value=_largo_actual, key=f"e_largo_{uid_sel}")
+                                nuevo_ancho_cm = st.number_input("ANCHO (CM)", min_value=0.0, step=1.0,
+                                                                 value=_ancho_actual, key=f"e_ancho_{uid_sel}")
                         with ed2:
                             nueva_cant    = st.number_input("PIEZAS", min_value=1,
                                                             value=int(datos.get('cantidad', 1)), key=f"e_cant_{uid_sel}")
@@ -191,7 +205,14 @@ def render():
                                                               key=f"e_smin_{uid_sel}",
                                                               help="Alerta cuando la cantidad baje de este valor. 0 = sin alerta.")
                             _nuevo_alto_m = nuevo_alto_cm / 100.0
-                            _vol_calc = _vol(datos.get('embalaje', ''), datos.get('embalaje_obs', ''), _nuevo_alto_m)
+                            if _es_personalizado:
+                                _obs_vol = (f"L:{nuevo_largo_cm}cm x A:{nuevo_ancho_cm}cm"
+                                            f" x H:{nuevo_alto_cm}cm")
+                                _vol_calc = round(
+                                    (nuevo_largo_cm / 100) * (nuevo_ancho_cm / 100) * _nuevo_alto_m, 4)
+                            else:
+                                _obs_vol  = _embalaje_obs
+                                _vol_calc = _vol(_embalaje_str, _embalaje_obs, _nuevo_alto_m)
                             st.metric("VOLUMEN (M3)", f"{_vol_calc:.4f}",
                                       help="Calculado: largo × ancho del embalaje × alto editado.")
 
@@ -203,7 +224,7 @@ def render():
                         with ba1:
                             if st.button("GUARDAR CAMBIOS", use_container_width=True, type="primary"):
                                 _alto_m_new = nuevo_alto_cm / 100.0
-                                _vol_new    = _vol(datos.get('embalaje', ''), datos.get('embalaje_obs', ''), _alto_m_new)
+                                _vol_new    = _vol_calc  # ya calculado arriba con dims actualizadas
 
                                 _forzar_sobre = _alto_m_new > ALTO_MAX_N3 or nuevo_peso > PESO_SOBRE
                                 _needs_reasig = False
@@ -226,6 +247,7 @@ def render():
                                     'cantidad': nueva_cant, 'estado': nuevo_estado,
                                     'peso': nuevo_peso, 'alto_m': round(_alto_m_new, 2),
                                     'volumen': _vol_new, 'stock_minimo': nuevo_stock_min,
+                                    'embalaje_obs': _obs_vol,
                                 }
 
                                 if _needs_reasig:
