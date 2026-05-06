@@ -85,13 +85,15 @@ def render():
             if f_estado != "TODOS":
                 df_f = df_f[df_f["ESTADO"] == f_estado]
 
-            st.caption(f"{len(df_f)} de {len(df_full)} articulos")
+            st.caption(f"{len(df_f)} de {len(df_full)} artículos · Haz clic en una fila para ver el detalle")
 
-            st.dataframe(
+            df_f = df_f.reset_index(drop=True)
+            _ev = st.dataframe(
                 df_f,
                 use_container_width=True,
-                height=44 + len(df_f) * 36,
-                on_select="ignore",
+                height=min(44 + len(df_f) * 36, 400),
+                on_select="rerun",
+                selection_mode="multi-row",
                 column_config={
                     "MATRICULA (QR)": st.column_config.TextColumn("Matricula QR", width="medium"),
                     "NOMBRE":         st.column_config.TextColumn("Nombre",       width="large"),
@@ -110,186 +112,196 @@ def render():
                 hide_index=True,
             )
 
-            # ── Eliminación grupal (solo admin) ───────────────────
-            if _es_admin_m:
-                _opciones = list(df_f["MATRICULA (QR)"])
-                _sel_todo = st.checkbox("Seleccionar todos", key="sel_todo_chk")
-                _sel_mats = (
-                    _opciones if _sel_todo
-                    else st.multiselect(
-                        "Artículos a eliminar",
-                        options=_opciones,
-                        placeholder="Selecciona uno o más artículos...",
-                        key="sel_bulk_mats",
-                        label_visibility="collapsed",
+            _sel_idxs = _ev.selection.rows if _ev and hasattr(_ev, 'selection') else []
+            _sel_mats = [df_f.iloc[i]["MATRICULA (QR)"] for i in _sel_idxs if i < len(df_f)]
+
+            # ── Bulk delete (admin, 2+ filas) ─────────────────────
+            if _es_admin_m and len(_sel_mats) > 1:
+                st.divider()
+                _bc1, _bc2 = st.columns([3, 1])
+                with _bc1:
+                    st.warning(
+                        f"{len(_sel_mats)} artículo(s) seleccionados: "
+                        f"{', '.join(_sel_mats[:5])}{'...' if len(_sel_mats) > 5 else ''}"
                     )
-                )
-                if _sel_mats:
-                    _bc1, _bc2 = st.columns([3, 1])
-                    with _bc1:
-                        st.warning(f"{len(_sel_mats)} artículo(s) seleccionados: {', '.join(_sel_mats[:5])}{'...' if len(_sel_mats)>5 else ''}")
-                    with _bc2:
-                        if st.button(f"ELIMINAR {len(_sel_mats)} SELEC.", use_container_width=True, type="secondary"):
-                            _db_del = cargar_db()
-                            for _mat in _sel_mats:
-                                if _mat in _db_del:
-                                    registrar_movimiento('ELIMINACION', _mat,
-                                        f"{_db_del[_mat].get('nombre','')} | BAJA MASIVA")
-                                    del _db_del[_mat]
-                            guardar_db(_db_del)
-                            st.success(f"{len(_sel_mats)} artículo(s) eliminados permanentemente.")
-                            st.rerun()
+                with _bc2:
+                    if st.button(f"ELIMINAR {len(_sel_mats)} SELEC.", use_container_width=True, type="secondary"):
+                        _db_del = cargar_db()
+                        for _mat in _sel_mats:
+                            if _mat in _db_del:
+                                registrar_movimiento('ELIMINACION', _mat,
+                                    f"{_db_del[_mat].get('nombre','')} | BAJA MASIVA")
+                                del _db_del[_mat]
+                        guardar_db(_db_del)
+                        st.success(f"{len(_sel_mats)} artículo(s) eliminados permanentemente.")
+                        st.rerun()
 
-            st.divider()
+            # ── Drill-down: 1 fila seleccionada ──────────────────
+            elif len(_sel_mats) == 1:
+                uid_sel = _sel_mats[0]
+                if uid_sel in db_actual:
+                    datos    = db_actual[uid_sel]
+                    es_admin = st.session_state.get('rol') == 'admin'
 
-            # ── Seleccionar articulo para editar / dar de baja ────
-            st.markdown("##### Seleccionar articulo")
-            uid_sel = st.selectbox(
-                "Matricula QR",
-                options=["— selecciona —"] + list(db_actual.keys()),
-                key="sel_matricula"
-            )
+                    _rack_disp  = RACK_A_FILA.get(datos.get('rack', ''), datos.get('rack', '—'))
+                    _ubicacion  = (f"{_rack_disp} · Piso {datos.get('piso','—')} · "
+                                   f"Nivel {datos.get('fila','—')} · Col {datos.get('columna','—')}")
+                    _estado_col = '#22c55e' if datos.get('estado') == 'ACTIVO' else (
+                                  '#ef4444' if datos.get('estado') == 'BAJA' else '#f59e0b')
 
-            if uid_sel != "— selecciona —" and uid_sel in db_actual:
-                datos    = db_actual[uid_sel]
-                es_admin = st.session_state.get('rol') == 'admin'
+                    st.markdown(
+                        f"<div style='background:#1C1C1E;border:1px solid #3A3A3C;"
+                        f"border-radius:10px;padding:14px 18px;margin-top:12px;'>"
+                        f"<div style='display:flex;justify-content:space-between;align-items:flex-start;'>"
+                        f"<div>"
+                        f"<div style='color:#E5E5EA;font-size:16px;font-weight:700;'>"
+                        f"{datos.get('nombre','—')}</div>"
+                        f"<div style='color:#8892b0;font-size:12px;margin-top:3px;'>"
+                        f"{uid_sel} &nbsp;·&nbsp; {datos.get('sku_base','—')} &nbsp;·&nbsp; {_ubicacion}</div>"
+                        f"</div>"
+                        f"<span style='color:{_estado_col};font-size:11px;font-weight:700;"
+                        f"background:rgba(72,72,74,0.2);padding:3px 10px;border-radius:6px;'>"
+                        f"{datos.get('estado','ACTIVO')}</span>"
+                        f"</div></div>",
+                        unsafe_allow_html=True,
+                    )
 
-                st.markdown(f"**{uid_sel}** — {datos.get('nombre','')}")
+                    if es_admin:
+                        ed1, ed2, ed3 = st.columns(3)
+                        with ed1:
+                            nuevo_sku    = st.text_input("SKU BASE", value=datos.get('sku_base', ''), key=f"e_sku_{uid_sel}")
+                            nuevo_nombre = st.text_input("NOMBRE",   value=datos.get('nombre', ''),   key=f"e_nom_{uid_sel}")
+                        with ed2:
+                            nueva_cant    = st.number_input("PIEZAS", min_value=1,
+                                                            value=int(datos.get('cantidad', 1)), key=f"e_cant_{uid_sel}")
+                            nuevo_peso    = st.number_input("PESO (KG)", min_value=0.0,
+                                                            value=float(datos.get('peso', 0.0)), key=f"e_peso_{uid_sel}")
+                            nuevo_alto_cm = st.number_input(
+                                "ALTO (CM)", min_value=0.0, step=1.0,
+                                value=round(float(datos.get('alto_m', 0.0)) * 100, 1),
+                                key=f"e_alto_{uid_sel}",
+                                help="Modifica si se equivocó al registrar. Puede reasignar el artículo.",
+                            )
+                        with ed3:
+                            nuevo_estado    = st.selectbox("ESTADO", ["ACTIVO", "CONGELADO"],
+                                                           index=0 if datos.get('estado') == "ACTIVO" else 1,
+                                                           key=f"e_estado_{uid_sel}")
+                            nuevo_stock_min = st.number_input("STOCK MINIMO (pzas)", min_value=0,
+                                                              value=int(datos.get('stock_minimo', 0)),
+                                                              key=f"e_smin_{uid_sel}",
+                                                              help="Alerta cuando la cantidad baje de este valor. 0 = sin alerta.")
+                            _nuevo_alto_m = nuevo_alto_cm / 100.0
+                            _vol_calc = _vol(datos.get('embalaje', ''), datos.get('embalaje_obs', ''), _nuevo_alto_m)
+                            st.metric("VOLUMEN (M3)", f"{_vol_calc:.4f}",
+                                      help="Calculado: largo × ancho del embalaje × alto editado.")
 
-                if es_admin:
-                    ed1, ed2, ed3 = st.columns(3)
-                    with ed1:
-                        nuevo_sku    = st.text_input("SKU BASE", value=datos.get('sku_base', ''), key=f"e_sku_{uid_sel}")
-                        nuevo_nombre = st.text_input("NOMBRE",   value=datos.get('nombre', ''),   key=f"e_nom_{uid_sel}")
-                    with ed2:
-                        nueva_cant  = st.number_input("PIEZAS", min_value=1,
-                                                      value=int(datos.get('cantidad', 1)), key=f"e_cant_{uid_sel}")
-                        nuevo_peso  = st.number_input("PESO (KG)", min_value=0.0,
-                                                      value=float(datos.get('peso', 0.0)), key=f"e_peso_{uid_sel}")
-                        nuevo_alto_cm = st.number_input(
-                            "ALTO (CM)", min_value=0.0, step=1.0,
-                            value=round(float(datos.get('alto_m', 0.0)) * 100, 1),
-                            key=f"e_alto_{uid_sel}",
-                            help="Modifica si se equivocó al registrar. Puede reasignar el artículo.",
-                        )
-                    with ed3:
-                        nuevo_estado = st.selectbox("ESTADO", ["ACTIVO", "CONGELADO"],
-                                                    index=0 if datos.get('estado') == "ACTIVO" else 1,
-                                                    key=f"e_estado_{uid_sel}")
-                        nuevo_stock_min = st.number_input("STOCK MINIMO (pzas)", min_value=0,
-                                                          value=int(datos.get('stock_minimo', 0)),
-                                                          key=f"e_smin_{uid_sel}",
-                                                          help="Alerta cuando la cantidad baje de este valor. 0 = sin alerta.")
-                        _nuevo_alto_m = nuevo_alto_cm / 100.0
-                        _vol_calc = _vol(datos.get('embalaje', ''), datos.get('embalaje_obs', ''), _nuevo_alto_m)
-                        st.metric("VOLUMEN (M3)", f"{_vol_calc:.4f}",
-                                  help="Calculado: largo × ancho del embalaje × alto editado.")
+                        rack_actual  = datos.get('rack', 'RACK_1')
+                        piso_actual  = datos.get('piso', 1)
+                        nivel_actual = int(datos.get('fila', 1))
 
-                    rack_actual  = datos.get('rack', 'RACK_1')
-                    piso_actual  = datos.get('piso', 1)
-                    nivel_actual = int(datos.get('fila', 1))
+                        ba1, ba2, ba3 = st.columns(3)
+                        with ba1:
+                            if st.button("GUARDAR CAMBIOS", use_container_width=True, type="primary"):
+                                _alto_m_new = nuevo_alto_cm / 100.0
+                                _vol_new    = _vol(datos.get('embalaje', ''), datos.get('embalaje_obs', ''), _alto_m_new)
 
-                    ba1, ba2, ba3 = st.columns(3)
-                    with ba1:
-                        if st.button("GUARDAR CAMBIOS", use_container_width=True):
-                            _alto_m_new = nuevo_alto_cm / 100.0
-                            _vol_new    = _vol(datos.get('embalaje', ''), datos.get('embalaje_obs', ''), _alto_m_new)
+                                _forzar_sobre = _alto_m_new > ALTO_MAX_N3 or nuevo_peso > PESO_SOBRE
+                                _needs_reasig = False
 
-                            # ── Verificar si hay que reasignar ────────────────
-                            _forzar_sobre = _alto_m_new > ALTO_MAX_N3 or nuevo_peso > PESO_SOBRE
-                            _needs_reasig = False
-
-                            if _forzar_sobre and rack_actual != "RACK_5":
-                                _needs_reasig = True
-                            elif not _forzar_sobre and rack_actual == "RACK_5":
-                                _needs_reasig = True
-                            elif not _forzar_sobre:
-                                if not nivel_acepta_altura(nivel_actual, _alto_m_new):
+                                if _forzar_sobre and rack_actual != "RACK_5":
                                     _needs_reasig = True
-                                else:
-                                    _peso_nivel = peso_en_nivel(db_actual, rack_actual, piso_actual, nivel_actual)
-                                    _peso_sin   = _peso_nivel - float(datos.get('peso', 0))
-                                    if _peso_sin + nuevo_peso > CARGA_MAX_NIVEL:
+                                elif not _forzar_sobre and rack_actual == "RACK_5":
+                                    _needs_reasig = True
+                                elif not _forzar_sobre:
+                                    if not nivel_acepta_altura(nivel_actual, _alto_m_new):
                                         _needs_reasig = True
+                                    else:
+                                        _peso_nivel = peso_en_nivel(db_actual, rack_actual, piso_actual, nivel_actual)
+                                        _peso_sin   = _peso_nivel - float(datos.get('peso', 0))
+                                        if _peso_sin + nuevo_peso > CARGA_MAX_NIVEL:
+                                            _needs_reasig = True
 
-                            _updates = {
-                                'sku_base': nuevo_sku, 'nombre': nuevo_nombre,
-                                'cantidad': nueva_cant, 'estado': nuevo_estado,
-                                'peso': nuevo_peso, 'alto_m': round(_alto_m_new, 2),
-                                'volumen': _vol_new, 'stock_minimo': nuevo_stock_min,
-                            }
+                                _updates = {
+                                    'sku_base': nuevo_sku, 'nombre': nuevo_nombre,
+                                    'cantidad': nueva_cant, 'estado': nuevo_estado,
+                                    'peso': nuevo_peso, 'alto_m': round(_alto_m_new, 2),
+                                    'volumen': _vol_new, 'stock_minimo': nuevo_stock_min,
+                                }
 
-                            if _needs_reasig:
-                                _db_temp = {k: v for k, v in db_actual.items() if k != uid_sel}
-                                _racks_try = ["RACK_5"] if _forzar_sobre else _RACKS_NORM + ["RACK_5"]
-                                _nr = _np = _nn = _nc = None
-                                for _rack in _racks_try:
-                                    _np, _nn, _nc = obtener_coordenada_libre(
-                                        _db_temp, _rack, peso_nuevo=nuevo_peso, alto_m=_alto_m_new)
-                                    if _np is not None:
-                                        _nr = _rack
-                                        break
-                                if _nr is None:
-                                    st.error("Sin espacio para reasignar con las nuevas dimensiones.")
+                                if _needs_reasig:
+                                    _db_temp   = {k: v for k, v in db_actual.items() if k != uid_sel}
+                                    _racks_try = ["RACK_5"] if _forzar_sobre else _RACKS_NORM + ["RACK_5"]
+                                    _nr = _np = _nn = _nc = None
+                                    for _rack in _racks_try:
+                                        _np, _nn, _nc = obtener_coordenada_libre(
+                                            _db_temp, _rack, peso_nuevo=nuevo_peso, alto_m=_alto_m_new)
+                                        if _np is not None:
+                                            _nr = _rack
+                                            break
+                                    if _nr is None:
+                                        st.error("Sin espacio para reasignar con las nuevas dimensiones.")
+                                    else:
+                                        _updates.update({'rack': _nr, 'piso': _np, 'fila': _nn, 'columna': _nc})
+                                        db_actual[uid_sel].update(_updates)
+                                        guardar_db(db_actual)
+                                        registrar_movimiento('EDICION', uid_sel,
+                                            f"SKU:{nuevo_sku} | Alto:{nuevo_alto_cm:.0f}cm | Peso:{nuevo_peso}kg"
+                                            f" | Reasignado {rack_actual}→{_nr} P{_np}N{_nn}C{_nc}")
+                                        _f_ant = RACK_A_FILA.get(rack_actual, rack_actual)
+                                        _f_nue = RACK_A_FILA.get(_nr, _nr)
+                                        st.warning(
+                                            f"Artículo reasignado: {_f_ant} → {_f_nue} | "
+                                            f"Piso {_np} · Nivel {_nn} · Col {_nc}"
+                                        )
+                                        st.rerun()
                                 else:
-                                    _updates.update({'rack': _nr, 'piso': _np, 'fila': _nn, 'columna': _nc})
                                     db_actual[uid_sel].update(_updates)
                                     guardar_db(db_actual)
                                     registrar_movimiento('EDICION', uid_sel,
-                                        f"SKU:{nuevo_sku} | Alto:{nuevo_alto_cm:.0f}cm | Peso:{nuevo_peso}kg"
-                                        f" | Reasignado {rack_actual}→{_nr} P{_np}N{_nn}C{_nc}")
-                                    _f_ant = RACK_A_FILA.get(rack_actual, rack_actual)
-                                    _f_nue = RACK_A_FILA.get(_nr, _nr)
-                                    st.warning(
-                                        f"Artículo reasignado: {_f_ant} → {_f_nue} | "
-                                        f"Piso {_np} · Nivel {_nn} · Col {_nc}"
-                                    )
+                                        f"SKU:{nuevo_sku} | Estado:{nuevo_estado} | "
+                                        f"Peso:{nuevo_peso}kg | Alto:{nuevo_alto_cm:.0f}cm")
+                                    st.success("Cambios guardados.")
                                     st.rerun()
-                            else:
-                                db_actual[uid_sel].update(_updates)
-                                guardar_db(db_actual)
-                                registrar_movimiento('EDICION', uid_sel,
-                                    f"SKU:{nuevo_sku} | Estado:{nuevo_estado} | "
-                                    f"Peso:{nuevo_peso}kg | Alto:{nuevo_alto_cm:.0f}cm")
-                                st.success("Cambios guardados.")
-                                st.rerun()
-                    with ba2:
-                        if st.button("DAR DE BAJA", use_container_width=True):
-                            _nom_b = datos.get('nombre', '')
-                            _rack_b = datos.get('rack', '')
-                            if dar_de_baja_pallet(uid_sel):
-                                registrar_movimiento('BAJA', uid_sel, f"{_nom_b} | {_rack_b}")
-                                st.warning(f"Pallet {uid_sel} dado de baja.")
-                                st.rerun()
-                    with ba3:
-                        if st.button("ELIMINAR PERMANENTE", use_container_width=True):
-                            _nom_eli  = datos.get('nombre', '')
-                            _rack_eli = datos.get('rack', '')
-                            if eliminar_pallet(uid_sel):
-                                registrar_movimiento('ELIMINACION', uid_sel, f"{_nom_eli} | {_rack_eli}")
-                                st.error("Pallet eliminado permanentemente.")
-                                st.rerun()
-                else:
-                    st.markdown(
-                        "<div style='background:#1e2130;border:1px solid #3a3f55;border-radius:8px;"
-                        "padding:12px 16px;margin-top:8px;'>"
-                        "<table style='width:100%;font-size:13px;color:#cdd3ea;border-collapse:collapse;'>"
-                        f"<tr><td style='padding:4px 8px;color:#8892b0;'>SKU</td>"
-                        f"<td style='padding:4px 8px;'>{datos.get('sku_base','N/A')}</td>"
-                        f"<td style='padding:4px 8px;color:#8892b0;'>Rack</td>"
-                        f"<td style='padding:4px 8px;'>{datos.get('rack','')} · Piso {datos.get('piso','')} · Niv {datos.get('fila','')} · Col {datos.get('columna','')}</td></tr>"
-                        f"<tr><td style='padding:4px 8px;color:#8892b0;'>Peso</td>"
-                        f"<td style='padding:4px 8px;'>{datos.get('peso',0)} kg</td>"
-                        f"<td style='padding:4px 8px;color:#8892b0;'>Piezas</td>"
-                        f"<td style='padding:4px 8px;'>{datos.get('cantidad',1)}</td></tr>"
-                        f"<tr><td style='padding:4px 8px;color:#8892b0;'>Estado</td>"
-                        f"<td style='padding:4px 8px;'>{datos.get('estado','ACTIVO')}</td>"
-                        f"<td style='padding:4px 8px;color:#8892b0;'>Embalaje</td>"
-                        f"<td style='padding:4px 8px;'>{datos.get('embalaje','N/A')}</td></tr>"
-                        "</table></div>",
-                        unsafe_allow_html=True
-                    )
-                    st.info("Solo el administrador puede editar, dar de baja o eliminar materiales.")
+                        with ba2:
+                            if st.button("DAR DE BAJA", use_container_width=True):
+                                _nom_b  = datos.get('nombre', '')
+                                _rack_b = datos.get('rack', '')
+                                if dar_de_baja_pallet(uid_sel):
+                                    registrar_movimiento('BAJA', uid_sel, f"{_nom_b} | {_rack_b}")
+                                    st.warning(f"Pallet {uid_sel} dado de baja.")
+                                    st.rerun()
+                        with ba3:
+                            if st.button("ELIMINAR PERMANENTE", use_container_width=True):
+                                _nom_eli  = datos.get('nombre', '')
+                                _rack_eli = datos.get('rack', '')
+                                if eliminar_pallet(uid_sel):
+                                    registrar_movimiento('ELIMINACION', uid_sel, f"{_nom_eli} | {_rack_eli}")
+                                    st.error("Pallet eliminado permanentemente.")
+                                    st.rerun()
+                    else:
+                        _r = datos.get('rack', '')
+                        _loc = (f"{_r} · Piso {datos.get('piso','')} · "
+                                f"Niv {datos.get('fila','')} · Col {datos.get('columna','')}")
+                        st.markdown(
+                            "<div style='background:#1e2130;border:1px solid #3a3f55;border-radius:8px;"
+                            "padding:12px 16px;margin-top:4px;'>"
+                            "<table style='width:100%;font-size:13px;color:#cdd3ea;border-collapse:collapse;'>"
+                            f"<tr><td style='padding:4px 8px;color:#8892b0;'>SKU</td>"
+                            f"<td style='padding:4px 8px;'>{datos.get('sku_base','N/A')}</td>"
+                            f"<td style='padding:4px 8px;color:#8892b0;'>Ubicación</td>"
+                            f"<td style='padding:4px 8px;'>{_loc}</td></tr>"
+                            f"<tr><td style='padding:4px 8px;color:#8892b0;'>Peso</td>"
+                            f"<td style='padding:4px 8px;'>{datos.get('peso',0)} kg</td>"
+                            f"<td style='padding:4px 8px;color:#8892b0;'>Piezas</td>"
+                            f"<td style='padding:4px 8px;'>{datos.get('cantidad',1)}</td></tr>"
+                            f"<tr><td style='padding:4px 8px;color:#8892b0;'>Estado</td>"
+                            f"<td style='padding:4px 8px;'>{datos.get('estado','ACTIVO')}</td>"
+                            f"<td style='padding:4px 8px;color:#8892b0;'>Embalaje</td>"
+                            f"<td style='padding:4px 8px;'>{datos.get('embalaje','N/A')}</td></tr>"
+                            "</table></div>",
+                            unsafe_allow_html=True,
+                        )
+                        st.info("Solo el administrador puede editar, dar de baja o eliminar materiales.")
 
         st.divider()
 
