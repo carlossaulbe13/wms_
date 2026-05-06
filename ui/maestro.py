@@ -159,26 +159,26 @@ def render():
                 if es_admin:
                     ed1, ed2, ed3 = st.columns(3)
                     with ed1:
-                        nuevo_sku    = st.text_input("SKU BASE", value=datos.get('sku_base', ''), key="e_sku")
-                        nuevo_nombre = st.text_input("NOMBRE",   value=datos.get('nombre', ''),   key="e_nom")
+                        nuevo_sku    = st.text_input("SKU BASE", value=datos.get('sku_base', ''), key=f"e_sku_{uid_sel}")
+                        nuevo_nombre = st.text_input("NOMBRE",   value=datos.get('nombre', ''),   key=f"e_nom_{uid_sel}")
                     with ed2:
                         nueva_cant  = st.number_input("PIEZAS", min_value=1,
-                                                      value=int(datos.get('cantidad', 1)), key="e_cant")
+                                                      value=int(datos.get('cantidad', 1)), key=f"e_cant_{uid_sel}")
                         nuevo_peso  = st.number_input("PESO (KG)", min_value=0.0,
-                                                      value=float(datos.get('peso', 0.0)), key="e_peso")
+                                                      value=float(datos.get('peso', 0.0)), key=f"e_peso_{uid_sel}")
                         nuevo_alto_cm = st.number_input(
                             "ALTO (CM)", min_value=0.0, step=1.0,
                             value=round(float(datos.get('alto_m', 0.0)) * 100, 1),
-                            key="e_alto",
+                            key=f"e_alto_{uid_sel}",
                             help="Modifica si se equivocó al registrar. Puede reasignar el artículo.",
                         )
                     with ed3:
                         nuevo_estado = st.selectbox("ESTADO", ["ACTIVO", "CONGELADO"],
                                                     index=0 if datos.get('estado') == "ACTIVO" else 1,
-                                                    key="e_estado")
+                                                    key=f"e_estado_{uid_sel}")
                         nuevo_stock_min = st.number_input("STOCK MINIMO (pzas)", min_value=0,
                                                           value=int(datos.get('stock_minimo', 0)),
-                                                          key="e_smin",
+                                                          key=f"e_smin_{uid_sel}",
                                                           help="Alerta cuando la cantidad baje de este valor. 0 = sin alerta.")
                         _nuevo_alto_m = nuevo_alto_cm / 100.0
                         _vol_calc = _vol(datos.get('embalaje', ''), datos.get('embalaje_obs', ''), _nuevo_alto_m)
