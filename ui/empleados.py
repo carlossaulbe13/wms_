@@ -6,7 +6,7 @@ import datetime
 import hashlib
 import streamlit as st
 from config import HONORIFICOS, PERMISOS_DISPONIBLES
-from firebase import cargar_empleados, guardar_empleado, eliminar_empleado
+from firebase import cargar_empleados, guardar_empleado_key, eliminar_empleado_key
 
 _ROLES = ["operador", "admin"]
 
@@ -112,15 +112,7 @@ def render():
                     if pwd1_clean:
                         datos["password_hash"] = _hash_pwd(pwd1_clean)
 
-                    # Guardar con key explícita (no depende de uid_rfid)
-                    from firebase import EMPLEADOS_URL
-                    import requests
-                    url = EMPLEADOS_URL.replace("empleados.json", f"empleados/{key}.json")
-                    try:
-                        res = requests.put(url, json=datos, timeout=5)
-                        ok = res.status_code in (200, 204)
-                    except Exception:
-                        ok = False
+                    ok = guardar_empleado_key(key, datos)
 
                     if ok:
                         st.success(f"Empleado '{nombre_clean}' registrado correctamente.")
@@ -198,18 +190,7 @@ def render():
                 ca, cb = st.columns(2)
                 with ca:
                     if st.button("Sí, eliminar", key=f"del_ok_{key}", type="primary", use_container_width=True):
-                        uid_val = emp.get("uid_rfid", "")
-                        if uid_val:
-                            eliminar_empleado(uid_val)
-                        else:
-                            # Eliminar por key directamente
-                            from firebase import EMPLEADOS_URL
-                            import requests
-                            url = EMPLEADOS_URL.replace("empleados.json", f"empleados/{key}.json")
-                            try:
-                                requests.delete(url, timeout=5)
-                            except Exception:
-                                pass
+                        eliminar_empleado_key(key)
                         st.session_state.pop(f"_confirm_del_{key}", None)
                         st.rerun()
                 with cb:
