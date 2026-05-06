@@ -322,7 +322,15 @@ def pantalla_login(token_secreto, token_admin_pwd):
 
         if _show_glow:
             # ── Pantalla de bienvenida (RFID o contraseña) ────
-            _emp_saludo = _empleado if _rfid_glow else st.session_state.get('_empleado_activo')
+            # En fase 1 del glow de contraseña, _empleado_activo todavía tiene
+            # los datos del empleado anterior (auth aún no aplicada). Leer el
+            # empleado pendiente directo de _pwd_glow_auth para evitar el flash.
+            if _rfid_glow:
+                _emp_saludo = _empleado
+            elif st.session_state.get('_pwd_glow_auth'):
+                _emp_saludo = st.session_state['_pwd_glow_auth'].get('_empleado_activo')
+            else:
+                _emp_saludo = st.session_state.get('_empleado_activo')
             if _emp_saludo:
                 _hon_g  = _emp_saludo.get('honorifico', '')
                 _ape_g  = _emp_saludo.get('apellido', '')
